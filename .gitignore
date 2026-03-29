@@ -49,3 +49,7 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Upload directory (large files)
+upload/
+
+db/
