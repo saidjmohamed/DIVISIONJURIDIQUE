@@ -1,0 +1,1858 @@
+From d882befad036395fffbb4ea6614b345689e421c3 Mon Sep 17 00:00:00 2001
+From: Z User <z@container>
+Date: Tue, 24 Mar 2026 21:26:11 +0000
+Subject: [PATCH] =?UTF-8?q?=E2=9C=A8=20=D8=AA=D8=AD=D8=B3=D9=8A=D9=86=20?=
+ =?UTF-8?q?=D8=B4=D8=A7=D9=85=D9=84=20=D9=84=D9=88=D8=A7=D8=AC=D9=87=D8=A9?=
+ =?UTF-8?q?=20=D8=A7=D9=84=D8=AA=D8=B7=D8=A8=D9=8A=D9=82=20-=20=D8=AA?=
+ =?UTF-8?q?=D8=B5=D9=85=D9=8A=D9=85=20=D8=A7=D8=AD=D8=AA=D8=B1=D8=A7=D9=81?=
+ =?UTF-8?q?=D9=8A=20=D9=88=D8=AC=D8=B0=D8=A7=D8=A8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+- نظام ألوان جديد (Navy + Gold) مع ظلال وحواف محسنة
+- شريط تنقل سفلي محسّن مع تأثير الرفع للتبويب النشط
+- بطاقات نتائج احترافية بشريط جانبي ملون
+- حقل بحث محسّن (28px radius) مع قائمة اقتراحات
+- شريط إحصاءات بخلفية متدرجة وأرقام ذهبية
+- Accordion محسّن مع أيقونات وأحرف المحاكم
+- نظام Toast للإشعارات (4 أنواع)
+- دعم Dark Mode تلقائي
+- رسوم متحركة جديدة (slideUp, dropDown, shimmer)
+---
+ src/app/globals.css | 991 ++++++++++++++++++++++++++++++++++++++++----
+ src/app/page.tsx    | 535 +++++++++++++++++++-----
+ 2 files changed, 1353 insertions(+), 173 deletions(-)
+
+diff --git a/src/app/globals.css b/src/app/globals.css
+index 2c5af69..da35f1e 100755
+--- a/src/app/globals.css
++++ b/src/app/globals.css
+@@ -3,6 +3,147 @@
+ 
+ @custom-variant dark (&:is(.dark *));
+ 
++/* ========================================
++   PART 1 — نظام الألوان والمتغيرات الجديد
++   ======================================== */
++:root {
++  /* الألوان الرئيسية */
++  --navy: #1a3a5c;
++  --navy-dark: #0f2540;
++  --navy-light: #2d5986;
++  --gold: #c9a84c;
++  --gold-light: #f0c040;
++
++  /* ألوان التبويبات */
++  --color-search: #2563eb;
++  --color-ordinary: #1a3a5c;
++  --color-admin: #7c3aed;
++  --color-commercial: #059669;
++  --color-suggest: #d97706;
++  --color-about: #475569;
++
++  /* الخلفيات */
++  --bg-page: #f1f5f9;
++  --bg-card: #ffffff;
++  --bg-subtle: #f8fafc;
++
++  /* النصوص */
++  --text-primary: #0f172a;
++  --text-secondary: #475569;
++  --text-muted: #94a3b8;
++
++  /* التأثيرات */
++  --shadow-sm: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
++  --shadow-md: 0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06);
++  --shadow-lg: 0 12px 40px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08);
++  --shadow-nav: 0 -4px 24px rgba(0,0,0,0.10);
++
++  /* الحواف */
++  --radius-sm: 8px;
++  --radius-md: 14px;
++  --radius-lg: 20px;
++  --radius-xl: 28px;
++
++  /* الخط */
++  --font: 'Segoe UI', 'Cairo', Tahoma, Arial, sans-serif;
++
++  /* Original Tailwind Variables */
++  --radius: 0.625rem;
++  --background: oklch(1 0 0);
++  --foreground: oklch(0.145 0 0);
++  --card: oklch(1 0 0);
++  --card-foreground: oklch(0.145 0 0);
++  --popover: oklch(1 0 0);
++  --popover-foreground: oklch(0.145 0 0);
++  --primary: oklch(0.205 0 0);
++  --primary-foreground: oklch(0.985 0 0);
++  --secondary: oklch(0.97 0 0);
++  --secondary-foreground: oklch(0.205 0 0);
++  --muted: oklch(0.97 0 0);
++  --muted-foreground: oklch(0.556 0 0);
++  --accent: oklch(0.97 0 0);
++  --accent-foreground: oklch(0.205 0 0);
++  --destructive: oklch(0.577 0.245 27.325);
++  --border: oklch(0.922 0 0);
++  --input: oklch(0.922 0 0);
++  --ring: oklch(0.708 0 0);
++  --chart-1: oklch(0.646 0.222 41.116);
++  --chart-2: oklch(0.6 0.118 184.704);
++  --chart-3: oklch(0.398 0.07 227.392);
++  --chart-4: oklch(0.828 0.189 84.429);
++  --chart-5: oklch(0.769 0.188 70.08);
++  --sidebar: oklch(0.985 0 0);
++  --sidebar-foreground: oklch(0.145 0 0);
++  --sidebar-primary: oklch(0.205 0 0);
++  --sidebar-primary-foreground: oklch(0.985 0 0);
++  --sidebar-accent: oklch(0.97 0 0);
++  --sidebar-accent-foreground: oklch(0.205 0 0);
++  --sidebar-border: oklch(0.922 0 0);
++  --sidebar-ring: oklch(0.708 0 0);
++}
++
++/* ========================================
++   PART 10 — Dark Mode
++   ======================================== */
++@media (prefers-color-scheme: dark) {
++  :root {
++    --bg-page: #0f172a;
++    --bg-card: #1e293b;
++    --bg-subtle: #1e293b;
++    --text-primary: #f1f5f9;
++    --text-secondary: #94a3b8;
++    --text-muted: #64748b;
++    --shadow-sm: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
++    --shadow-md: 0 4px 16px rgba(0,0,0,0.4), 0 2px 6px rgba(0,0,0,0.3);
++    --shadow-lg: 0 12px 40px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.4);
++    --shadow-nav: 0 -4px 24px rgba(0,0,0,0.4);
++  }
++
++  .dark {
++    --background: oklch(0.145 0 0);
++    --foreground: oklch(0.985 0 0);
++    --card: oklch(0.205 0 0);
++    --card-foreground: oklch(0.985 0 0);
++    --popover: oklch(0.205 0 0);
++    --popover-foreground: oklch(0.985 0 0);
++    --primary: oklch(0.922 0 0);
++    --primary-foreground: oklch(0.205 0 0);
++    --secondary: oklch(0.269 0 0);
++    --secondary-foreground: oklch(0.985 0 0);
++    --muted: oklch(0.269 0 0);
++    --muted-foreground: oklch(0.708 0 0);
++    --accent: oklch(0.269 0 0);
++    --accent-foreground: oklch(0.985 0 0);
++    --destructive: oklch(0.704 0.191 22.216);
++    --border: oklch(1 0 0 / 10%);
++    --input: oklch(1 0 0 / 15%);
++    --ring: oklch(0.556 0 0);
++    --chart-1: oklch(0.488 0.243 264.376);
++    --chart-2: oklch(0.696 0.17 162.48);
++    --chart-3: oklch(0.769 0.188 70.08);
++    --chart-4: oklch(0.627 0.265 303.9);
++    --chart-5: oklch(0.645 0.246 16.439);
++    --sidebar: oklch(0.205 0 0);
++    --sidebar-foreground: oklch(0.985 0 0);
++    --sidebar-primary: oklch(0.488 0.243 264.376);
++    --sidebar-primary-foreground: oklch(0.985 0 0);
++    --sidebar-accent: oklch(0.269 0 0);
++    --sidebar-accent-foreground: oklch(0.985 0 0);
++    --sidebar-border: oklch(1 0 0 / 10%);
++    --sidebar-ring: oklch(0.556 0 0);
++  }
++}
++
++/* Dark mode class for manual toggle */
++.dark {
++  --bg-page: #0f172a;
++  --bg-card: #1e293b;
++  --bg-subtle: #1e293b;
++  --text-primary: #f1f5f9;
++  --text-secondary: #94a3b8;
++  --text-muted: #64748b;
++}
++
+ @theme inline {
+   --color-background: var(--background);
+   --color-foreground: var(--foreground);
+@@ -43,75 +184,6 @@
+   --radius-xl: calc(var(--radius) + 4px);
+ }
+ 
+-:root {
+-  --radius: 0.625rem;
+-  --background: oklch(1 0 0);
+-  --foreground: oklch(0.145 0 0);
+-  --card: oklch(1 0 0);
+-  --card-foreground: oklch(0.145 0 0);
+-  --popover: oklch(1 0 0);
+-  --popover-foreground: oklch(0.145 0 0);
+-  --primary: oklch(0.205 0 0);
+-  --primary-foreground: oklch(0.985 0 0);
+-  --secondary: oklch(0.97 0 0);
+-  --secondary-foreground: oklch(0.205 0 0);
+-  --muted: oklch(0.97 0 0);
+-  --muted-foreground: oklch(0.556 0 0);
+-  --accent: oklch(0.97 0 0);
+-  --accent-foreground: oklch(0.205 0 0);
+-  --destructive: oklch(0.577 0.245 27.325);
+-  --border: oklch(0.922 0 0);
+-  --input: oklch(0.922 0 0);
+-  --ring: oklch(0.708 0 0);
+-  --chart-1: oklch(0.646 0.222 41.116);
+-  --chart-2: oklch(0.6 0.118 184.704);
+-  --chart-3: oklch(0.398 0.07 227.392);
+-  --chart-4: oklch(0.828 0.189 84.429);
+-  --chart-5: oklch(0.769 0.188 70.08);
+-  --sidebar: oklch(0.985 0 0);
+-  --sidebar-foreground: oklch(0.145 0 0);
+-  --sidebar-primary: oklch(0.205 0 0);
+-  --sidebar-primary-foreground: oklch(0.985 0 0);
+-  --sidebar-accent: oklch(0.97 0 0);
+-  --sidebar-accent-foreground: oklch(0.205 0 0);
+-  --sidebar-border: oklch(0.922 0 0);
+-  --sidebar-ring: oklch(0.708 0 0);
+-}
+-
+-.dark {
+-  --background: oklch(0.145 0 0);
+-  --foreground: oklch(0.985 0 0);
+-  --card: oklch(0.205 0 0);
+-  --card-foreground: oklch(0.985 0 0);
+-  --popover: oklch(0.205 0 0);
+-  --popover-foreground: oklch(0.985 0 0);
+-  --primary: oklch(0.922 0 0);
+-  --primary-foreground: oklch(0.205 0 0);
+-  --secondary: oklch(0.269 0 0);
+-  --secondary-foreground: oklch(0.985 0 0);
+-  --muted: oklch(0.269 0 0);
+-  --muted-foreground: oklch(0.708 0 0);
+-  --accent: oklch(0.269 0 0);
+-  --accent-foreground: oklch(0.985 0 0);
+-  --destructive: oklch(0.704 0.191 22.216);
+-  --border: oklch(1 0 0 / 10%);
+-  --input: oklch(1 0 0 / 15%);
+-  --ring: oklch(0.556 0 0);
+-  --chart-1: oklch(0.488 0.243 264.376);
+-  --chart-2: oklch(0.696 0.17 162.48);
+-  --chart-3: oklch(0.769 0.188 70.08);
+-  --chart-4: oklch(0.627 0.265 303.9);
+-  --chart-5: oklch(0.645 0.246 16.439);
+-  --sidebar: oklch(0.205 0 0);
+-  --sidebar-foreground: oklch(0.985 0 0);
+-  --sidebar-primary: oklch(0.488 0.243 264.376);
+-  --sidebar-primary-foreground: oklch(0.985 0 0);
+-  --sidebar-accent: oklch(0.269 0 0);
+-  --sidebar-accent-foreground: oklch(0.985 0 0);
+-  --sidebar-border: oklch(1 0 0 / 10%);
+-  --sidebar-ring: oklch(0.556 0 0);
+-}
+-
+ @layer base {
+   * {
+     @apply border-border outline-ring/50;
+@@ -121,13 +193,34 @@
+   }
+ }
+ 
++/* ========================================
++   PART 2 — الهيكل العام للصفحة
++   ======================================== */
++body {
++  background: var(--bg-page);
++  font-family: var(--font);
++  direction: rtl;
++  margin: 0;
++  padding: 0;
++  min-height: 100vh;
++}
++
++/* حاوية التطبيق */
++.app-container {
++  max-width: 480px;
++  margin: 0 auto;
++  position: relative;
++  min-height: 100vh;
++  background: var(--bg-page);
++}
++
+ /* Safe Area for iPhone X and newer */
+ @supports (padding: max(0px)) {
+   .safe-area-bottom {
+     padding-bottom: max(16px, env(safe-area-inset-bottom));
+     padding-bottom: max(16px, constant(safe-area-inset-bottom));
+   }
+-  
++
+   .safe-area-top {
+     padding-top: max(0px, env(safe-area-inset-top));
+     padding-top: max(0px, constant(safe-area-inset-top));
+@@ -142,7 +235,7 @@
+ }
+ 
+ /* Minimum touch target size for Apple */
+-button, 
++button,
+ [role="button"],
+ .tab-btn,
+ .chip,
+@@ -182,7 +275,29 @@ nav.fixed.bottom-0 {
+   padding-bottom: constant(safe-area-inset-bottom, 0px);
+ }
+ 
+-/* Animations */
++/* ========================================
++   PART 8 — الرسوم المتحركة
++   ======================================== */
++@keyframes slideUp {
++  from { opacity: 0; transform: translateY(16px); }
++  to   { opacity: 1; transform: translateY(0);    }
++}
++
++@keyframes dropDown {
++  from { opacity: 0; transform: translateY(-8px); }
++  to   { opacity: 1; transform: translateY(0);    }
++}
++
++@keyframes pulse {
++  0%, 100% { transform: scale(1); }
++  50%       { transform: scale(1.05); }
++}
++
++@keyframes shimmer {
++  0%   { background-position: -200% 0; }
++  100% { background-position:  200% 0; }
++}
++
+ @keyframes fade-in {
+   from { opacity: 0; transform: translateY(10px); }
+   to { opacity: 1; transform: translateY(0); }
+@@ -198,6 +313,35 @@ nav.fixed.bottom-0 {
+   to { opacity: 1; transform: translateX(0); }
+ }
+ 
++@keyframes bounce-in {
++  0% { transform: scale(0.3); opacity: 0; }
++  50% { transform: scale(1.05); }
++  70% { transform: scale(0.9); }
++  100% { transform: scale(1); opacity: 1; }
++}
++
++@keyframes toast-in {
++  from {
++    opacity: 0;
++    transform: translateX(-50%) translateY(20px);
++  }
++  to {
++    opacity: 1;
++    transform: translateX(-50%) translateY(0);
++  }
++}
++
++@keyframes toast-out {
++  from {
++    opacity: 1;
++    transform: translateX(-50%) translateY(0);
++  }
++  to {
++    opacity: 0;
++    transform: translateX(-50%) translateY(20px);
++  }
++}
++
+ .animate-fade-in {
+   animation: fade-in 0.3s ease-out;
+ }
+@@ -209,3 +353,706 @@ nav.fixed.bottom-0 {
+ .animate-slide-in {
+   animation: slide-in 0.3s ease-out;
+ }
++
++.animate-bounce-in {
++  animation: bounce-in 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
++}
++
++/* Skeleton Loading */
++.skeleton {
++  background: linear-gradient(90deg,
++    #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
++  background-size: 200% 100%;
++  animation: shimmer 1.5s infinite;
++  border-radius: var(--radius-sm);
++}
++
++@media (prefers-color-scheme: dark) {
++  .skeleton {
++    background: linear-gradient(90deg,
++      #334155 25%, #475569 50%, #334155 75%);
++    background-size: 200% 100%;
++  }
++}
++
++/* ========================================
++   PART 9 — Toast إشعار
++   ======================================== */
++.toast {
++  position: fixed;
++  bottom: calc(90px + env(safe-area-inset-bottom));
++  left: 50%;
++  transform: translateX(-50%) translateY(20px);
++  color: white;
++  padding: 12px 20px;
++  border-radius: var(--radius-xl);
++  font-size: 14px;
++  font-weight: 600;
++  display: flex;
++  align-items: center;
++  gap: 8px;
++  box-shadow: var(--shadow-lg);
++  z-index: 9999;
++  opacity: 0;
++  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
++  white-space: nowrap;
++  direction: rtl;
++}
++
++.toast.toast-visible {
++  opacity: 1;
++  transform: translateX(-50%) translateY(0);
++}
++
++.toast.toast-success { background: #22c55e; }
++.toast.toast-info { background: #3b82f6; }
++.toast.toast-warning { background: #f59e0b; }
++.toast.toast-error { background: #ef4444; }
++
++/* ========================================
++   PART 3 — شريط التنقل السفلي المُحسَّن
++   ======================================== */
++.bottom-nav-enhanced {
++  position: fixed;
++  bottom: 0;
++  left: 50%;
++  transform: translateX(-50%);
++  width: 100%;
++  max-width: 480px;
++  background: white;
++  border-top: none;
++  box-shadow: var(--shadow-nav);
++  display: flex;
++  padding: 8px 4px calc(8px + env(safe-area-inset-bottom));
++  gap: 2px;
++  z-index: 200;
++  border-radius: 24px 24px 0 0;
++}
++
++@media (prefers-color-scheme: dark) {
++  .bottom-nav-enhanced {
++    background: #1e293b;
++    border-top: 1px solid #334155;
++  }
++}
++
++.nav-item-enhanced {
++  flex: 1;
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  justify-content: center;
++  gap: 4px;
++  padding: 6px 4px;
++  cursor: pointer;
++  border-radius: var(--radius-md);
++  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
++  position: relative;
++  background: transparent;
++  border: none;
++  -webkit-tap-highlight-color: transparent;
++}
++
++/* التبويب النشط */
++.nav-item-enhanced.active {
++  background: linear-gradient(135deg, var(--tab-color, var(--navy)) 0%,
++              color-mix(in srgb, var(--tab-color, var(--navy)) 80%, black) 100%);
++  transform: translateY(-4px);
++  box-shadow: 0 6px 20px color-mix(in srgb, var(--tab-color, var(--navy)) 40%, transparent);
++}
++
++.nav-item-enhanced.active .nav-icon,
++.nav-item-enhanced.active .nav-label {
++  color: white;
++}
++
++.nav-icon {
++  font-size: 20px;
++  transition: transform 0.25s;
++  color: var(--text-muted);
++}
++
++.nav-label {
++  font-size: 10px;
++  font-weight: 600;
++  color: var(--text-muted);
++  white-space: nowrap;
++}
++
++/* نقطة إشعار */
++.nav-badge {
++  position: absolute;
++  top: 4px;
++  left: 4px;
++  width: 8px;
++  height: 8px;
++  background: #ef4444;
++  border-radius: 50%;
++  border: 2px solid white;
++}
++
++/* ========================================
++   PART 4 — بطاقات النتائج المُحسَّنة
++   ======================================== */
++.result-card-enhanced {
++  background: var(--bg-card);
++  border-radius: var(--radius-lg);
++  padding: 20px;
++  margin-bottom: 12px;
++  box-shadow: var(--shadow-md);
++  border: 1px solid rgba(0,0,0,0.04);
++  overflow: hidden;
++  position: relative;
++  animation: slideUp 0.3s ease;
++}
++
++@media (prefers-color-scheme: dark) {
++  .result-card-enhanced {
++    border-color: #334155;
++  }
++}
++
++/* شريط لوني جانبي */
++.result-card-enhanced::before {
++  content: '';
++  position: absolute;
++  right: 0; top: 0; bottom: 0;
++  width: 5px;
++  background: var(--card-color, var(--navy));
++  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
++}
++
++/* عنوان البطاقة */
++.result-card-header {
++  display: flex;
++  align-items: center;
++  gap: 10px;
++  margin-bottom: 14px;
++  padding-bottom: 12px;
++  border-bottom: 1px solid #f1f5f9;
++}
++
++@media (prefers-color-scheme: dark) {
++  .result-card-header {
++    border-bottom-color: #334155;
++  }
++}
++
++.result-card-icon {
++  width: 40px;
++  height: 40px;
++  border-radius: var(--radius-sm);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  font-size: 20px;
++  background: color-mix(in srgb, var(--card-color, var(--navy)) 12%, white);
++  flex-shrink: 0;
++}
++
++@media (prefers-color-scheme: dark) {
++  .result-card-icon {
++    background: color-mix(in srgb, var(--card-color, var(--navy)) 20%, #1e293b);
++  }
++}
++
++.result-card-title {
++  font-size: 15px;
++  font-weight: 700;
++  color: var(--card-color, var(--navy));
++}
++
++/* صفوف المعلومات */
++.result-row {
++  display: flex;
++  align-items: center;
++  justify-content: space-between;
++  padding: 8px 0;
++  border-bottom: 1px dashed #f1f5f9;
++}
++
++.result-row:last-child {
++  border-bottom: none;
++}
++
++@media (prefers-color-scheme: dark) {
++  .result-row {
++    border-bottom-color: #334155;
++  }
++}
++
++.result-label {
++  font-size: 12px;
++  color: var(--text-muted);
++  font-weight: 500;
++}
++
++.result-value {
++  font-size: 14px;
++  color: var(--text-primary);
++  font-weight: 600;
++  text-align: left;
++}
++
++/* شارة الحالة */
++.status-badge-enhanced {
++  display: inline-flex;
++  align-items: center;
++  gap: 4px;
++  padding: 3px 10px;
++  border-radius: 20px;
++  font-size: 11px;
++  font-weight: 600;
++}
++
++.status-badge-enhanced.active {
++  background: #dcfce7;
++  color: #16a34a;
++}
++
++.status-badge-enhanced.inactive {
++  background: #fef9c3;
++  color: #ca8a04;
++}
++
++@media (prefers-color-scheme: dark) {
++  .status-badge-enhanced.active {
++    background: #166534;
++    color: #bbf7d0;
++  }
++  .status-badge-enhanced.inactive {
++    background: #854d0e;
++    color: #fef9c3;
++  }
++}
++
++/* أزرار الإجراءات */
++.action-buttons {
++  display: flex;
++  gap: 8px;
++  margin-top: 16px;
++}
++
++.btn-copy-enhanced {
++  flex: 1;
++  padding: 11px;
++  background: var(--navy);
++  color: white;
++  border: none;
++  border-radius: var(--radius-md);
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: 6px;
++  transition: all 0.2s;
++}
++
++.btn-copy-enhanced:hover {
++  background: var(--navy-light);
++  transform: translateY(-1px);
++}
++
++.btn-copy-enhanced:active {
++  transform: translateY(0);
++}
++
++.btn-share-enhanced {
++  flex: 1;
++  padding: 11px;
++  background: #25d366;
++  color: white;
++  border: none;
++  border-radius: var(--radius-md);
++  font-size: 13px;
++  font-weight: 600;
++  cursor: pointer;
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: 6px;
++  transition: all 0.2s;
++}
++
++.btn-share-enhanced:hover {
++  background: #16a34a;
++  transform: translateY(-1px);
++}
++
++.btn-report {
++  padding: 11px 14px;
++  background: #fef2f2;
++  color: #ef4444;
++  border: 1px solid #fecaca;
++  border-radius: var(--radius-md);
++  font-size: 13px;
++  cursor: pointer;
++  transition: all 0.2s;
++}
++
++@media (prefers-color-scheme: dark) {
++  .btn-report {
++    background: #450a0a;
++    border-color: #7f1d1d;
++  }
++}
++
++/* ========================================
++   PART 5 — حقل البحث المُحسَّن
++   ======================================== */
++.search-wrapper {
++  position: relative;
++  margin-bottom: 16px;
++}
++
++.search-input-enhanced {
++  width: 100%;
++  padding: 16px 52px 16px 16px;
++  font-size: 16px;
++  font-family: var(--font);
++  background: white;
++  border: 2px solid transparent;
++  border-radius: var(--radius-xl);
++  box-shadow: var(--shadow-md);
++  direction: rtl;
++  outline: none;
++  transition: all 0.25s;
++  color: var(--text-primary);
++  box-sizing: border-box;
++}
++
++@media (prefers-color-scheme: dark) {
++  .search-input-enhanced {
++    background: #1e293b;
++    color: #f1f5f9;
++    border-color: #334155;
++  }
++}
++
++.search-input-enhanced::placeholder {
++  color: var(--text-muted);
++}
++
++.search-input-enhanced:focus {
++  border-color: var(--navy);
++  box-shadow: var(--shadow-lg), 0 0 0 4px rgba(26,58,92,0.08);
++}
++
++@media (prefers-color-scheme: dark) {
++  .search-input-enhanced:focus {
++    border-color: var(--navy-light);
++    box-shadow: var(--shadow-lg), 0 0 0 4px rgba(45,89,134,0.3);
++  }
++}
++
++.search-icon-enhanced {
++  position: absolute;
++  right: 18px;
++  top: 50%;
++  transform: translateY(-50%);
++  font-size: 20px;
++  pointer-events: none;
++  color: var(--text-muted);
++  transition: color 0.2s;
++}
++
++.search-input-enhanced:focus + .search-icon-enhanced {
++  color: var(--navy);
++}
++
++/* قائمة الاقتراحات */
++.suggestions-dropdown-enhanced {
++  position: absolute;
++  top: calc(100% + 8px);
++  right: 0; left: 0;
++  background: white;
++  border-radius: var(--radius-lg);
++  box-shadow: var(--shadow-lg);
++  z-index: 500;
++  overflow: hidden;
++  animation: dropDown 0.2s ease;
++}
++
++@media (prefers-color-scheme: dark) {
++  .suggestions-dropdown-enhanced {
++    background: #1e293b;
++  }
++}
++
++.suggestion-item {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++  padding: 13px 16px;
++  cursor: pointer;
++  border-bottom: 1px solid #f8fafc;
++  transition: background 0.15s;
++}
++
++@media (prefers-color-scheme: dark) {
++  .suggestion-item {
++    border-bottom-color: #334155;
++  }
++}
++
++.suggestion-item:hover { background: #f8fafc; }
++.suggestion-item:last-child { border-bottom: none; }
++
++@media (prefers-color-scheme: dark) {
++  .suggestion-item:hover { background: #334155; }
++}
++
++.suggestion-dot {
++  width: 8px; height: 8px;
++  border-radius: 50%;
++  background: var(--navy);
++  flex-shrink: 0;
++}
++
++.suggestion-name {
++  font-size: 14px;
++  font-weight: 600;
++  color: var(--text-primary);
++  flex: 1;
++}
++
++.suggestion-meta {
++  font-size: 11px;
++  color: var(--text-muted);
++}
++
++/* ========================================
++   PART 6 — Accordion المحاكم المُحسَّن
++   ======================================== */
++.accordion-item-enhanced {
++  background: white;
++  border-radius: var(--radius-md);
++  margin-bottom: 8px;
++  box-shadow: var(--shadow-sm);
++  overflow: hidden;
++  transition: box-shadow 0.2s;
++}
++
++@media (prefers-color-scheme: dark) {
++  .accordion-item-enhanced {
++    background: #1e293b;
++  }
++}
++
++.accordion-item-enhanced.open {
++  box-shadow: var(--shadow-md);
++}
++
++/* رأس الـ Accordion */
++.accordion-header-enhanced {
++  display: flex;
++  align-items: center;
++  gap: 12px;
++  padding: 14px 16px;
++  cursor: pointer;
++  user-select: none;
++  -webkit-tap-highlight-color: transparent;
++  transition: background 0.15s;
++}
++
++.accordion-header-enhanced:hover {
++  background: #f8fafc;
++}
++
++@media (prefers-color-scheme: dark) {
++  .accordion-header-enhanced:hover {
++    background: #334155;
++  }
++}
++
++.accordion-header-icon {
++  width: 36px; height: 36px;
++  border-radius: var(--radius-sm);
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  font-size: 16px;
++  background: linear-gradient(135deg, var(--navy) 0%, var(--navy-light) 100%);
++  color: white;
++  flex-shrink: 0;
++  font-weight: 700;
++}
++
++.accordion-header-text {
++  flex: 1;
++}
++
++.accordion-header-title {
++  font-size: 14px;
++  font-weight: 700;
++  color: var(--text-primary);
++}
++
++.accordion-header-subtitle {
++  font-size: 11px;
++  color: var(--text-muted);
++  margin-top: 2px;
++}
++
++.accordion-chevron-enhanced {
++  font-size: 12px;
++  color: var(--text-muted);
++  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
++}
++
++.accordion-item-enhanced.open .accordion-chevron-enhanced {
++  transform: rotate(180deg);
++}
++
++/* محتوى الـ Accordion */
++.accordion-body {
++  max-height: 0;
++  overflow: hidden;
++  transition: max-height 0.35s ease;
++}
++
++.accordion-item-enhanced.open .accordion-body {
++  max-height: 2000px;
++}
++
++/* شبكة البلديات */
++.municipalities-grid {
++  padding: 12px 16px 16px;
++  display: flex;
++  flex-wrap: wrap;
++  gap: 6px;
++  border-top: 1px solid #f1f5f9;
++}
++
++@media (prefers-color-scheme: dark) {
++  .municipalities-grid {
++    border-top-color: #334155;
++  }
++}
++
++.municipality-chip-enhanced {
++  padding: 5px 12px;
++  background: #f1f5f9;
++  border-radius: 20px;
++  font-size: 12px;
++  color: var(--text-secondary);
++  cursor: pointer;
++  transition: all 0.15s;
++  border: 1px solid transparent;
++}
++
++@media (prefers-color-scheme: dark) {
++  .municipality-chip-enhanced {
++    background: #334155;
++    color: #94a3b8;
++  }
++}
++
++.municipality-chip-enhanced:hover {
++  background: color-mix(in srgb, var(--navy) 10%, white);
++  border-color: color-mix(in srgb, var(--navy) 20%, white);
++  color: var(--navy);
++}
++
++@media (prefers-color-scheme: dark) {
++  .municipality-chip-enhanced:hover {
++    background: color-mix(in srgb, var(--navy) 30%, #334155);
++    border-color: color-mix(in srgb, var(--navy) 40%, #334155);
++    color: var(--navy-light);
++  }
++}
++
++/* ========================================
++   PART 7 — بطاقة إحصاءات
++   ======================================== */
++.stats-bar-enhanced {
++  background: linear-gradient(135deg, var(--navy-dark) 0%, var(--navy) 100%);
++  border-radius: var(--radius-lg);
++  padding: 16px;
++  display: flex;
++  align-items: center;
++  justify-content: space-around;
++  margin-bottom: 16px;
++  box-shadow: var(--shadow-md);
++}
++
++.stat-item {
++  display: flex;
++  flex-direction: column;
++  align-items: center;
++  gap: 2px;
++}
++
++.stat-number {
++  font-size: 22px;
++  font-weight: 800;
++  color: var(--gold-light);
++  line-height: 1;
++}
++
++.stat-label {
++  font-size: 10px;
++  color: rgba(255,255,255,0.7);
++  font-weight: 500;
++}
++
++.stat-divider {
++  width: 1px;
++  height: 32px;
++  background: rgba(255,255,255,0.15);
++}
++
++/* ========================================
++   Print Styles
++   ======================================== */
++@media print {
++  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
++  .print\:hidden { display: none !important; }
++  @page { margin: 1cm; size: A4; }
++}
++
++/* ========================================
++   Focus Styles for Accessibility
++   ======================================== */
++:focus-visible {
++  outline: 2px solid var(--navy);
++  outline-offset: 2px;
++}
++
++@media (prefers-color-scheme: dark) {
++  :focus-visible {
++    outline-color: var(--navy-light);
++  }
++}
++
++/* ========================================
++   Scrollbar Styles
++   ======================================== */
++::-webkit-scrollbar {
++  width: 6px;
++  height: 6px;
++}
++
++::-webkit-scrollbar-track {
++  background: transparent;
++}
++
++::-webkit-scrollbar-thumb {
++  background: var(--text-muted);
++  border-radius: 3px;
++}
++
++::-webkit-scrollbar-thumb:hover {
++  background: var(--text-secondary);
++}
++
++@media (prefers-color-scheme: dark) {
++  ::-webkit-scrollbar-thumb {
++    background: #475569;
++  }
++  ::-webkit-scrollbar-thumb:hover {
++    background: #64748b;
++  }
++}
+diff --git a/src/app/page.tsx b/src/app/page.tsx
+index dead63d..4e017ed 100755
+--- a/src/app/page.tsx
++++ b/src/app/page.tsx
+@@ -820,6 +820,55 @@ const SuggestionIcon = () => (
+   </svg>
+ );
+ 
++// Toast Notification System
++const Toast = ({ message, type, visible, onHide }: { 
++  message: string; 
++  type: 'success' | 'info' | 'warning' | 'error';
++  visible: boolean;
++  onHide: () => void;
++}) => {
++  useEffect(() => {
++    if (visible) {
++      const timer = setTimeout(onHide, 2500);
++      return () => clearTimeout(timer);
++    }
++  }, [visible, onHide]);
++
++  const colors = {
++    success: '#22c55e',
++    info: '#3b82f6',
++    warning: '#f59e0b',
++    error: '#ef4444',
++  };
++
++  const icons = {
++    success: '✅',
++    info: 'ℹ️',
++    warning: '⚠️',
++    error: '❌',
++  };
++
++  if (!visible) return null;
++
++  return (
++    <div 
++      className="fixed z-[9999] flex items-center gap-2 px-5 py-3 rounded-[28px] text-white font-semibold text-sm"
++      style={{
++        bottom: 'calc(90px + env(safe-area-inset-bottom))',
++        left: '50%',
++        transform: 'translateX(-50%)',
++        background: colors[type],
++        boxShadow: '0 12px 40px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08)',
++        whiteSpace: 'nowrap',
++        direction: 'rtl'
++      }}
++    >
++      <span>{icons[type]}</span>
++      <span>{message}</span>
++    </div>
++  );
++};
++
+ // Search Result Interface
+ interface SearchResult {
+   municipality: string;
+@@ -989,32 +1038,55 @@ const SplashScreen = ({ onEnter, onInstall, canInstall, isStandalone, installChe
+   );
+ };
+ 
+-// Bottom Navigation Component
++// Bottom Navigation Component - Enhanced
+ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) => {
+   const tabs = [
+-    { id: 'search', label: 'البحث', icon: <SearchIcon /> },
+-    { id: 'ordinary', label: 'العادية', icon: <StructureIcon /> },
+-    { id: 'administrative', label: 'الإدارية', icon: <AdminIcon /> },
+-    { id: 'commercial', label: 'التجارية', icon: <CommercialIcon /> },
+-    { id: 'suggestions', label: 'اقتراحات', icon: <SuggestionIcon /> },
+-    { id: 'about', label: 'عن التطبيق', icon: <InfoIcon /> },
++    { id: 'search', label: 'البحث', icon: <SearchIcon />, color: '#2563eb' },
++    { id: 'ordinary', label: 'العادية', icon: <StructureIcon />, color: '#1a3a5c' },
++    { id: 'administrative', label: 'الإدارية', icon: <AdminIcon />, color: '#7c3aed' },
++    { id: 'commercial', label: 'التجارية', icon: <CommercialIcon />, color: '#059669' },
++    { id: 'suggestions', label: 'اقتراحات', icon: <SuggestionIcon />, color: '#d97706' },
++    { id: 'about', label: 'عن التطبيق', icon: <InfoIcon />, color: '#475569' },
+   ];
+ 
+   return (
+-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 sm:hidden safe-area-bottom">
+-      <div className="flex justify-around items-center py-1">
+-        {tabs.map((tab) => (
+-          <button
+-            key={tab.id}
+-            onClick={() => onTabChange(tab.id)}
+-            className={`flex flex-col items-center justify-center p-1.5 min-w-[56px] min-h-[52px] transition-colors ${
+-              activeTab === tab.id ? 'text-[#1a3a5c]' : 'text-gray-500'
+-            }`}
+-          >
+-            {tab.icon}
+-            <span className="text-[10px] mt-0.5">{tab.label}</span>
+-          </button>
+-        ))}
++    <nav className="fixed bottom-0 left-0 right-0 bg-white z-40 sm:hidden safe-area-bottom" style={{
++      boxShadow: '0 -4px 24px rgba(0,0,0,0.10)',
++      borderRadius: '24px 24px 0 0'
++    }}>
++      <div className="flex justify-around items-center py-2 px-1" style={{ gap: '2px' }}>
++        {tabs.map((tab) => {
++          const isActive = activeTab === tab.id;
++          return (
++            <button
++              key={tab.id}
++              onClick={() => onTabChange(tab.id)}
++              className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[48px]"
++              style={{
++                background: isActive ? `linear-gradient(135deg, ${tab.color} 0%, ${tab.color}cc 100%)` : 'transparent',
++                transform: isActive ? 'translateY(-4px)' : 'translateY(0)',
++                boxShadow: isActive ? `0 6px 20px ${tab.color}66` : 'none',
++                color: isActive ? 'white' : '#94a3b8',
++                minHeight: '48px'
++              }}
++            >
++              <span style={{
++                fontSize: '20px',
++                transition: 'transform 0.25s',
++                transform: isActive ? 'scale(1.1)' : 'scale(1)'
++              }}>
++                {tab.icon}
++              </span>
++              <span style={{
++                fontSize: '9px',
++                fontWeight: 600,
++                whiteSpace: 'nowrap'
++              }}>
++                {tab.label}
++              </span>
++            </button>
++          );
++        })}
+       </div>
+     </nav>
+   );
+@@ -1055,7 +1127,7 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
+   );
+ };
+ 
+-// Unified Search Result Card
++// Unified Search Result Card - Enhanced
+ const UnifiedSearchCard = ({ 
+   result,
+   onCopy,
+@@ -1066,50 +1138,129 @@ const UnifiedSearchCard = ({
+   onShare: () => void;
+ }) => {
+   return (
+-    <div className="bg-white rounded-xl shadow-md p-4 mb-4 animate-slide-in border border-gray-100">
+-      <div className="text-center mb-4">
+-        <span className="text-lg font-bold text-[#1a3a5c]">نتائج البحث لبلدية: {result.municipality}</span>
++    <div 
++      className="bg-white rounded-[20px] p-5 mb-3 relative overflow-hidden"
++      style={{
++        boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)',
++        border: '1px solid rgba(0,0,0,0.04)',
++        animation: 'slideUp 0.3s ease'
++      }}
++    >
++      {/* الشريط الجانبي الملون */}
++      <div 
++        className="absolute right-0 top-0 bottom-0 w-[5px]"
++        style={{ background: '#1a3a5c', borderRadius: '0 20px 20px 0' }}
++      />
++
++      {/* عنوان البلدية */}
++      <div className="text-center mb-4 pb-3 border-b border-gray-100">
++        <span className="text-lg font-bold text-[#1a3a5c]">
++          📍 نتائج البحث لبلدية: {result.municipality}
++        </span>
+       </div>
+       
++      {/* القضاء العادي */}
+       {result.ordinary && (
+-        <div className="bg-blue-50 rounded-lg p-3 mb-3 border border-blue-100">
+-          <p className="font-bold text-[#1a3a5c] mb-2">⚖️ القضاء العادي</p>
+-          <p className="text-sm text-gray-700">المحكمة: <span className="font-medium">{result.ordinary.court}</span></p>
+-          <p className="text-sm text-gray-700">مجلس القضاء: <span className="font-medium">{result.ordinary.council}</span></p>
++        <div 
++          className="rounded-xl p-3 mb-3 border"
++          style={{ 
++            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
++            borderColor: '#bfdbfe'
++          }}
++        >
++          <div className="flex items-center gap-2 mb-2">
++            <div 
++              className="w-8 h-8 rounded-lg flex items-center justify-center"
++              style={{ background: '#1a3a5c' }}
++            >
++              <span className="text-white text-sm">⚖️</span>
++            </div>
++            <p className="font-bold text-[#1a3a5c]">القضاء العادي</p>
++          </div>
++          <div className="flex justify-between items-center py-1.5 border-b border-dashed border-blue-100">
++            <span className="text-xs text-gray-500">المحكمة</span>
++            <span className="text-sm font-semibold text-gray-800">{result.ordinary.court}</span>
++          </div>
++          <div className="flex justify-between items-center py-1.5">
++            <span className="text-xs text-gray-500">مجلس القضاء</span>
++            <span className="text-sm font-semibold text-gray-800">{result.ordinary.council}</span>
++          </div>
+           {result.ordinary.status && (
+-            <p className="text-xs text-orange-600 mt-1">⚠️ {result.ordinary.status === 'not_installed' ? 'غير منصبة' : 'غير محددة'}</p>
++            <p className="text-xs text-orange-600 mt-2 bg-orange-50 px-2 py-1 rounded-lg">
++              ⚠️ {result.ordinary.status === 'not_installed' ? 'غير منصبة' : 'غير محددة'}
++            </p>
+           )}
+         </div>
+       )}
+       
++      {/* القضاء الإداري */}
+       {result.administrative && (
+-        <div className="bg-purple-50 rounded-lg p-3 mb-3 border border-purple-100">
+-          <p className="font-bold text-[#6a0dad] mb-2">🏢 القضاء الإداري</p>
+-          <p className="text-sm text-gray-700">المحكمة الإدارية: <span className="font-medium">{result.administrative.adminCourt}</span></p>
+-          <p className="text-sm text-gray-700">محكمة الاستئناف الإدارية: <span className="font-medium">{result.administrative.appealCourt}</span></p>
++        <div 
++          className="rounded-xl p-3 mb-3 border"
++          style={{ 
++            background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
++            borderColor: '#e9d5ff'
++          }}
++        >
++          <div className="flex items-center gap-2 mb-2">
++            <div 
++              className="w-8 h-8 rounded-lg flex items-center justify-center"
++              style={{ background: '#7c3aed' }}
++            >
++              <span className="text-white text-sm">🏢</span>
++            </div>
++            <p className="font-bold text-[#7c3aed]">القضاء الإداري</p>
++          </div>
++          <div className="flex justify-between items-center py-1.5 border-b border-dashed border-purple-100">
++            <span className="text-xs text-gray-500">المحكمة الإدارية</span>
++            <span className="text-sm font-semibold text-gray-800">{result.administrative.adminCourt}</span>
++          </div>
++          <div className="flex justify-between items-center py-1.5">
++            <span className="text-xs text-gray-500">محكمة الاستئناف الإدارية</span>
++            <span className="text-sm font-semibold text-gray-800">{result.administrative.appealCourt}</span>
++          </div>
+         </div>
+       )}
+       
++      {/* القضاء التجاري */}
+       {result.commercial && (
+-        <div className="bg-green-50 rounded-lg p-3 mb-3 border border-green-100">
+-          <p className="font-bold text-[#2e7d32] mb-2">💼 المحكمة التجارية المتخصصة</p>
+-          <p className="text-sm text-gray-700">المحكمة التجارية: <span className="font-medium">{result.commercial.court}</span></p>
++        <div 
++          className="rounded-xl p-3 mb-3 border"
++          style={{ 
++            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
++            borderColor: '#bbf7d0'
++          }}
++        >
++          <div className="flex items-center gap-2 mb-2">
++            <div 
++              className="w-8 h-8 rounded-lg flex items-center justify-center"
++              style={{ background: '#059669' }}
++            >
++              <span className="text-white text-sm">💼</span>
++            </div>
++            <p className="font-bold text-[#059669]">المحكمة التجارية المتخصصة</p>
++          </div>
++          <div className="flex justify-between items-center py-1.5">
++            <span className="text-xs text-gray-500">المحكمة التجارية</span>
++            <span className="text-sm font-semibold text-gray-800">{result.commercial.court}</span>
++          </div>
+         </div>
+       )}
+       
+-      <div className="border-t border-gray-200 pt-3 mt-3 flex gap-2">
++      {/* أزرار الإجراءات */}
++      <div className="flex gap-2 mt-4">
+         <button
+           onClick={onCopy}
+-          className="flex-1 py-2.5 bg-[#1a3a5c] text-white rounded-lg font-medium hover:bg-[#2d5a8a] transition-colors flex items-center justify-center gap-2 min-h-[44px]"
++          className="flex-1 py-3 bg-[#1a3a5c] text-white rounded-xl font-semibold hover:bg-[#2d5a8a] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+         >
+           <CopyIcon />
+           <span>نسخ الكل</span>
+         </button>
+         <button
+           onClick={onShare}
+-          className="flex-1 py-2.5 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors flex items-center justify-center gap-2 min-h-[44px]"
++          className="flex-1 py-3 bg-[#25d366] text-white rounded-xl font-semibold hover:bg-[#16a34a] transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+         >
+-          <ShareIcon />
++          <WhatsAppIcon />
+           <span>مشاركة واتساب</span>
+         </button>
+       </div>
+@@ -1143,7 +1294,7 @@ const StatusBadge = ({ entry }: { entry: JudicialEntry }) => {
+   return null;
+ };
+ 
+-// Municipality Chip Component
++// Municipality Chip Component - Enhanced
+ const MunicipalityChip = ({ name, searchQuery }: { name: string; searchQuery: string }) => {
+   const highlightText = (text: string, query: string) => {
+     if (!query) return text;
+@@ -1156,13 +1307,30 @@ const MunicipalityChip = ({ name, searchQuery }: { name: string; searchQuery: st
+   };
+ 
+   return (
+-    <span className="inline-flex items-center px-3 py-1.5 m-1 rounded-full text-sm bg-blue-50 text-gray-700 border border-blue-100 hover:bg-blue-100 transition-colors cursor-default print:border-gray-300 word-break-break-word">
++    <span 
++      className="inline-flex items-center px-3 py-1.5 m-1 rounded-full text-sm cursor-pointer transition-all"
++      style={{
++        background: '#f1f5f9',
++        color: '#475569',
++        border: '1px solid transparent'
++      }}
++      onMouseEnter={(e) => {
++        e.currentTarget.style.background = 'rgba(26,58,92,0.1)';
++        e.currentTarget.style.borderColor = 'rgba(26,58,92,0.2)';
++        e.currentTarget.style.color = '#1a3a5c';
++      }}
++      onMouseLeave={(e) => {
++        e.currentTarget.style.background = '#f1f5f9';
++        e.currentTarget.style.borderColor = 'transparent';
++        e.currentTarget.style.color = '#475569';
++      }}
++    >
+       {highlightText(name, searchQuery)}
+     </span>
+   );
+ };
+ 
+-// Court Section Component
++// Court Section Component - Enhanced
+ const CourtSection = ({ 
+   entry, 
+   isOpen, 
+@@ -1187,41 +1355,84 @@ const CourtSection = ({
+   };
+ 
+   const getBgColor = () => {
+-    if (entry.status === 'not_installed') return 'bg-orange-50';
+-    if (entry.status === 'unknown_court') return 'bg-red-50';
+-    if (entry.type === 'branch') return 'bg-purple-50';
+-    return 'bg-gray-50';
++    if (entry.status === 'not_installed') return 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)';
++    if (entry.status === 'unknown_court') return 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)';
++    if (entry.type === 'branch') return 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)';
++    return 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)';
++  };
++
++  const getBorderColor = () => {
++    if (entry.status === 'not_installed') return '#fed7aa';
++    if (entry.status === 'unknown_court') return '#fecaca';
++    if (entry.type === 'branch') return '#e9d5ff';
++    return '#e2e8f0';
+   };
+ 
+   return (
+     <div className="mr-4 sm:mr-6 mb-2">
+       <button
+         onClick={onToggle}
+-        className={`w-full flex items-center gap-2 p-3 rounded-lg ${getBgColor()} hover:opacity-80 transition-colors text-right min-h-[48px]`}
++        className="w-full flex items-center gap-3 p-3 rounded-xl transition-all text-right min-h-[48px]"
++        style={{
++          background: getBgColor(),
++          border: `1px solid ${getBorderColor()}`
++        }}
+         aria-expanded={isOpen}
+       >
+-        <ChevronIcon isOpen={isOpen} />
+-        <span className="font-medium text-gray-700 flex-1 text-right">
+-          {highlightText(courtName, searchQuery)}
+-        </span>
+-        <StatusBadge entry={entry} />
+-        <span className="text-xs text-gray-500 bg-white px-2 py-0.5 rounded-full border">
+-          {entry.municipalities.length} بلدية
+-        </span>
++        {/* الأيقونة */}
++        <div 
++          className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold"
++          style={{
++            background: 'linear-gradient(135deg, #1a3a5c 0%, #2d5986 100%)',
++            fontSize: '14px'
++          }}
++        >
++          {entry.court.charAt(0)}
++        </div>
++        
++        {/* النص */}
++        <div className="flex-1">
++          <span className="font-semibold text-gray-700 text-sm">
++            {highlightText(courtName, searchQuery)}
++          </span>
++          {entry.branchNote && (
++            <p className="text-[10px] text-purple-600 mt-0.5">{entry.branchNote}</p>
++          )}
++        </div>
++        
++        {/* الشارات */}
++        <div className="flex items-center gap-2">
++          <StatusBadge entry={entry} />
++          <span 
++            className="text-[10px] px-2 py-1 rounded-full"
++            style={{ background: 'white', color: '#64748b', border: '1px solid #e2e8f0' }}
++          >
++            {entry.municipalities.length} بلدية
++          </span>
++          <ChevronIcon isOpen={isOpen} />
++        </div>
+       </button>
++      
++      {/* المحتوى */}
+       <div
+         className={`overflow-hidden transition-all duration-300 ease-in-out ${
+           isOpen ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+         }`}
+       >
+-        <div className="p-3 flex flex-wrap">
++        <div 
++          className="p-3 flex flex-wrap"
++          style={{ borderTop: '1px dashed #e2e8f0', marginTop: '-1px' }}
++        >
+           {entry.municipalities.map((municipality, idx) => (
+             <MunicipalityChip key={idx} name={municipality} searchQuery={searchQuery} />
+           ))}
+         </div>
+         {entry.branchNote && (
+           <div className="px-3 pb-3">
+-            <p className="text-xs text-purple-600 bg-purple-50 p-2 rounded-lg">
++            <p 
++              className="text-xs p-2 rounded-lg"
++              style={{ background: '#faf5ff', color: '#7c3aed' }}
++            >
+               📝 {entry.branchNote}
+             </p>
+           </div>
+@@ -1231,7 +1442,7 @@ const CourtSection = ({
+   );
+ };
+ 
+-// Council Card Component
++// Council Card Component - Enhanced
+ const CouncilCard = ({
+   council,
+   entries,
+@@ -1253,38 +1464,66 @@ const CouncilCard = ({
+   const municipalityCount = entries.reduce((acc, e) => acc + e.municipalities.length, 0);
+ 
+   return (
+-    <div className="bg-white rounded-xl shadow-md overflow-hidden mb-4 transition-shadow hover:shadow-lg print:shadow-none print:border print:border-gray-200">
++    <div 
++      className="rounded-[20px] overflow-hidden mb-4 transition-all"
++      style={{
++        background: 'white',
++        boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)',
++        border: '1px solid rgba(0,0,0,0.04)'
++      }}
++    >
+       <button
+         onClick={onToggle}
+-        className="w-full flex items-center gap-3 p-4 sm:p-5 bg-gradient-to-l from-slate-50 to-white hover:from-slate-100 hover:to-slate-50 transition-colors text-right print:bg-transparent min-h-[56px]"
++        className="w-full flex items-center gap-4 p-4 sm:p-5 transition-colors text-right"
++        style={{
++          background: isOpen 
++            ? 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)' 
++            : 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)'
++        }}
+         aria-expanded={isOpen}
+       >
+-        <div className="p-2 bg-[#1a3a5c] rounded-lg text-white">
++        {/* أيقونة السهم */}
++        <div 
++          className="p-2.5 rounded-xl text-white"
++          style={{ background: 'linear-gradient(135deg, #1a3a5c 0%, #2d5986 100%)' }}
++        >
+           <ChevronIcon isOpen={isOpen} />
+         </div>
++        
++        {/* العنوان */}
+         <div className="flex-1">
+           <h2 className="text-lg sm:text-xl font-bold text-[#1a3a5c]">
+             {council}
+           </h2>
+-          <p className="text-sm text-gray-500 mt-1">
++          <p className="text-sm text-gray-500 mt-0.5">
+             المجلس القضائي
+           </p>
+         </div>
+-        <div className="flex flex-col items-end gap-1">
+-          <span className="text-xs bg-[#1a3a5c]/10 text-[#1a3a5c] px-2 py-1 rounded-full">
++        
++        {/* الإحصاءات */}
++        <div className="flex flex-col items-end gap-1.5">
++          <span 
++            className="text-xs px-3 py-1 rounded-full"
++            style={{ background: 'rgba(26,58,92,0.1)', color: '#1a3a5c', fontWeight: 600 }}
++          >
+             {courtCount} محكمة
+           </span>
+-          <span className="text-xs bg-[#1a3a5c]/10 text-[#1a3a5c] px-2 py-1 rounded-full">
++          <span 
++            className="text-xs px-3 py-1 rounded-full"
++            style={{ background: 'rgba(26,58,92,0.06)', color: '#475569', fontWeight: 500 }}
++          >
+             {municipalityCount} بلدية
+           </span>
+         </div>
+       </button>
++      
++      {/* المحتوى */}
+       <div
+         className={`overflow-hidden transition-all duration-300 ease-in-out ${
+           isOpen ? 'max-h-[10000px] opacity-100' : 'max-h-0 opacity-0'
+         }`}
+       >
+-        <div className="p-3 sm:p-4 border-t border-gray-100">
++        <div className="p-3 sm:p-4 border-t" style={{ borderColor: '#f1f5f9' }}>
+           {entries.map((entry, idx) => {
+             const courtKey = entry.branch ? `${entry.court}-${entry.branch}` : entry.court;
+             return (
+@@ -1576,7 +1815,7 @@ ${suggestionText.trim()}
+   );
+ };
+ 
+-// Footer Component
++// Footer Component - Enhanced
+ const Footer = ({ tab }: { tab: string }) => {
+   const getUpdateDate = () => {
+     switch (tab) {
+@@ -1588,9 +1827,14 @@ const Footer = ({ tab }: { tab: string }) => {
+   };
+ 
+   return (
+-    <footer className="bg-[#1a3a5c] text-white py-4 mt-auto print:bg-gray-800">
++    <footer 
++      className="text-white py-5 mt-auto"
++      style={{
++        background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 100%)',
++      }}
++    >
+       <div className="max-w-4xl mx-auto px-4 text-center">
+-        <p className="text-sm text-white/90">
++        <p className="text-sm text-white/90 font-medium">
+           تطبيق الاختصاص الإقليمي للهيئات القضائية في الجزائر
+         </p>
+         <p className="text-xs text-white/70 mt-1">
+@@ -1635,6 +1879,21 @@ export default function Home() {
+   const [newWorker, setNewWorker] = useState<ServiceWorker | null>(null);
+   const [updateChecking, setUpdateChecking] = useState(false);
+   const [updateStatus, setUpdateStatus] = useState('');
++  
++  // Toast state
++  const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error'; visible: boolean }>({
++    message: '',
++    type: 'success',
++    visible: false
++  });
++
++  const showToast = useCallback((message: string, type: 'success' | 'info' | 'warning' | 'error' = 'success') => {
++    setToast({ message, type, visible: true });
++  }, []);
++
++  const hideToast = useCallback(() => {
++    setToast(prev => ({ ...prev, visible: false }));
++  }, []);
+ 
+   // Service Worker Update Detection
+   useEffect(() => {
+@@ -1976,7 +2235,8 @@ export default function Home() {
+     }
+     text += '─ تطبيق الاختصاص الإقليمي للهيئات القضائية — الأستاذ سايج محمد';
+     navigator.clipboard.writeText(text);
+-  }, []);
++    showToast('تم النسخ بنجاح!', 'success');
++  }, [showToast]);
+ 
+   // Share via WhatsApp
+   const shareViaWhatsApp = useCallback((result: UnifiedSearchResult) => {
+@@ -2038,19 +2298,45 @@ export default function Home() {
+       case 'search':
+         return (
+           <div className="animate-fade-in">
++            {/* شريط الإحصاءات المُحسَّن */}
+             <div className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
+-              <div className="grid grid-cols-4 gap-2">
+-                <StatsCard number={stats.councils} label="مجلساً" color="bg-[#1a3a5c]" />
+-                <StatsCard number={stats.courts + stats.branches} label="محكمة" color="bg-[#2d5a8a]" />
+-                <StatsCard number={58} label="إدارية" color="bg-[#6a0dad]" />
+-                <StatsCard number={12} label="تجارية" color="bg-[#2e7d32]" />
++              <div 
++                className="rounded-[20px] p-4 flex items-center justify-around"
++                style={{
++                  background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 100%)',
++                  boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)'
++                }}
++              >
++                <div className="flex flex-col items-center gap-1">
++                  <span className="text-[22px] font-extrabold text-[#f0c040]">{stats.municipalities}</span>
++                  <span className="text-[10px] text-white/70 font-medium">بلدية</span>
++                </div>
++                <div className="w-px h-8 bg-white/15" />
++                <div className="flex flex-col items-center gap-1">
++                  <span className="text-[22px] font-extrabold text-[#f0c040]">{stats.councils}</span>
++                  <span className="text-[10px] text-white/70 font-medium">مجلس قضاء</span>
++                </div>
++                <div className="w-px h-8 bg-white/15" />
++                <div className="flex flex-col items-center gap-1">
++                  <span className="text-[22px] font-extrabold text-[#f0c040]">58</span>
++                  <span className="text-[10px] text-white/70 font-medium">إدارية</span>
++                </div>
++                <div className="w-px h-8 bg-white/15" />
++                <div className="flex flex-col items-center gap-1">
++                  <span className="text-[22px] font-extrabold text-[#f0c040]">12</span>
++                  <span className="text-[10px] text-white/70 font-medium">تجارية</span>
++                </div>
+               </div>
+             </div>
+ 
++            {/* حقل البحث المُحسَّن */}
+             <div className="max-w-4xl mx-auto px-4 pb-4">
+               <div className="flex gap-2">
+                 <div className="relative flex-1">
+-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 z-10">
++                  <div 
++                    className="absolute right-4 top-1/2 -translate-y-1/2 z-10"
++                    style={{ color: '#94a3b8' }}
++                  >
+                     <SearchIcon />
+                   </div>
+                   <input
+@@ -2058,34 +2344,59 @@ export default function Home() {
+                     placeholder="ابحث عن بلدية... (مثال: قبة، مراد، اولاد)"
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+-                    className="w-full pr-12 pl-4 py-4 rounded-xl border border-gray-200 bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-[#1a3a5c]/20 focus:border-[#1a3a5c] transition-all text-right text-base"
++                    className="w-full pr-12 pl-4 py-4 rounded-[28px] bg-white outline-none transition-all text-right text-base"
++                    style={{
++                      border: '2px solid transparent',
++                      boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)'
++                    }}
++                    onFocus={(e) => {
++                      e.target.style.borderColor = '#1a3a5c';
++                      e.target.style.boxShadow = '0 12px 40px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08), 0 0 0 4px rgba(26,58,92,0.08)';
++                    }}
++                    onBlur={(e) => {
++                      e.target.style.borderColor = 'transparent';
++                      e.target.style.boxShadow = '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)';
++                    }}
+                     dir="rtl"
+                   />
+                   
+-                  {/* قائمة الاقتراحات الفورية */}
++                  {/* قائمة الاقتراحات الفورية المُحسَّنة */}
+                   {searchQuery && normalize(searchQuery).length >= 2 && (
+-                    <div className="absolute top-full right-0 left-0 bg-white rounded-xl shadow-lg border border-gray-100 mt-2 z-50 max-h-[320px] overflow-y-auto">
++                    <div 
++                      className="absolute top-full right-0 left-0 bg-white rounded-[20px] mt-2 z-50 max-h-[320px] overflow-y-auto"
++                      style={{
++                        boxShadow: '0 12px 40px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08)',
++                        animation: 'dropDown 0.2s ease'
++                      }}
++                    >
+                       {unifiedSearchResults.length > 0 ? (
+-                        <div className="divide-y divide-gray-50">
++                        <div>
+                           {unifiedSearchResults.map((result, idx) => (
+                             <button
+                               key={idx}
+                               onClick={() => {
+                                 // عرض النتيجة الكاملة
+                               }}
+-                              className="w-full flex flex-col items-end p-3 hover:bg-gray-50 transition-colors text-right"
++                              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-right"
++                              style={{ borderBottom: idx < unifiedSearchResults.length - 1 ? '1px solid #f1f5f9' : 'none' }}
+                             >
+-                              <span className="text-base text-gray-800 font-medium">
+-                                {highlightMatch(result.municipality, searchQuery)}
+-                              </span>
+-                              <span className="text-xs text-gray-500 mt-1">
+-                                {result.ordinary?.court} · مجلس {result.ordinary?.council}
+-                              </span>
++                              <div 
++                                className="w-2 h-2 rounded-full flex-shrink-0"
++                                style={{ background: '#1a3a5c' }}
++                              />
++                              <div className="flex-1">
++                                <p className="text-sm font-semibold text-gray-800">
++                                  {highlightMatch(result.municipality, searchQuery)}
++                                </p>
++                                <p className="text-[11px] text-gray-500 mt-0.5">
++                                  {result.ordinary?.court} · مجلس {result.ordinary?.council}
++                                </p>
++                              </div>
+                             </button>
+                           ))}
+                         </div>
+                       ) : (
+-                        <div className="p-4 text-center">
++                        <div className="p-6 text-center">
+                           <p className="text-gray-500 text-sm">🔍 لا توجد نتائج</p>
+                           <p className="text-gray-400 text-xs mt-1">تأكد من كتابة اسم البلدية بشكل صحيح</p>
+                         </div>
+@@ -2095,7 +2406,8 @@ export default function Home() {
+                 </div>
+                 <button
+                   onClick={randomSearch}
+-                  className="px-4 py-4 bg-[#1a3a5c] text-white rounded-xl hover:bg-[#2d5a8a] transition-colors flex items-center justify-center min-h-[56px]"
++                  className="px-4 py-4 bg-[#1a3a5c] text-white rounded-[20px] hover:bg-[#2d5a8a] transition-all flex items-center justify-center min-h-[56px] active:scale-95"
++                  style={{ boxShadow: '0 4px 16px rgba(26,58,92,0.3)' }}
+                   title="بحث عشوائي"
+                 >
+                   <ShuffleIcon />
+@@ -2459,21 +2771,33 @@ export default function Home() {
+   };
+ 
+   return (
+-    <div className="min-h-screen bg-gradient-to-b from-slate-100 to-slate-50 print:bg-white flex flex-col">
++    <div 
++      className="min-h-screen print:bg-white flex flex-col"
++      style={{ background: '#f1f5f9' }}
++    >
++      {/* Toast Notification */}
++      <Toast message={toast.message} type={toast.type} visible={toast.visible} onHide={hideToast} />
++      
+       {/* شريط التحديث التلقائي */}
+       {showUpdateBanner && (
+-        <div className="fixed top-0 left-0 right-0 bg-[#1a3a5c] text-white px-4 py-3 z-[60] flex items-center justify-between gap-3 flex-wrap print:hidden">
+-          <span className="text-sm">🆕 يوجد تحديث جديد للتطبيق!</span>
++        <div 
++          className="fixed top-0 left-0 right-0 text-white px-4 py-3 z-[60] flex items-center justify-between gap-3 flex-wrap print:hidden"
++          style={{
++            background: 'linear-gradient(135deg, #1a3a5c 0%, #2d5986 100%)',
++            boxShadow: '0 4px 16px rgba(0,0,0,0.20)'
++          }}
++        >
++          <span className="text-sm font-medium">🆕 يوجد تحديث جديد للتطبيق!</span>
+           <div className="flex gap-2">
+             <button
+               onClick={applyUpdate}
+-              className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-bold hover:bg-amber-600 transition-colors whitespace-nowrap"
++              className="px-4 py-2 bg-amber-500 text-white rounded-xl text-sm font-bold hover:bg-amber-600 transition-colors whitespace-nowrap active:scale-95"
+             >
+               تحديث الآن 🔄
+             </button>
+             <button
+               onClick={() => setShowUpdateBanner(false)}
+-              className="px-3 py-2 bg-white/10 text-white/80 rounded-lg text-sm hover:bg-white/20 transition-colors"
++              className="px-3 py-2 bg-white/10 text-white/80 rounded-xl text-sm hover:bg-white/20 transition-colors"
+             >
+               ✕ لاحقاً
+             </button>
+@@ -2481,15 +2805,24 @@ export default function Home() {
+         </div>
+       )}
+       
+-      <header className={`bg-[#1a3a5c] text-white shadow-lg print:bg-gray-800 ${showUpdateBanner ? 'mt-12' : ''}`}>
++      <header 
++        className="text-white"
++        style={{
++          background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 100%)',
++          boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)'
++        }}
++      >
+         <div className="max-w-4xl mx-auto px-4 py-4 sm:py-5">
+-          <div className="flex items-center gap-3">
+-            <div className="p-2 bg-white/10 rounded-lg">
+-              <ScaleIcon className="w-6 h-6 sm:w-8 sm:h-8" />
++          <div className="flex items-center gap-4">
++            <div 
++              className="p-2.5 rounded-xl"
++              style={{ background: 'rgba(255,255,255,0.1)' }}
++            >
++              <ScaleIcon className="w-7 h-7 sm:w-8 sm:h-8" />
+             </div>
+             <div>
+               <h1 className="text-base sm:text-xl font-bold leading-tight">الاختصاص الإقليمي للهيئات القضائية</h1>
+-              <p className="text-xs sm:text-sm text-white/70">الأستاذ سايج محمد - محامٍ لدى المجلس</p>
++              <p className="text-xs sm:text-sm text-white/70 mt-0.5">الأستاذ سايج محمد - محامٍ لدى المجلس</p>
+             </div>
+           </div>
+         </div>
+-- 
+2.47.3
+
