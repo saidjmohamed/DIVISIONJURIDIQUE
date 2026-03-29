@@ -12,8 +12,6 @@ import QIJ_QUIZ_QUESTIONS from '@/data/quiz-qij-25-14';
 import LibraryUploader from '@/components/library/LibraryUploader';
 import PdfToolsSection from '@/components/pdf-tools/PdfToolsSection';
 
-// Lazy load AI Chat
-const AIChat = dynamic(() => import('@/components/ai/AIChat'), { ssr: false });
 // Lazy load Gemini AI Assistant
 const AiAssistant = dynamic(() => import('@/components/AiAssistant'), { ssr: false });
 
@@ -1511,8 +1509,7 @@ const SplashScreen = ({
 const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) => {
   const tabs = [
     { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span>, color: '#1a3a5c' },
-    { id: 'ai-assistant', label: 'المساعد', icon: <span className="text-lg">🤖</span>, color: '#059669' },
-    { id: 'ai', label: 'مساعد ذكي', icon: <span className="text-lg">🧠</span>, color: '#7c3aed' },
+    { id: 'ai', label: 'المساعد الذكي', icon: <span className="text-lg">🤖</span>, color: '#059669' },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon />, color: '#2563eb' },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" />, color: '#1a3a5c' },
     { id: 'e-litigation', label: 'التقاضي', icon: <span className="text-lg">💻</span>, color: '#7c3aed' },
@@ -1567,8 +1564,7 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
 const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) => {
   const tabs = [
     { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span> },
-    { id: 'ai-assistant', label: 'المساعد الذكي', icon: <span className="text-lg">🤖</span> },
-    { id: 'ai', label: 'مساعد ذكي', icon: <span className="text-lg">🧠</span> },
+    { id: 'ai', label: 'المساعد الذكي', icon: <span className="text-lg">🤖</span> },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon /> },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" /> },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: <span className="text-lg">💻</span> },
@@ -4009,13 +4005,6 @@ export default function Home() {
     switch (activeTab) {
       case 'home':
         return <HomeTab onNavigate={setActiveTab} />;
-
-      case 'ai-assistant':
-        return (
-          <div className="animate-fade-in" dir="rtl">
-            <AIChat />
-          </div>
-        );
 
       case 'ai':
         return <AiAssistant />;
