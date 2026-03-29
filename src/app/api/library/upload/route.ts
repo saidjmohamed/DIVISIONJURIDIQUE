@@ -7,13 +7,9 @@ const redis = new Redis({
 });
 
 const FILES_KEY = "shamil:library:files";
-const FILE_DATA_PREFIX = "shamil:library:file:";
-// 10MB limit per file — base64 adds ~33% overhead, so 10MB file → ~13.3MB string
-// Upstash Redis supports up to ~100MB per value, but 10MB keeps things safe
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB (Telegram limit)
 const MAX_FILES_PER_UPLOAD = 10;
-const MAX_TOTAL_FILES = 200;
-const VALID_PIN = "shamil2025";
+const MAX_TOTAL_FILES = 500;
 
 interface LibraryFile {
   id: string;
@@ -21,33 +17,16 @@ interface LibraryFile {
   size: number;
   type: string;
   uploadedAt: string;
+  telegramFileId: string;
 }
 
 function generateId(): string {
   return `file_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
-function arrayBufferToBase64(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.byteLength; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary);
-}
-
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
-    const pin = formData.get("pin");
-
-    if (pin !== VALID_PIN) {
-      return NextResponse.json(
-        { success: false, error: "رمز PIN غير صحيح. استخدم: shamil2025" },
-        { status: 403 }
-      );
-    }
-
     const files: File[] = [];
     const entries = formData.getAll("files");
     for (const entry of entries) {
@@ -71,39 +50,71 @@ export async function POST(request: Request) {
     for (const file of files) {
       if (file.size > MAX_FILE_SIZE) {
         return NextResponse.json(
-          { success: false, error: `حجم "${file.name}" يتجاوز 10 ميغابايت (الحد الأقصى للخادم)` },
+          { success: false, error: `حجم "${file.name}" يتجاوز 50 ميغابايت` },
           { status: 400 }
         );
       }
     }
 
-    // Get existing metadata from Redis
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (!botToken) {
+      return NextResponse.json(
+        { success: false, error: "Telegram Bot غير مضبوط" },
+        { status: 500 }
+      );
+    }
+
     const existingFiles: LibraryFile[] = (await redis.get<LibraryFile[]>(FILES_KEY)) || [];
     const newFiles: LibraryFile[] = [];
 
     for (const file of files) {
       const fileId = generateId();
 
-      // Convert file to base64 and store in Redis
-      const arrayBuffer = await file.arrayBuffer();
-      const base64Data = arrayBufferToBase64(arrayBuffer);
+      // رفع الملف لتليجرام
+      const telegramForm = new FormData();
+      telegramForm.append("document", file);
 
-      // Store file data in Redis under individual key
-      await redis.set(`${FILE_DATA_PREFIX}${fileId}`, base64Data);
+      const tgRes = await fetch(
+        `https://api.telegram.org/bot${botToken}/sendDocument?chat_id=8215710074`,
+        {
+          method: "POST",
+          body: telegramForm,
+        }
+      );
 
-      // Store metadata without file content
+      if (!tgRes.ok) {
+        const tgErr = await tgRes.text();
+        console.error("[library/upload] Telegram error:", tgErr);
+        return NextResponse.json(
+          { success: false, error: `فشل رفع "${file.name}" إلى تليجرام` },
+          { status: 500 }
+        );
+      }
+
+      const tgData = await tgRes.json();
+      const telegramFileId = tgData?.result?.document?.file_id;
+
+      if (!telegramFileId) {
+        return NextResponse.json(
+          { success: false, error: `لم يتم الحصول على معرّف الملف من تليجرام` },
+          { status: 500 }
+        );
+      }
+
+      // حفظ الميتاداتا في Redis فقط (الملف في تليجرام)
       const fileEntry: LibraryFile = {
         id: fileId,
         name: file.name,
         size: file.size,
-        type: file.type || "application/pdf",
+        type: file.type || "application/octet-stream",
         uploadedAt: new Date().toISOString(),
+        telegramFileId,
       };
 
       newFiles.push(fileEntry);
     }
 
-    // Save metadata to Redis (no file content)
+    // تحديث قائمة الملفات في Redis
     const allFiles = [...existingFiles, ...newFiles];
     const filesToStore = allFiles.length > MAX_TOTAL_FILES
       ? allFiles.slice(allFiles.length - MAX_TOTAL_FILES)
@@ -113,14 +124,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: `تم رفع ${newFiles.length} ملف بنجاح`,
+      message: `تم رفع ${newFiles.length} ملف بنجاح إلى المكتبة`,
       files: newFiles,
       totalFiles: filesToStore.length,
     });
   } catch (error) {
     console.error("[library/upload] Error:", error);
     return NextResponse.json(
-      { success: false, error: "فشل في رفع الملفات. تأكد من صحة الرمز (PIN: shamil2025)" },
+      { success: false, error: "فشل في رفع الملفات" },
       { status: 500 }
     );
   }

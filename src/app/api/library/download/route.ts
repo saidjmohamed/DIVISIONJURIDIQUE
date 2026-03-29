@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Redis } from "@upstash/redis";
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
-
-const FILES_KEY = "shamil:library:files";
-const FILE_DATA_PREFIX = "shamil:library:file:";
-
-interface LibraryFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  uploadedAt: string;
-}
-
-function base64ToBuffer(base64: string): Buffer {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
-  }
-  return Buffer.from(bytes);
-}
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
 export async function GET(request: NextRequest) {
   try {
@@ -35,27 +11,59 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "معرّف الملف مطلوب" }, { status: 400 });
     }
 
-    // Fetch metadata to get file name and content type
-    const allFiles: LibraryFile[] = (await redis.get<LibraryFile[]>(FILES_KEY)) || [];
-    const fileMeta = allFiles.find((f) => f.id === fileId);
+    if (!BOT_TOKEN) {
+      return NextResponse.json({ error: "Telegram Bot غير مضبوط" }, { status: 500 });
+    }
 
-    // Fetch file data from Redis
-    const base64Data = await redis.get<string>(`${FILE_DATA_PREFIX}${fileId}`);
+    // جلب الميتاداتا من Redis لمعرفة telegramFileId
+    const { Redis } = await import("@upstash/redis");
+    const redis = new Redis({
+      url: process.env.UPSTASH_REDIS_REST_URL!,
+      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+    });
 
-    if (!base64Data) {
+    const files: any[] = (await redis.get("shamil:library:files")) || [];
+    const fileMeta = files.find((f: any) => f.id === fileId);
+
+    if (!fileMeta || !fileMeta.telegramFileId) {
       return NextResponse.json({ error: "الملف غير موجود" }, { status: 404 });
     }
 
-    const fileBuffer = base64ToBuffer(base64Data);
-    const fileName = fileMeta?.name || fileId;
-    const contentType = fileMeta?.type || "application/pdf";
+    // جلب رابط التحميل من تليجرام
+    const tgRes = await fetch(
+      `https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileMeta.telegramFileId}`
+    );
 
-    return new NextResponse(new Uint8Array(fileBuffer), {
+    if (!tgRes.ok) {
+      const err = await tgRes.text();
+      console.error("[library/download] Telegram getFile error:", err);
+      return NextResponse.json({ error: "فشل في الوصول للملف" }, { status: 500 });
+    }
+
+    const tgData = await tgRes.json();
+    const filePath = tgData?.result?.file_path;
+
+    if (!filePath) {
+      return NextResponse.json({ error: "مسار الملف غير موجود" }, { status: 404 });
+    }
+
+    // تحميل الملف من تليجرام وإرساله للمستخدم
+    const fileUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+    const fileResponse = await fetch(fileUrl);
+
+    if (!fileResponse.ok) {
+      return NextResponse.json({ error: "فشل تحميل الملف من تليجرام" }, { status: 500 });
+    }
+
+    const fileBuffer = await fileResponse.arrayBuffer();
+
+    return new Response(fileBuffer, {
       status: 200,
       headers: {
-        "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${encodeURIComponent(fileName)}"`,
-        "Content-Length": String(fileBuffer.length),
+        "Content-Type": fileMeta.type || "application/octet-stream",
+        "Content-Disposition": `inline; filename="${encodeURIComponent(fileMeta.name)}"`,
+        "Content-Length": String(fileBuffer.byteLength),
+        "Cache-Control": "public, max-age=31536000",
       },
     });
   } catch (error) {

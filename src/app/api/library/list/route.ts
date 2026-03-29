@@ -6,16 +6,18 @@ interface LibraryFile {
   size: number;
   type: string;
   uploadedAt: string;
+  telegramFileId: string;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const search = searchParams.get("search")?.trim();
+    const page = parseInt(searchParams.get("page") || "1");
+    const pageSize = 30;
 
-    // Try to fetch from Redis, fallback to empty if not configured
     let files: LibraryFile[] = [];
-    
+
     try {
       const { Redis } = await import("@upstash/redis");
       if (process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN) {
@@ -26,24 +28,48 @@ export async function GET(request: NextRequest) {
         files = (await redis.get<LibraryFile[]>("shamil:library:files")) || [];
       }
     } catch {
-      // Redis not configured, return empty
+      // Redis not configured
     }
 
-    // Filter by search if provided
+    // البحث بالاسم (غير حساس للأحرف والتشكيل)
     if (search) {
-      files = files.filter(f =>
-        f.name.toLowerCase().includes(search.toLowerCase())
-      );
+      const q = search
+        .replace(/[\u064B-\u065F]/g, "")
+        .replace(/أ|إ|آ/g, "ا")
+        .replace(/ة/g, "ه")
+        .toLowerCase();
+      files = files.filter(f => {
+        const name = f.name
+          .replace(/[\u064B-\u065F]/g, "")
+          .replace(/أ|إ|آ/g, "ا")
+          .replace(/ة/g, "ه")
+          .toLowerCase();
+        return name.includes(q);
+      });
     }
 
-    // Sort by date (newest first)
+    // ترتيب حسب التاريخ (الأحدث أولاً)
     files.sort((a, b) => new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime());
 
-    // Return files
+    // تقسيم الصفحات
+    const total = files.length;
+    const pages = Math.ceil(total / pageSize);
+    const items = files.slice((page - 1) * pageSize, page * pageSize);
+
+    // إحصائيات بأنواع الملفات
+    const stats: Record<string, number> = {};
+    for (const f of files) {
+      const ext = f.name.split(".").pop()?.toLowerCase() || "other";
+      stats[ext] = (stats[ext] || 0) + 1;
+    }
+
     return NextResponse.json({
       success: true,
-      files,
-      total: files.length,
+      files: items,
+      total,
+      page,
+      pages,
+      stats,
     });
   } catch (error) {
     console.error("[library/list] Error:", error);
