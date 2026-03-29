@@ -1,309 +1,288 @@
-'use client';
+"use client";
 
-import { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import {
-  Send,
-  Copy,
-  Share2,
-  Brain,
-  User,
-  Loader2,
-  CheckCheck,
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { useState, useRef, useEffect, useCallback } from "react";
 
 interface Message {
-  id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  error?: boolean;
 }
 
-const suggestedQuestions = [
-  'ما هي حقوق الموظف في القانون الجزائري؟',
-  'كيف يتم تقديم شكوى جنائية؟',
-  'ما الفرق بين العقد الشفوي والمكتوب؟',
-  'شرح قانون الأسرة الجزائري',
-  'حقوق المستأجر وفق القانون الجزائري',
-  'كيف يتم تسجيل شركة في الجزائر؟',
+const SUGGESTED_QUESTIONS = [
+  "ما هو اختصاص المحاكم التجارية في الجزائر؟",
+  "ما هي مواعيد الطعن بالاستئناف في المواد المدنية؟",
+  "ما الفرق بين المحكمة الإدارية ومجلس الدولة؟",
+  "كيف تحسب مدة التقادم في القانون المدني الجزائري؟",
+  "ما هي إجراءات رفع دعوى الطلاق أمام المحكمة؟",
+  "ما هو الاختصاص الإقليمي في دعاوى العقارات؟",
 ];
 
 export default function AiAssistant() {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [messages, setMessages]     = useState<Message[]>([]);
+  const [input, setInput]           = useState("");
+  const [isLoading, setIsLoading]   = useState(false);
+  const [copiedIdx, setCopiedIdx]   = useState<number | null>(null);
+  const messagesEndRef               = useRef<HTMLDivElement>(null);
+  const inputRef                     = useRef<HTMLTextAreaElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  const scrollToBottom = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+  useEffect(() => { scrollToBottom() }, [messages, scrollToBottom]);
 
-  const copyToClipboard = async (text: string, id: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedId(id);
-      toast.success('تم النسخ');
-      setTimeout(() => setCopiedId(null), 2000);
-    } catch {
-      toast.error('فشل في النسخ');
-    }
-  };
+  const sendMessage = useCallback(async (text?: string) => {
+    const msg = (text ?? input).trim();
+    if (!msg || isLoading) return;
 
-  const shareViaWhatsApp = (text: string) => {
-    const url = `https://wa.me/?text=${encodeURIComponent(text)}`;
-    window.open(url, '_blank');
-  };
-
-  const sendMessage = async (text: string) => {
-    if (!text.trim() || isLoading) return;
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: text.trim(),
-      timestamp: new Date(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInput('');
+    const userMsg: Message = { role: "user", content: msg, timestamp: new Date() };
+    setMessages(prev => [...prev, userMsg]);
+    setInput("");
     setIsLoading(true);
 
-    // Reset textarea height
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
-
     try {
-      const history = messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      }));
-
-      const response = await fetch('/api/gemini', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text.trim(),
-          history,
+      const res = await fetch("/api/gemini", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({
+          userMessage: msg,
+          messages: messages.slice(-10),
         }),
       });
 
-      const data = await response.json();
+      const data = await res.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'فشل في الحصول على رد');
+      if (!res.ok || data.error) {
+        setMessages(prev => [...prev, {
+          role:      "assistant",
+          content:   `❌ خطأ: ${data.error ?? "خطأ غير معروف"}`,
+          timestamp: new Date(),
+          error:     true,
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role:      "assistant",
+          content:   data.reply,
+          timestamp: new Date(),
+        }]);
       }
-
-      const assistantMessage: Message = {
-        id: `msg-${Date.now()}-resp`,
-        role: 'assistant',
-        content: data.response,
+    } catch {
+      setMessages(prev => [...prev, {
+        role:      "assistant",
+        content:   "❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت.",
         timestamp: new Date(),
-      };
-
-      setMessages((prev) => [...prev, assistantMessage]);
-    } catch (error) {
-      const errorMessage: Message = {
-        id: `msg-${Date.now()}-err`,
-        role: 'assistant',
-        content:
-          'عذراً، حدث خطأ في الاتصال. يرجى التأكد من إعدادات API والمحاولة مرة أخرى. 🙏',
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, errorMessage]);
+        error:     true,
+      }]);
     } finally {
       setIsLoading(false);
+      inputRef.current?.focus();
     }
-  };
+  }, [input, isLoading, messages]);
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+  const copyMessage = useCallback((text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedIdx(idx);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  }, []);
+
+  const shareWhatsApp = useCallback((text: string) => {
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, "_blank");
+  }, []);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      sendMessage(input);
+      sendMessage();
     }
+  }, [sendMessage]);
+
+  const formatText = (text: string) => {
+    return text
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.*?)\*/g,     "<em>$1</em>")
+      .replace(/^### (.*)/gm,    '<h3 class="text-base font-bold mt-3 mb-1" style="color:#1a3a5c">$1</h3>')
+      .replace(/^## (.*)/gm,     '<h2 class="text-lg font-bold mt-4 mb-2" style="color:#1a3a5c">$1</h2>')
+      .replace(/^(\d+)\. (.*)/gm,'<li class="mr-4 list-decimal">$2</li>')
+      .replace(/^- (.*)/gm,      '<li class="mr-4 list-disc">$1</li>')
+      .replace(/\n\n/g,           '</p><p class="mt-2">')
+      .replace(/\n/g,             "<br/>");
   };
 
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col">
+    <div className="max-w-4xl mx-auto px-4 py-4 animate-fade-in flex flex-col"
+         style={{ height: "calc(100vh - 140px)", minHeight: 400 }}>
+
       {/* Header */}
-      <div className="animate-fade-in shrink-0 px-4 pt-4 pb-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-700 shadow-md">
-            <Brain className="h-5 w-5 text-white" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-foreground">المساعد الذكي 🧠</h2>
-            <p className="text-xs text-muted-foreground">
-              اسألني أي سؤال حول القانون الجزائري
-            </p>
-          </div>
-        </div>
+      <div className="rounded-2xl p-4 mb-4 text-center shadow-lg"
+           style={{ background: "linear-gradient(135deg, #0f2540 0%, #1a3a5c 50%, #2d5a8a 100%)" }}>
+        <div className="text-3xl mb-1">⚖️🤖</div>
+        <h1 className="text-xl font-bold text-white">المساعد القانوني الذكي</h1>
+        <p className="text-white/70 text-xs mt-1">مدعوم بـ Gemini 2.5 Flash — متخصص في القانون الجزائري</p>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pb-2">
-        {messages.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center gap-4 pb-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-purple-500/20 to-sky-500/20">
-              <Brain className="h-8 w-8 text-purple-400" />
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-sm font-semibold text-foreground">
-                المساعد الذكي جاهز
-              </p>
-              <p className="text-xs text-muted-foreground">
-                اختر سؤالاً أو اكتب سؤالك الخاص
-              </p>
-            </div>
+      {/* منطقة الرسائل */}
+      <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner p-4 mb-4"
+           style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
 
-            {/* Suggested Questions */}
-            <div className="grid w-full max-w-md grid-cols-1 gap-2">
-              {suggestedQuestions.map((q, index) => (
-                <button
-                  key={index}
-                  onClick={() => sendMessage(q)}
-                  className="glass group flex items-center gap-2 rounded-xl p-3 text-right transition-all duration-200 hover:bg-white/10 active:scale-[0.98] animate-fade-in"
-                  style={{ animationDelay: `${index * 0.05}s` }}
-                >
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-sky-500/10">
-                    <span className="text-xs text-sky-400">{index + 1}</span>
-                  </div>
-                  <span className="text-xs text-foreground/80 line-clamp-2">
-                    {q}
-                  </span>
+        {messages.length === 0 && (
+          <div className="text-center py-8">
+            <div className="text-5xl mb-4">⚖️</div>
+            <h2 className="text-lg font-bold mb-2" style={{ color: "#1a3a5c" }}>
+              مرحباً بك في المساعد القانوني
+            </h2>
+            <p className="text-gray-500 text-sm mb-6">
+              اسألني عن أي موضوع قانوني جزائري
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-right">
+              {SUGGESTED_QUESTIONS.map((q, i) => (
+                <button key={i} onClick={() => sendMessage(q)}
+                  className="p-3 rounded-xl text-sm text-gray-700 transition-all text-right"
+                  style={{
+                    background: "#f8fafc",
+                    border: "1px solid #e2e8f0",
+                  }}>
+                  {q}
                 </button>
               ))}
             </div>
           </div>
-        ) : (
-          <div className="space-y-4 pb-4">
-            {messages.map((msg) => (
-              <div
-                key={msg.id}
-                className={`flex gap-2.5 animate-fade-in ${
-                  msg.role === 'user' ? 'flex-row-reverse' : ''
-                }`}
-              >
-                {/* Avatar */}
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                    msg.role === 'user'
-                      ? 'bg-sky-500/20'
-                      : 'bg-purple-500/20'
-                  }`}
-                >
-                  {msg.role === 'user' ? (
-                    <User className="h-4 w-4 text-sky-400" />
-                  ) : (
-                    <Brain className="h-4 w-4 text-purple-400" />
-                  )}
+        )}
+
+        {messages.map((msg, idx) => (
+          <div key={idx} className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+            <div className={`max-w-[85%] ${msg.role === "user" ? "order-1" : "order-2"}`}>
+              <div className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0"
+                     style={{
+                       background: msg.role === "user"
+                         ? "#1a3a5c" : "#fef3c7",
+                       color: msg.role === "user" ? "#fff" : "#92400e",
+                     }}>
+                  {msg.role === "user" ? "👤" : "⚖️"}
                 </div>
 
-                {/* Message Bubble */}
-                <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-                    msg.role === 'user'
-                      ? 'bg-sky-500/15 text-foreground'
-                      : 'glass text-foreground'
-                  }`}
-                >
-                  <div className="prose prose-sm max-w-none prose-invert">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
+                <div className="rounded-2xl px-4 py-3 shadow-sm"
+                     style={{
+                       borderRadius: msg.role === "user"
+                         ? "16px 16px 4px 16px"
+                         : "16px 16px 16px 4px",
+                       background: msg.role === "user"
+                         ? "#1a3a5c"
+                         : msg.error
+                           ? "#fef2f2"
+                           : "#f8fafc",
+                       color: msg.role === "user"
+                         ? "#fff"
+                         : msg.error
+                           ? "#991b1b"
+                           : "#1e293b",
+                       border: msg.role === "assistant" && !msg.error
+                         ? "1px solid #e2e8f0"
+                         : msg.error
+                           ? "1px solid #fecaca"
+                           : "none",
+                     }}>
+                  {msg.role === "assistant" && !msg.error ? (
+                    <div className="text-sm leading-relaxed"
+                         dir="rtl"
+                         dangerouslySetInnerHTML={{ __html: formatText(msg.content) }} />
+                  ) : (
+                    <p className="text-sm leading-relaxed" dir="rtl">{msg.content}</p>
+                  )}
 
-                  {/* Message Actions */}
-                  {msg.role === 'assistant' && (
-                    <div className="mt-2 flex items-center gap-1 border-t border-white/5 pt-2">
-                      <button
-                        onClick={() => copyToClipboard(msg.content, msg.id)}
-                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                      >
-                        {copiedId === msg.id ? (
-                          <>
-                            <CheckCheck className="h-3 w-3 text-emerald-400" />
-                            <span className="text-emerald-400">تم النسخ</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3 w-3" />
-                            نسخ
-                          </>
-                        )}
+                  {msg.role === "assistant" && !msg.error && (
+                    <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: "1px solid #f1f5f9" }}>
+                      <button onClick={() => copyMessage(msg.content, idx)}
+                        className="text-xs flex items-center gap-1 transition-colors"
+                        style={{ color: copiedIdx === idx ? "#16a34a" : "#94a3b8" }}>
+                        {copiedIdx === idx ? "✅ نُسخ" : "📋 نسخ"}
                       </button>
-                      <button
-                        onClick={() => shareViaWhatsApp(msg.content)}
-                        className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
-                      >
-                        <Share2 className="h-3 w-3" />
-                        مشاركة
+                      <button onClick={() => shareWhatsApp(msg.content)}
+                        className="text-xs flex items-center gap-1 transition-colors"
+                        style={{ color: "#94a3b8" }}>
+                        📤 واتساب
                       </button>
                     </div>
                   )}
                 </div>
               </div>
-            ))}
 
-            {/* Loading Indicator */}
-            {isLoading && (
-              <div className="flex gap-2.5 animate-fade-in">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-purple-500/20">
-                  <Brain className="h-4 w-4 text-purple-400" />
-                </div>
-                <div className="glass rounded-2xl px-4 py-3">
-                  <div className="flex items-center gap-1.5">
-                    <div className="h-2 w-2 rounded-full bg-sky-400 animate-typing-dot" />
-                    <div className="h-2 w-2 rounded-full bg-sky-400 animate-typing-dot-delay-1" />
-                    <div className="h-2 w-2 rounded-full bg-sky-400 animate-typing-dot-delay-2" />
-                  </div>
+              <p className={`text-xs mt-1 ${msg.role === "user" ? "text-left" : "text-right"}`}
+                 style={{ color: "#94a3b8" }}>
+                {msg.timestamp.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" })}
+              </p>
+            </div>
+          </div>
+        ))}
+
+        {isLoading && (
+          <div className="flex justify-start mb-4">
+            <div className="flex items-end gap-2">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center"
+                   style={{ background: "#fef3c7", color: "#92400e" }}>⚖️</div>
+              <div className="rounded-2xl px-4 py-3"
+                   style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px 16px 16px 4px" }}>
+                <div className="flex gap-1 items-center">
+                  <span className="text-xs mr-2" style={{ color: "#94a3b8" }}>يفكر...</span>
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="w-2 h-2 rounded-full animate-bounce"
+                         style={{ background: "#1a3a5c", animationDelay: `${i * 0.15}s` }} />
+                  ))}
                 </div>
               </div>
-            )}
-
-            <div ref={messagesEndRef} />
+            </div>
           </div>
         )}
+
+        <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Area */}
-      <div className="shrink-0 border-t border-white/5 bg-background/80 backdrop-blur-sm px-4 py-3 safe-bottom">
-        <div className="flex items-end gap-2">
-          <div className="relative flex-1">
-            <Textarea
-              ref={textareaRef}
-              placeholder="اكتب سؤالك القانوني..."
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                e.target.style.height = 'auto';
-                e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
-              }}
-              onKeyDown={handleKeyDown}
-              disabled={isLoading}
-              className="min-h-[44px] max-h-[120px] resize-none rounded-xl text-right text-sm"
-              rows={1}
-            />
-          </div>
-          <Button
-            onClick={() => sendMessage(input)}
-            disabled={!input.trim() || isLoading}
-            className="h-[44px] w-[44px] shrink-0 rounded-xl bg-sky-500 p-0 hover:bg-sky-600 disabled:opacity-40"
-          >
+      {/* منطقة الإدخال */}
+      <div className="rounded-2xl shadow-md p-3" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="اسأل عن أي موضوع قانوني جزائري..."
+            rows={2}
+            dir="rtl"
+            disabled={isLoading}
+            className="flex-1 resize-none rounded-xl px-4 py-3 text-sm text-gray-700 transition-all disabled:opacity-50"
+            style={{
+              background: "#f8fafc",
+              border: "2px solid transparent",
+              minHeight: 56,
+              maxHeight: 120,
+              outline: "none",
+            }}
+            onFocus={(e) => { e.currentTarget.style.borderColor = "#c9a84c"; }}
+            onBlur={(e) => { e.currentTarget.style.borderColor = "transparent"; }}
+          />
+          <button
+            onClick={() => sendMessage()}
+            disabled={isLoading || !input.trim()}
+            className="w-12 h-12 rounded-xl font-bold transition-all flex items-center justify-center flex-shrink-0 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{
+              background: isLoading || !input.trim() ? "#e2e8f0" : "linear-gradient(135deg, #c9a84c, #f0c040)",
+              color: isLoading || !input.trim() ? "#94a3b8" : "#fff",
+              boxShadow: isLoading || !input.trim() ? "none" : "0 4px 12px rgba(201,168,76,0.4)",
+            }}
+            aria-label="إرسال">
             {isLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
             ) : (
-              <Send className="h-5 w-5" />
+              <svg className="w-5 h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
             )}
-          </Button>
+          </button>
         </div>
+        <p className="text-xs text-center mt-2" style={{ color: "#94a3b8" }}>
+          Enter للإرسال • Shift+Enter لسطر جديد • للإرشاد فقط، استشر محامياً
+        </p>
       </div>
     </div>
   );

@@ -1,38 +1,51 @@
 import type { Metadata, Viewport } from "next";
-import { Cairo } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "sonner";
-
-const cairo = Cairo({
-  variable: "--font-cairo",
-  subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "600", "700", "800", "900"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
-  title: "الشامل - منصة القانون الجزائري",
-  description: "منصة شاملة للقانون الجزائري مع مساعد ذكي بالذكاء الاصطناعي",
-  keywords: ["قانون", "جزائري", "الشامل", "مساعد ذكي", "قانون الجزائر"],
+  title: "الشامل ⚖️ — المنصة القانونية الذكية في الجزائر",
+  description: "المرجع القانوني الشامل للمحامي الجزائري — اختصاص المحاكم، القوانين، الأدوات القانونية. تطوير الأستاذ سايج محمد محامٍ لدى مجلس قضاء الجزائر",
+  keywords: ["الجزائر", "القضاء", "المجالس القضائية", "المحاكم", "البلديات", "الاختصاص الإقليمي"],
+  authors: [{ name: "الأستاذ سايج محمد" }],
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-512.png",
+    icon: [
+      { url: "/icons/icon-72x72.png", sizes: "72x72", type: "image/png" },
+      { url: "/icons/icon-96x96.png", sizes: "96x96", type: "image/png" },
+      { url: "/icons/icon-128x128.png", sizes: "128x128", type: "image/png" },
+      { url: "/icons/icon-144x144.png", sizes: "144x144", type: "image/png" },
+      { url: "/icons/icon-152x152.png", sizes: "152x152", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-384x384.png", sizes: "384x384", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/icons/icon-152x152.png", sizes: "152x152", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "الشامل ⚖️",
+  },
+  formatDetection: {
+    telephone: false,
   },
   openGraph: {
-    title: "الشامل - منصة القانون الجزائري",
-    description: "منصة شاملة للقانون الجزائري مع مساعد ذكي",
+    title: "الشامل ⚖️ — المنصة القانونية الذكية في الجزائر",
+    description: "المرجع القانوني الشامل للمحامي الجزائري — تطوير الأستاذ سايج محمد",
     type: "website",
+    locale: "ar_DZ",
   },
 };
 
 export const viewport: Viewport = {
+  themeColor: "#1a3a5c",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
   viewportFit: "cover",
-  themeColor: "#0ea5e9",
 };
 
 export default function RootLayout({
@@ -41,23 +54,35 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" dir="rtl" suppressHydrationWarning className="dark">
-      <body
-        className={`${cairo.variable} font-[family-name:var(--font-cairo)] antialiased`}
-      >
-        {children}
-        <Toaster
-          position="top-center"
-          dir="rtl"
-          richColors
-          closeButton
-          toastOptions={{
-            style: {
-              fontFamily: "var(--font-cairo), sans-serif",
-              direction: "rtl",
-            },
+    <html lang="ar" dir="rtl" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link 
+          href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" 
+          rel="stylesheet" 
+        />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(
+                    function(registration) {
+                      console.log('SW registered: ', registration.scope);
+                    },
+                    function(registrationError) {
+                      console.log('SW registration failed: ', registrationError);
+                    }
+                  );
+                });
+              }
+            `,
           }}
         />
+      </head>
+      <body className="antialiased bg-background text-foreground font-['Noto_Sans_Arabic',sans-serif]">
+        {children}
       </body>
     </html>
   );
