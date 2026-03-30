@@ -1,5 +1,5 @@
 {
-  "totalCount": 125,
+  "totalCount": 188,
   "lastUpdate": "2026-03-30",
   "chambers": [
     {
@@ -28,7 +28,7 @@
       "name": "الغرفة العقارية",
       "icon": "🏠",
       "color": "#059669",
-      "count": 9
+      "count": 72
     },
     {
       "id": "commercial",
