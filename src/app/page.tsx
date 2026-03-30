@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import LegalQuiz from '@/components/quiz/LegalQuiz';
 import CloudLibraryTab from '@/components/CloudLibraryTab';
@@ -11,6 +11,12 @@ import StarRating from '@/components/StarRating';
 import QIJ_QUIZ_QUESTIONS from '@/data/quiz-qij-25-14';
 import LibraryUploader from '@/components/library/LibraryUploader';
 import PdfToolsSection from '@/components/pdf-tools/PdfToolsSection';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 // Lazy load Gemini AI Assistant
 const AiAssistant = dynamic(() => import('@/components/AiAssistant'), { ssr: false });
@@ -3532,6 +3538,9 @@ export default function Home() {
   const [showDevModal, setShowDevModal] = useState(false);
   const [searchSubTab, setSearchSubTab] = useState<'jurisdiction'>('jurisdiction');
   const [lawsSubTab, setLawsSubTab] = useState<'search' | 'browse'>('search');
+  const [selectedMunicipality, setSelectedMunicipality] = useState<UnifiedSearchResult | null>(null);
+  const [showMunicipalityModal, setShowMunicipalityModal] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
   
   
   // Toast state
@@ -3978,6 +3987,67 @@ export default function Home() {
     window.open(`https://wa.me/213558357689?text=${encodeURIComponent(message)}`, '_blank');
   }, []);
 
+  // Select municipality and show details modal
+  const handleSelectMunicipality = useCallback((result: UnifiedSearchResult) => {
+    setSelectedMunicipality(result);
+    setShowMunicipalityModal(true);
+  }, []);
+
+  // Print municipality details
+  const printMunicipalityDetails = useCallback((result: UnifiedSearchResult) => {
+    const printContent = `
+      <html dir="rtl">
+      <head>
+        <meta charset="UTF-8">
+        <title>تفاصيل بلدية ${result.municipality}</title>
+        <style>
+          body { font-family: 'Noto Sans Arabic', sans-serif; padding: 40px; direction: rtl; }
+          h1 { color: #1a3a5c; border-bottom: 2px solid #1a3a5c; padding-bottom: 10px; }
+          .section { margin: 20px 0; padding: 15px; border-radius: 10px; border: 1px solid #e5e7eb; }
+          .section h3 { margin: 0 0 10px 0; }
+          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px dashed #e5e7eb; }
+          .row:last-child { border-bottom: none; }
+          .label { color: #6b7280; font-size: 14px; }
+          .value { font-weight: 600; font-size: 14px; }
+          .footer { margin-top: 30px; text-align: center; color: #9ca3af; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <h1>بلدية ${result.municipality}</h1>
+        ${result.ordinary ? `
+          <div class="section">
+            <h3>القضاء العادي</h3>
+            <div class="row"><span class="label">المحكمة</span><span class="value">${result.ordinary.court}</span></div>
+            <div class="row"><span class="label">مجلس القضاء</span><span class="value">${result.ordinary.council}</span></div>
+            ${result.ordinary.branch ? `<div class="row"><span class="label">الفرع</span><span class="value">${result.ordinary.branch}</span></div>` : ''}
+            ${result.ordinary.status ? `<div class="row"><span class="label">الحالة</span><span class="value">${result.ordinary.status === 'not_installed' ? 'غير منصبة' : 'غير محددة'}</span></div>` : ''}
+          </div>
+        ` : ''}
+        ${result.administrative ? `
+          <div class="section">
+            <h3>القضاء الإداري</h3>
+            <div class="row"><span class="label">المحكمة الإدارية</span><span class="value">${result.administrative.adminCourt}</span></div>
+            <div class="row"><span class="label">محكمة الاستئناف الإدارية</span><span class="value">${result.administrative.appealCourt}</span></div>
+          </div>
+        ` : ''}
+        ${result.commercial ? `
+          <div class="section">
+            <h3>المحكمة التجارية المتخصصة</h3>
+            <div class="row"><span class="label">المحكمة التجارية</span><span class="value">${result.commercial.court}</span></div>
+          </div>
+        ` : ''}
+        <div class="footer">منصة الشامل — الأستاذ سايج محمد</div>
+      </body>
+      </html>
+    `;
+    const printWindow = window.open('', '_blank');
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  }, []);
+
   // Send feedback via WhatsApp
   const sendFeedback = useCallback(() => {
     const message = feedbackMessage 
@@ -4014,42 +4084,34 @@ export default function Home() {
           <div className="animate-fade-in" dir="rtl">
             {searchSubTab === 'jurisdiction' && (
             <div>
-            {/* شريط الإحصاءات المُحسَّن */}
+            {/* شريط الإحصاءات */}
             <div className="max-w-4xl mx-auto px-4 py-4 sm:py-6">
-              <div 
-                className="rounded-[20px] p-4 flex items-center justify-around flex-wrap gap-2"
+              <div
+                className="rounded-2xl p-4 sm:p-5 grid grid-cols-4 gap-2 sm:gap-4"
                 style={{
-                  background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 100%)',
-                  boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 2px 6px rgba(0,0,0,0.06)'
+                  background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 50%, #1e4976 100%)',
+                  boxShadow: '0 8px 32px rgba(15,37,64,0.25), 0 2px 8px rgba(0,0,0,0.10)'
                 }}
               >
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[22px] font-extrabold text-[#f0c040]">49</span>
-                  <span className="text-[10px] text-white/70 font-medium">مجلس قضاء</span>
-                </div>
-                <div className="w-px h-8 bg-white/15 hidden sm:block" />
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[22px] font-extrabold text-[#f0c040]">{stats.courts}</span>
-                  <span className="text-[10px] text-white/70 font-medium">محكمة</span>
-                </div>
-                <div className="w-px h-8 bg-white/15 hidden sm:block" />
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[22px] font-extrabold text-[#f0c040]">58</span>
-                  <span className="text-[10px] text-white/70 font-medium">محكمة إدارية</span>
-                </div>
-                <div className="w-px h-8 bg-white/15 hidden sm:block" />
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-[22px] font-extrabold text-[#f0c040]">12</span>
-                  <span className="text-[10px] text-white/70 font-medium">محكمة تجارية</span>
-                </div>
+                {[
+                  { value: '49', label: 'مجلس قضاء' },
+                  { value: String(stats.courts), label: 'محكمة' },
+                  { value: '58', label: 'محكمة إدارية' },
+                  { value: '12', label: 'محكمة تجارية' },
+                ].map((stat, i) => (
+                  <div key={i} className="flex flex-col items-center gap-1 py-1">
+                    <span className="text-xl sm:text-2xl font-extrabold text-[#f0c040] tabular-nums">{stat.value}</span>
+                    <span className="text-[10px] sm:text-[11px] text-white/70 font-medium text-center leading-tight">{stat.label}</span>
+                  </div>
+                ))}
               </div>
             </div>
 
             {/* حقل البحث المُحسَّن */}
-            <div className="max-w-4xl mx-auto px-4 pb-4">
+            <div className="max-w-4xl mx-auto px-4 pb-4" style={{ position: 'relative', zIndex: 40 }}>
               <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <div 
+                <div className="relative flex-1" ref={dropdownRef}>
+                  <div
                     className="absolute right-4 top-1/2 -translate-y-1/2 z-10"
                     style={{ color: '#94a3b8' }}
                   >
@@ -4075,45 +4137,61 @@ export default function Home() {
                     }}
                     dir="rtl"
                   />
-                  
-                  {/* قائمة الاقتراحات الفورية المُحسَّنة */}
+
+                  {/* قائمة الاقتراحات الفورية */}
                   {searchQuery && normalize(searchQuery).length >= 2 && (
-                    <div 
-                      className="absolute top-full right-0 left-0 bg-white rounded-[20px] mt-2 z-50 max-h-[320px] overflow-y-auto"
+                    <div
+                      className="bg-white rounded-[16px] mt-2 overflow-hidden"
                       style={{
-                        boxShadow: '0 12px 40px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08)',
+                        position: 'absolute',
+                        top: '100%',
+                        right: 0,
+                        left: 0,
+                        zIndex: 9999,
+                        maxHeight: '280px',
+                        overflowY: 'auto',
+                        boxShadow: '0 12px 40px rgba(0,0,0,0.18), 0 4px 12px rgba(0,0,0,0.10)',
+                        border: '1px solid rgba(0,0,0,0.06)',
                         animation: 'dropDown 0.2s ease'
                       }}
                     >
                       {unifiedSearchResults.length > 0 ? (
                         <div>
                           {unifiedSearchResults.map((result, idx) => (
-                            <button
+                            <div
                               key={idx}
-                              onClick={() => {
-                                // عرض النتيجة الكاملة
-                              }}
-                              className="w-full flex items-center gap-3 p-4 hover:bg-gray-50 transition-colors text-right"
+                              className="flex items-center gap-3 px-4 py-3 hover:bg-blue-50/60 transition-colors text-right"
                               style={{ borderBottom: idx < unifiedSearchResults.length - 1 ? '1px solid #f1f5f9' : 'none' }}
                             >
-                              <div 
-                                className="w-2 h-2 rounded-full flex-shrink-0"
-                                style={{ background: '#1a3a5c' }}
+                              <div
+                                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                                style={{ background: 'linear-gradient(135deg, #1a3a5c, #2563eb)' }}
                               />
-                              <div className="flex-1">
-                                <p className="text-sm font-semibold text-gray-800">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-800 truncate">
                                   {highlightMatch(result.municipality, searchQuery)}
                                 </p>
-                                <p className="text-[11px] text-gray-500 mt-0.5">
+                                <p className="text-[11px] text-gray-500 mt-0.5 truncate">
                                   {result.ordinary?.court} · مجلس {result.ordinary?.council}
                                 </p>
                               </div>
-                            </button>
+                              <button
+                                onClick={() => handleSelectMunicipality(result)}
+                                className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg transition-all active:scale-95"
+                                style={{
+                                  background: 'linear-gradient(135deg, #1a3a5c 0%, #2563eb 100%)',
+                                  color: 'white',
+                                  boxShadow: '0 2px 8px rgba(26,58,92,0.3)'
+                                }}
+                              >
+                                اختيار
+                              </button>
+                            </div>
                           ))}
                         </div>
                       ) : (
                         <div className="p-6 text-center">
-                          <p className="text-gray-500 text-sm">🔍 لا توجد نتائج</p>
+                          <p className="text-gray-500 text-sm">لا توجد نتائج</p>
                           <p className="text-gray-400 text-xs mt-1">تأكد من كتابة اسم البلدية بشكل صحيح</p>
                         </div>
                       )}
@@ -4132,7 +4210,7 @@ export default function Home() {
             </div>
 
             {unifiedSearchResults.length > 0 && (
-              <div className="max-w-4xl mx-auto px-4 pb-4">
+              <div className="max-w-4xl mx-auto px-4 pb-4" style={{ position: 'relative', zIndex: 1 }}>
                 <div className="space-y-3">
                   {unifiedSearchResults.map((result, idx) => (
                     <UnifiedSearchCard
@@ -4148,9 +4226,9 @@ export default function Home() {
 
             {/* القوائم المنسدلة الأكورديون */}
             {!searchQuery && (
-              <div className="max-w-4xl mx-auto px-4 pb-6">
+              <div className="max-w-4xl mx-auto px-4 pb-6" style={{ position: 'relative', zIndex: 1 }}>
                 <h3 className="text-lg font-bold text-[#1a3a5c] mb-4 flex items-center gap-2">
-                  <span className="w-8 h-8 bg-[#1a3a5c] rounded-lg flex items-center justify-center text-white text-sm">📋</span>
+                  <span className="w-8 h-8 bg-[#1a3a5c] rounded-lg flex items-center justify-center text-white text-sm">&#128203;</span>
                   تصنيف المحاكم
                 </h3>
                 
@@ -4237,6 +4315,159 @@ export default function Home() {
                 </JurisdictionAccordion>
               </div>
           )}
+
+          {/* Municipality Details Modal */}
+          <Dialog open={showMunicipalityModal} onOpenChange={setShowMunicipalityModal}>
+            <DialogContent className="max-w-lg mx-auto rounded-[20px] p-0 overflow-hidden border-0" style={{ direction: 'rtl' }}>
+              {selectedMunicipality && (
+                <>
+                  {/* Header */}
+                  <div
+                    className="px-6 pt-6 pb-4"
+                    style={{ background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 100%)' }}
+                  >
+                    <DialogHeader>
+                      <DialogTitle className="text-white text-xl font-bold text-center">
+                        بلدية {selectedMunicipality.municipality}
+                      </DialogTitle>
+                      <p className="text-white/60 text-xs text-center mt-1">التفاصيل القضائية الكاملة</p>
+                    </DialogHeader>
+                  </div>
+
+                  {/* Content */}
+                  <div className="px-5 py-4 space-y-3 max-h-[60vh] overflow-y-auto">
+                    {/* القضاء العادي */}
+                    {selectedMunicipality.ordinary && (
+                      <div
+                        className="rounded-xl p-4 border"
+                        style={{
+                          background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+                          borderColor: '#bfdbfe'
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#1a3a5c' }}>
+                            <span className="text-white text-sm">&#9878;&#65039;</span>
+                          </div>
+                          <p className="font-bold text-[#1a3a5c]">القضاء العادي</p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center py-2 border-b border-dashed border-blue-200/60">
+                            <span className="text-xs text-gray-500">المحكمة</span>
+                            <span className="text-sm font-semibold text-gray-800">{selectedMunicipality.ordinary.court}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-dashed border-blue-200/60">
+                            <span className="text-xs text-gray-500">مجلس القضاء</span>
+                            <span className="text-sm font-semibold text-gray-800">{selectedMunicipality.ordinary.council}</span>
+                          </div>
+                          {selectedMunicipality.ordinary.branch && (
+                            <div className="flex justify-between items-center py-2 border-b border-dashed border-blue-200/60">
+                              <span className="text-xs text-gray-500">الفرع</span>
+                              <span className="text-sm font-semibold text-blue-700">{selectedMunicipality.ordinary.branch}</span>
+                            </div>
+                          )}
+                          {selectedMunicipality.ordinary.status && (
+                            <div className="mt-2">
+                              <span className="text-xs text-orange-700 bg-orange-50 px-3 py-1.5 rounded-lg inline-block border border-orange-200">
+                                {selectedMunicipality.ordinary.status === 'not_installed' ? 'غير منصبة' : 'غير محددة'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* القضاء الإداري */}
+                    {selectedMunicipality.administrative && (
+                      <div
+                        className="rounded-xl p-4 border"
+                        style={{
+                          background: 'linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%)',
+                          borderColor: '#e9d5ff'
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#7c3aed' }}>
+                            <span className="text-white text-sm">&#127970;</span>
+                          </div>
+                          <p className="font-bold text-[#7c3aed]">القضاء الإداري</p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center py-2 border-b border-dashed border-purple-200/60">
+                            <span className="text-xs text-gray-500">المحكمة الإدارية</span>
+                            <span className="text-sm font-semibold text-gray-800">{selectedMunicipality.administrative.adminCourt}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-xs text-gray-500">محكمة الاستئناف الإدارية</span>
+                            <span className="text-sm font-semibold text-gray-800">{selectedMunicipality.administrative.appealCourt}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* القضاء التجاري */}
+                    {selectedMunicipality.commercial && (
+                      <div
+                        className="rounded-xl p-4 border"
+                        style={{
+                          background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                          borderColor: '#bbf7d0'
+                        }}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: '#059669' }}>
+                            <span className="text-white text-sm">&#128188;</span>
+                          </div>
+                          <p className="font-bold text-[#059669]">المحكمة التجارية المتخصصة</p>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-xs text-gray-500">المحكمة التجارية</span>
+                            <span className="text-sm font-semibold text-gray-800">{selectedMunicipality.commercial.court}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="px-5 pb-5 pt-2 flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (selectedMunicipality) copyUnifiedResult(selectedMunicipality);
+                      }}
+                      className="flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-sm"
+                      style={{
+                        background: 'linear-gradient(135deg, #0f2540 0%, #1a3a5c 100%)',
+                        color: 'white',
+                        boxShadow: '0 4px 12px rgba(26,58,92,0.3)'
+                      }}
+                    >
+                      <CopyIcon />
+                      <span>نسخ المعلومات</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (selectedMunicipality) printMunicipalityDetails(selectedMunicipality);
+                      }}
+                      className="flex-1 py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 active:scale-[0.98] text-sm"
+                      style={{
+                        background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                        color: 'white',
+                        boxShadow: '0 4px 12px rgba(5,150,105,0.3)'
+                      }}
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                      </svg>
+                      <span>طباعة</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
+
           </div>
           )}
         </div>
