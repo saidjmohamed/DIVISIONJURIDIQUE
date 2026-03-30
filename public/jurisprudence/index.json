@@ -1,14 +1,62 @@
 {
-  "totalCount": 47,
+  "totalCount": 125,
   "lastUpdate": "2026-03-30",
   "chambers": [
-    { "id": "civil", "name": "الغرفة المدنية", "icon": "⚖️", "color": "#2563eb", "count": 5 },
-    { "id": "penal", "name": "الغرفة الجنائية", "icon": "🔒", "color": "#dc2626", "count": 7 },
-    { "id": "family", "name": "غرفة الأحوال الشخصية", "icon": "👨‍👩‍👧", "color": "#7c3aed", "count": 10 },
-    { "id": "realestate", "name": "الغرفة العقارية", "icon": "🏠", "color": "#059669", "count": 9 },
-    { "id": "commercial", "name": "الغرفة التجارية والبحرية", "icon": "💼", "color": "#d97706", "count": 8 },
-    { "id": "social", "name": "الغرفة الاجتماعية", "icon": "👷", "color": "#0891b2", "count": 4 },
-    { "id": "misdemeanor", "name": "غرفة الجنح والمخالفات", "icon": "📋", "color": "#6366f1", "count": 2 },
-    { "id": "combined", "name": "الغرف المجتمعة", "icon": "🏛️", "color": "#1a3a5c", "count": 2 }
+    {
+      "id": "civil",
+      "name": "الغرفة المدنية",
+      "icon": "⚖️",
+      "color": "#2563eb",
+      "count": 83
+    },
+    {
+      "id": "penal",
+      "name": "الغرفة الجنائية",
+      "icon": "🔒",
+      "color": "#dc2626",
+      "count": 7
+    },
+    {
+      "id": "family",
+      "name": "غرفة الأحوال الشخصية",
+      "icon": "👨‍👩‍👧",
+      "color": "#7c3aed",
+      "count": 10
+    },
+    {
+      "id": "realestate",
+      "name": "الغرفة العقارية",
+      "icon": "🏠",
+      "color": "#059669",
+      "count": 9
+    },
+    {
+      "id": "commercial",
+      "name": "الغرفة التجارية والبحرية",
+      "icon": "💼",
+      "color": "#d97706",
+      "count": 8
+    },
+    {
+      "id": "social",
+      "name": "الغرفة الاجتماعية",
+      "icon": "👷",
+      "color": "#0891b2",
+      "count": 4
+    },
+    {
+      "id": "misdemeanor",
+      "name": "غرفة الجنح والمخالفات",
+      "icon": "📋",
+      "color": "#6366f1",
+      "count": 2
+    },
+    {
+      "id": "combined",
+      "name": "الغرف المجتمعة",
+      "icon": "🏛️",
+      "color": "#1a3a5c",
+      "count": 2
+    }
   ]
 }
