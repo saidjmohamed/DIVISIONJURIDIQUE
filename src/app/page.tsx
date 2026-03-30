@@ -3263,7 +3263,7 @@ const HomeTab = ({ onNavigate }: { onNavigate: (tab: string) => void }) => {
               الشامل — المنصة القانونية الذكية في الجزائر
             </p>
             <p className="text-white/60 text-sm">
-              © 2025 — الأستاذ سايج محمد
+              {`© ${new Date().getFullYear()}`} — الأستاذ سايج محمد
             </p>
             <p className="text-white/40 text-xs mt-1">
               جميع الحقوق محفوظة
@@ -3425,7 +3425,7 @@ const Footer = ({ tab }: { tab: string }) => {
           <p className="text-xs text-white/60 mt-1">{getUpdateDate()}</p>
         )}
         <p className="text-xs text-white/50 mt-1">
-          جميع الحقوق محفوظة © 2025
+          {`جميع الحقوق محفوظة © ${new Date().getFullYear()}`}
         </p>
       </div>
     </footer>
@@ -3541,8 +3541,42 @@ export default function Home() {
   const [selectedMunicipality, setSelectedMunicipality] = useState<UnifiedSearchResult | null>(null);
   const [showMunicipalityModal, setShowMunicipalityModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  
+
+  // Favorites state
+  const [favorites, setFavorites] = useState<string[]>([]);
+
+  // Debounce state
+  const [inputValue, setInputValue] = useState('');
+  const debounceTimerRef = useRef<NodeJS.Timeout>();
+
+  // Load favorites from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('shamil_favorites');
+      if (saved) setFavorites(JSON.parse(saved));
+    } catch {}
+  }, []);
+
+  // Toggle favorite
+  const toggleFavorite = useCallback((municipality: string) => {
+    setFavorites(prev => {
+      const next = prev.includes(municipality)
+        ? prev.filter(f => f !== municipality)
+        : [...prev, municipality];
+      localStorage.setItem('shamil_favorites', JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Debounced search handler
+  const handleSearchChange = useCallback((value: string) => {
+    setInputValue(value);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, 300);
+  }, []);
+
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error'; visible: boolean }>({
     message: '',
@@ -3824,7 +3858,47 @@ export default function Home() {
         }
       });
     });
-    
+
+    // البحث المتقدم: بحث بالمحكمة والمجلس القضائي
+    judicialData.forEach(item => {
+      const courtMatch = normalize(item.court).includes(normalize(query));
+      const councilMatch = normalize(item.council).includes(normalize(query));
+      if (courtMatch || councilMatch) {
+        item.municipalities.forEach(municipality => {
+          const existing = results.find(r => r.municipality === municipality);
+          if (!existing) {
+            const result: UnifiedSearchResult & { score: number } = {
+              municipality,
+              score: courtMatch ? 70 : 60,
+            };
+            result.ordinary = {
+              court: item.court,
+              council: item.council,
+              status: item.status,
+              actualCourt: item.actualCourt,
+              branch: item.branch,
+            };
+            const adminMatch = adminCourtsData.find(d =>
+              d.municipalities.some(m => normalize(m) === normalize(municipality))
+            );
+            if (adminMatch) {
+              result.administrative = {
+                adminCourt: adminMatch.adminCourt,
+                appealCourt: adminMatch.appealCourt,
+              };
+            }
+            const commercialMatch = commercialCourtsData.find(d =>
+              d.councils.some(c => normalize(c) === normalize(item.council))
+            );
+            if (commercialMatch) {
+              result.commercial = { court: commercialMatch.commercialCourt };
+            }
+            results.push(result);
+          }
+        });
+      }
+    });
+
     // Sort by score (highest first) and limit to 5 results
     return results
       .sort((a, b) => b.score - a.score)
@@ -4107,6 +4181,40 @@ export default function Home() {
               </div>
             </div>
 
+            {/* قسم المفضلة */}
+            {favorites.length > 0 && (
+              <div className="max-w-4xl mx-auto px-4 pb-3">
+                <div className="flex items-center gap-2 mb-2 justify-end">
+                  <span className="text-sm font-semibold text-white/90">⭐ المفضلة</span>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-end">
+                  {favorites.map((fav) => (
+                    <button
+                      key={fav}
+                      onClick={() => {
+                        setInputValue(fav);
+                        setSearchQuery(fav);
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-95"
+                      style={{
+                        background: 'rgba(255,255,255,0.15)',
+                        color: 'white',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                      }}
+                    >
+                      <span>{fav}</span>
+                      <span
+                        onClick={(e) => { e.stopPropagation(); toggleFavorite(fav); }}
+                        className="text-yellow-300 hover:text-red-400 cursor-pointer text-xs"
+                        title="إزالة من المفضلة"
+                      >✕</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* حقل البحث المُحسَّن */}
             <div className="max-w-4xl mx-auto px-4 pb-4" style={{ position: 'relative', zIndex: 40 }}>
               <div className="flex gap-2">
@@ -4119,9 +4227,9 @@ export default function Home() {
                   </div>
                   <input
                     type="text"
-                    placeholder="ابحث عن بلدية... (مثال: قبة، مراد، اولاد)"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="ابحث عن بلدية، محكمة، أو مجلس... (مثال: قبة، مراد، اولاد)"
+                    value={inputValue}
+                    onChange={(e) => handleSearchChange(e.target.value)}
                     className="w-full pr-12 pl-4 py-4 rounded-[28px] bg-white outline-none transition-all text-right text-base"
                     style={{
                       border: '2px solid transparent',
@@ -4139,7 +4247,7 @@ export default function Home() {
                   />
 
                   {/* قائمة الاقتراحات الفورية */}
-                  {searchQuery && normalize(searchQuery).length >= 2 && (
+                  {inputValue && normalize(inputValue).length >= 2 && (
                     <div
                       className="bg-white rounded-[16px] mt-2 overflow-hidden"
                       style={{
@@ -4175,6 +4283,13 @@ export default function Home() {
                                   {result.ordinary?.court} · مجلس {result.ordinary?.council}
                                 </p>
                               </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleFavorite(result.municipality); }}
+                                className="flex-shrink-0 text-lg transition-all active:scale-90"
+                                title={favorites.includes(result.municipality) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                              >
+                                {favorites.includes(result.municipality) ? '⭐' : '☆'}
+                              </button>
                               <button
                                 onClick={() => handleSelectMunicipality(result)}
                                 className="flex-shrink-0 px-3 py-1.5 text-xs font-bold rounded-lg transition-all active:scale-95"
@@ -4832,7 +4947,7 @@ export default function Home() {
             >
               <div className="text-2xl mb-2">⚖️</div>
               <p className="text-white font-medium">الشامل — المنصة القانونية الذكية في الجزائر</p>
-              <p className="text-white/60 text-sm mt-1">© 2025 الأستاذ سايج محمد — جميع الحقوق محفوظة</p>
+              <p className="text-white/60 text-sm mt-1">{`© ${new Date().getFullYear()} الأستاذ سايج محمد — جميع الحقوق محفوظة`}</p>
               <p className="text-white/40 text-xs mt-1">آخر تحديث: يونيو 2025</p>
             </div>
           </div>
