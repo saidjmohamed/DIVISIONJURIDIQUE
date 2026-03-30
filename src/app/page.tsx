@@ -28,6 +28,9 @@ const DeadlineCalculator = dynamic(() => import('@/components/deadlines/Deadline
 const DeadlinesTable = dynamic(() => import('@/components/deadlines/DeadlinesTable'), { ssr: false });
 const DualDeadlineView = dynamic(() => import('@/components/deadlines/DualDeadlineView'), { ssr: false });
 
+// Lazy load Jurisprudence tab
+const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
+
 // Changelog Interface
 interface ChangelogChange {
   type: 'new' | 'improvement' | 'fix' | 'removed';
@@ -1525,6 +1528,7 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
   ];
 
   const moreItems = [
+    { id: 'jurisprudence', label: 'اجتهادات المحكمة العليا', icon: '⚖️', color: '#1a3a5c' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖', color: '#059669' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁', color: '#6366f1' },
     { id: 'quiz', label: 'الاختبار القانوني', icon: '🎯', color: '#dc2626' },
@@ -1646,6 +1650,7 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
   ];
 
   const moreItems = [
+    { id: 'jurisprudence', label: 'اجتهادات المحكمة العليا', icon: '⚖️' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁' },
     { id: 'quiz', label: 'الاختبار القانوني', icon: '🎯' },
@@ -4751,6 +4756,9 @@ export default function Home() {
             <SuggestionsTab />
           </div>
         );
+
+      case 'jurisprudence':
+        return <JurisprudenceTab />;
 
       case 'about':
         return (
