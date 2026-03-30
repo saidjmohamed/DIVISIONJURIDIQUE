@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
+import { useTheme } from 'next-themes';
+import { useFavorites } from '@/hooks/useFavorites';
 import LegalQuiz from '@/components/quiz/LegalQuiz';
 import CloudLibraryTab from '@/components/CloudLibraryTab';
 import StatsStrip from '@/components/StatsStrip';
@@ -1511,91 +1513,211 @@ const SplashScreen = ({
   )
 }
 
-// Bottom Navigation Component - الشامل
+// Bottom Navigation Component - الشامل (5 tabs + More sheet)
 const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) => {
-  const tabs = [
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const mainTabs = [
     { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span>, color: '#1a3a5c' },
-    { id: 'ai', label: 'المساعد الذكي', icon: <span className="text-lg">🤖</span>, color: '#059669' },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon />, color: '#2563eb' },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" />, color: '#1a3a5c' },
     { id: 'e-litigation', label: 'التقاضي', icon: <span className="text-lg">💻</span>, color: '#7c3aed' },
-    { id: 'shared-library', label: 'المكتبة', icon: <span className="text-lg">📁</span>, color: '#6366f1' },
-    { id: 'quiz', label: 'الاختبار', icon: <span className="text-lg">🎯</span>, color: '#dc2626' },
   ];
 
+  const moreItems = [
+    { id: 'ai', label: 'المساعد الذكي', icon: '🤖', color: '#059669' },
+    { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁', color: '#6366f1' },
+    { id: 'quiz', label: 'الاختبار القانوني', icon: '🎯', color: '#dc2626' },
+    { id: 'suggestions', label: 'اقتراحات وملاحظات', icon: '💡', color: '#d97706' },
+    { id: 'about', label: 'حول المنصة', icon: 'ℹ️', color: '#475569' },
+  ];
+
+  const isMoreActive = moreItems.some(item => item.id === activeTab);
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white z-40 sm:hidden safe-area-bottom" style={{
-      boxShadow: '0 -4px 24px rgba(0,0,0,0.10)',
-      borderRadius: '24px 24px 0 0'
-    }}>
-      <div className="flex justify-around items-center py-2 px-1" style={{ gap: '2px' }}>
-        {tabs.map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[48px]"
-              style={{
-                background: isActive ? `linear-gradient(135deg, ${tab.color} 0%, ${tab.color}cc 100%)` : 'transparent',
-                transform: isActive ? 'translateY(-4px)' : 'translateY(0)',
-                boxShadow: isActive ? `0 6px 20px ${tab.color}66` : 'none',
-                color: isActive ? 'white' : '#94a3b8',
-                minHeight: '48px'
-              }}
-            >
-              <span style={{
-                fontSize: '20px',
-                transition: 'transform 0.25s',
-                transform: isActive ? 'scale(1.1)' : 'scale(1)'
-              }}>
-                {tab.icon}
-              </span>
-              <span style={{
-                fontSize: '9px',
-                fontWeight: 600,
-                whiteSpace: 'nowrap'
-              }}>
-                {tab.label}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-[#1e293b] z-40 sm:hidden safe-area-bottom" style={{
+        boxShadow: '0 -4px 24px rgba(0,0,0,0.10)',
+        borderRadius: '24px 24px 0 0'
+      }}>
+        <div className="flex justify-around items-center py-2 px-1" style={{ gap: '2px' }}>
+          {mainTabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => onTabChange(tab.id)}
+                className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[56px]"
+                style={{
+                  background: isActive ? `linear-gradient(135deg, ${tab.color} 0%, ${tab.color}cc 100%)` : 'transparent',
+                  transform: isActive ? 'translateY(-4px)' : 'translateY(0)',
+                  boxShadow: isActive ? `0 6px 20px ${tab.color}66` : 'none',
+                  color: isActive ? 'white' : '#94a3b8',
+                  minHeight: '48px'
+                }}
+              >
+                <span style={{
+                  fontSize: '20px',
+                  transition: 'transform 0.25s',
+                  transform: isActive ? 'scale(1.1)' : 'scale(1)'
+                }}>
+                  {tab.icon}
+                </span>
+                <span style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap'
+                }}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
+          {/* More button */}
+          <button
+            onClick={() => setMoreOpen(true)}
+            className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[56px]"
+            style={{
+              background: isMoreActive ? 'linear-gradient(135deg, #475569 0%, #475569cc 100%)' : 'transparent',
+              transform: isMoreActive ? 'translateY(-4px)' : 'translateY(0)',
+              boxShadow: isMoreActive ? '0 6px 20px #47556966' : 'none',
+              color: isMoreActive ? 'white' : '#94a3b8',
+              minHeight: '48px'
+            }}
+          >
+            <span style={{ fontSize: '20px' }}>☰</span>
+            <span style={{ fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>المزيد</span>
+          </button>
+        </div>
+      </nav>
+
+      {/* More Sheet */}
+      {moreOpen && (
+        <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-white dark:bg-[#1e293b] rounded-t-3xl p-5 pb-8 safe-area-bottom animate-slide-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-10 h-1 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-5" />
+            <h3 className="text-base font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-4 text-center">المزيد من الخدمات</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {moreItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    onTabChange(item.id);
+                    setMoreOpen(false);
+                  }}
+                  className="flex flex-col items-center gap-2 p-4 rounded-2xl transition-all"
+                  style={{
+                    background: activeTab === item.id
+                      ? `linear-gradient(135deg, ${item.color}18, ${item.color}08)`
+                      : 'rgba(0,0,0,0.03)',
+                    border: activeTab === item.id ? `2px solid ${item.color}40` : '2px solid transparent',
+                  }}
+                >
+                  <span className="text-2xl">{item.icon}</span>
+                  <span className="text-xs font-semibold text-center leading-tight" style={{
+                    color: activeTab === item.id ? item.color : undefined
+                  }}>
+                    {item.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 };
 
 // Top Navigation Component (Desktop) - الشامل
 const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (tab: string) => void }) => {
-  const tabs = [
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement>(null);
+
+  const mainTabs = [
     { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span> },
-    { id: 'ai', label: 'المساعد الذكي', icon: <span className="text-lg">🤖</span> },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon /> },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" /> },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: <span className="text-lg">💻</span> },
-    { id: 'shared-library', label: 'المكتبة القانونية', icon: <span className="text-lg">📁</span> },
-    { id: 'quiz', label: 'الاختبار', icon: <span className="text-lg">🎯</span> },
   ];
 
+  const moreItems = [
+    { id: 'ai', label: 'المساعد الذكي', icon: '🤖' },
+    { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁' },
+    { id: 'quiz', label: 'الاختبار القانوني', icon: '🎯' },
+    { id: 'suggestions', label: 'اقتراحات وملاحظات', icon: '💡' },
+    { id: 'about', label: 'حول المنصة', icon: 'ℹ️' },
+  ];
+
+  const isMoreActive = moreItems.some(item => item.id === activeTab);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false);
+      }
+    };
+    if (moreOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [moreOpen]);
+
   return (
-    <nav className="hidden sm:block bg-white border-b border-gray-200 sticky top-0 z-40">
+    <nav className="hidden sm:block bg-white dark:bg-[#1e293b] border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
       <div className="max-w-4xl mx-auto px-4">
         <div className="flex justify-center gap-2 py-2 overflow-x-auto">
-          {tabs.map((tab) => (
+          {mainTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
               className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors min-h-[48px] whitespace-nowrap ${
                 activeTab === tab.id
                   ? 'bg-[#1a3a5c] text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               {tab.icon}
               <span>{tab.label}</span>
             </button>
           ))}
+          {/* More dropdown */}
+          <div className="relative" ref={moreRef}>
+            <button
+              onClick={() => setMoreOpen(!moreOpen)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-lg font-medium transition-colors min-h-[48px] whitespace-nowrap ${
+                isMoreActive
+                  ? 'bg-[#1a3a5c] text-white'
+                  : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
+            >
+              <span className="text-lg">☰</span>
+              <span>المزيد</span>
+            </button>
+            {moreOpen && (
+              <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1e293b] rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[200px] z-50 animate-fade-in">
+                {moreItems.map((item) => (
+                  <button
+                    key={item.id}
+                    onClick={() => {
+                      onTabChange(item.id);
+                      setMoreOpen(false);
+                    }}
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === item.id
+                        ? 'bg-[#1a3a5c]/10 text-[#1a3a5c] dark:text-[#f0c040]'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                    }`}
+                  >
+                    <span className="text-lg">{item.icon}</span>
+                    <span>{item.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </nav>
@@ -3263,7 +3385,7 @@ const HomeTab = ({ onNavigate }: { onNavigate: (tab: string) => void }) => {
               الشامل — المنصة القانونية الذكية في الجزائر
             </p>
             <p className="text-white/60 text-sm">
-              {`© ${new Date().getFullYear()}`} — الأستاذ سايج محمد
+              © {new Date().getFullYear()} — الأستاذ سايج محمد
             </p>
             <p className="text-white/40 text-xs mt-1">
               جميع الحقوق محفوظة
@@ -3425,7 +3547,7 @@ const Footer = ({ tab }: { tab: string }) => {
           <p className="text-xs text-white/60 mt-1">{getUpdateDate()}</p>
         )}
         <p className="text-xs text-white/50 mt-1">
-          {`جميع الحقوق محفوظة © ${new Date().getFullYear()}`}
+          جميع الحقوق محفوظة © {new Date().getFullYear()}
         </p>
       </div>
     </footer>
@@ -3511,9 +3633,14 @@ const JurisdictionAccordion = ({
 
 // Main Component
 export default function Home() {
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [showSplash, setShowSplash] = useState(true);
   const [activeTab, setActiveTab] = useState('home');
   const [searchQuery, setSearchQuery] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const debounceTimerRef = useRef<NodeJS.Timeout>();
+  const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const [openCouncils, setOpenCouncils] = useState<Set<string>>(new Set());
   const [openCourts, setOpenCourts] = useState<Set<string>>(new Set());
   const [openAdminAppeals, setOpenAdminAppeals] = useState<Set<string>>(new Set());
@@ -3541,42 +3668,8 @@ export default function Home() {
   const [selectedMunicipality, setSelectedMunicipality] = useState<UnifiedSearchResult | null>(null);
   const [showMunicipalityModal, setShowMunicipalityModal] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Favorites state
-  const [favorites, setFavorites] = useState<string[]>([]);
-
-  // Debounce state
-  const [inputValue, setInputValue] = useState('');
-  const debounceTimerRef = useRef<NodeJS.Timeout>();
-
-  // Load favorites from localStorage on mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('shamil_favorites');
-      if (saved) setFavorites(JSON.parse(saved));
-    } catch {}
-  }, []);
-
-  // Toggle favorite
-  const toggleFavorite = useCallback((municipality: string) => {
-    setFavorites(prev => {
-      const next = prev.includes(municipality)
-        ? prev.filter(f => f !== municipality)
-        : [...prev, municipality];
-      localStorage.setItem('shamil_favorites', JSON.stringify(next));
-      return next;
-    });
-  }, []);
-
-  // Debounced search handler
-  const handleSearchChange = useCallback((value: string) => {
-    setInputValue(value);
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
-      setSearchQuery(value);
-    }, 300);
-  }, []);
-
+  
+  
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'info' | 'warning' | 'error'; visible: boolean }>({
     message: '',
@@ -3594,6 +3687,17 @@ export default function Home() {
   const hideToast = useCallback(() => {
     setToast(prev => ({ ...prev, visible: false }));
   }, []);
+
+  // Debounce search handler
+  const handleSearchChange = useCallback((value: string) => {
+    setInputValue(value);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      setSearchQuery(value);
+    }, 300);
+  }, []);
+
+  useEffect(() => { setMounted(true); }, []);
 
   // Service Worker Update Detection
   useEffect(() => {
@@ -3858,51 +3962,35 @@ export default function Home() {
         }
       });
     });
-
-    // البحث المتقدم: بحث بالمحكمة والمجلس القضائي
+    
+    // بحث إضافي بالمحكمة والمجلس القضائي
     judicialData.forEach(item => {
-      const courtMatch = normalize(item.court).includes(normalize(query));
-      const councilMatch = normalize(item.council).includes(normalize(query));
-      if (courtMatch || councilMatch) {
-        item.municipalities.forEach(municipality => {
-          const existing = results.find(r => r.municipality === municipality);
-          if (!existing) {
-            const result: UnifiedSearchResult & { score: number } = {
-              municipality,
-              score: courtMatch ? 70 : 60,
-            };
-            result.ordinary = {
-              court: item.court,
-              council: item.council,
-              status: item.status,
-              actualCourt: item.actualCourt,
-              branch: item.branch,
-            };
-            const adminMatch = adminCourtsData.find(d =>
-              d.municipalities.some(m => normalize(m) === normalize(municipality))
-            );
-            if (adminMatch) {
-              result.administrative = {
-                adminCourt: adminMatch.adminCourt,
-                appealCourt: adminMatch.appealCourt,
-              };
-            }
-            const commercialMatch = commercialCourtsData.find(d =>
-              d.councils.some(c => normalize(c) === normalize(item.council))
-            );
-            if (commercialMatch) {
-              result.commercial = { court: commercialMatch.commercialCourt };
-            }
-            results.push(result);
-          }
-        });
+      const courtScore = getMatchScore(query, item.court);
+      const councilScore = getMatchScore(query, item.council);
+      const bestScore = Math.max(courtScore, councilScore);
+      
+      if (bestScore >= 50) {
+        const firstMunicipality = item.municipalities[0];
+        const existing = results.find(r => r.municipality === firstMunicipality);
+        if (!existing) {
+          const result: UnifiedSearchResult & { score: number } = {
+            municipality: firstMunicipality,
+            score: bestScore * 0.7,
+            ordinary: { court: item.court, council: item.council, status: item.status, actualCourt: item.actualCourt, branch: item.branch },
+          };
+          const adminMatch = adminCourtsData.find(d => d.municipalities.some(m => normalize(m) === normalize(firstMunicipality)));
+          if (adminMatch) result.administrative = { adminCourt: adminMatch.adminCourt, appealCourt: adminMatch.appealCourt };
+          const commercialMatch = commercialCourtsData.find(d => d.councils.some(c => normalize(c) === normalize(item.council)));
+          if (commercialMatch) result.commercial = { court: commercialMatch.commercialCourt };
+          results.push(result);
+        }
       }
     });
 
-    // Sort by score (highest first) and limit to 5 results
+    // Sort by score (highest first) and limit to 8 results
     return results
       .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
+      .slice(0, 8)
       .map(({ score, ...rest }) => rest); // Remove score from final result
   }, [searchQuery]);
 
@@ -4184,33 +4272,19 @@ export default function Home() {
             {/* قسم المفضلة */}
             {favorites.length > 0 && (
               <div className="max-w-4xl mx-auto px-4 pb-3">
-                <div className="flex items-center gap-2 mb-2 justify-end">
-                  <span className="text-sm font-semibold text-white/90">⭐ المفضلة</span>
-                </div>
-                <div className="flex flex-wrap gap-2 justify-end">
-                  {favorites.map((fav) => (
-                    <button
-                      key={fav}
-                      onClick={() => {
-                        setInputValue(fav);
-                        setSearchQuery(fav);
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-95"
-                      style={{
-                        background: 'rgba(255,255,255,0.15)',
-                        color: 'white',
-                        backdropFilter: 'blur(8px)',
-                        border: '1px solid rgba(255,255,255,0.2)',
-                      }}
-                    >
-                      <span>{fav}</span>
-                      <span
-                        onClick={(e) => { e.stopPropagation(); toggleFavorite(fav); }}
-                        className="text-yellow-300 hover:text-red-400 cursor-pointer text-xs"
-                        title="إزالة من المفضلة"
-                      >✕</span>
-                    </button>
-                  ))}
+                <div className="bg-white/90 dark:bg-[#1e293b] rounded-2xl p-3" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+                  <p className="text-xs font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-2 flex items-center gap-1">⭐ المفضلة</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {favorites.map((fav, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleSearchChange(fav)}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 transition-colors"
+                      >
+                        <span>📍</span> {fav}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -4227,7 +4301,7 @@ export default function Home() {
                   </div>
                   <input
                     type="text"
-                    placeholder="ابحث عن بلدية، محكمة، أو مجلس... (مثال: قبة، مراد، اولاد)"
+                    placeholder="ابحث عن بلدية، محكمة أو مجلس قضائي..."
                     value={inputValue}
                     onChange={(e) => handleSearchChange(e.target.value)}
                     className="w-full pr-12 pl-4 py-4 rounded-[28px] bg-white outline-none transition-all text-right text-base"
@@ -4247,7 +4321,7 @@ export default function Home() {
                   />
 
                   {/* قائمة الاقتراحات الفورية */}
-                  {inputValue && normalize(inputValue).length >= 2 && (
+                  {searchQuery && normalize(searchQuery).length >= 2 && (
                     <div
                       className="bg-white rounded-[16px] mt-2 overflow-hidden"
                       style={{
@@ -4285,10 +4359,11 @@ export default function Home() {
                               </div>
                               <button
                                 onClick={(e) => { e.stopPropagation(); toggleFavorite(result.municipality); }}
-                                className="flex-shrink-0 text-lg transition-all active:scale-90"
-                                title={favorites.includes(result.municipality) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+                                className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-lg transition-all active:scale-90"
+                                style={{ background: isFavorite(result.municipality) ? '#fef3c7' : '#f1f5f9' }}
+                                title={isFavorite(result.municipality) ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
                               >
-                                {favorites.includes(result.municipality) ? '⭐' : '☆'}
+                                {isFavorite(result.municipality) ? '⭐' : '☆'}
                               </button>
                               <button
                                 onClick={() => handleSelectMunicipality(result)}
@@ -4947,7 +5022,7 @@ export default function Home() {
             >
               <div className="text-2xl mb-2">⚖️</div>
               <p className="text-white font-medium">الشامل — المنصة القانونية الذكية في الجزائر</p>
-              <p className="text-white/60 text-sm mt-1">{`© ${new Date().getFullYear()} الأستاذ سايج محمد — جميع الحقوق محفوظة`}</p>
+              <p className="text-white/60 text-sm mt-1">© {new Date().getFullYear()} الأستاذ سايج محمد — جميع الحقوق محفوظة</p>
               <p className="text-white/40 text-xs mt-1">آخر تحديث: يونيو 2025</p>
             </div>
           </div>
@@ -5020,6 +5095,15 @@ export default function Home() {
                 <span style={{ fontSize: 16 }}>👨‍💻</span>
                 <span style={{ fontWeight: 600 }}>المطوّر</span>
               </button>
+              {mounted && (
+                <button
+                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  className="flex items-center justify-center w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full transition-all border border-white/20"
+                  aria-label={theme === 'dark' ? 'تفعيل الوضع الفاتح' : 'تفعيل الوضع الداكن'}
+                >
+                  <span style={{ fontSize: 18 }}>{theme === 'dark' ? '☀️' : '🌙'}</span>
+                </button>
+              )}
             </div>
             <button 
               className="app-header-btn p-2.5 rounded-xl bg-[#c9a84c] hover:bg-[#d4b85d] transition-all flex items-center gap-2 shadow-lg" 
