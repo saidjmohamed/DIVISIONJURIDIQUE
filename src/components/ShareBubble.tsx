@@ -6,37 +6,55 @@ export default function ShareBubble() {
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
-    // إظهار الفقاعة بعد 30 ثانية من التصفح أو عند التمرير لمنتصف الصفحة
-    const timer = setTimeout(() => {
-      const hasSeenShare = localStorage.getItem('hasSeenShareBubble');
-      if (!hasSeenShare) {
-        setIsVisible(true);
-      }
-    }, 30000);
+    // التحقق من عدد مرات الظهور السابقة
+    const checkVisibility = () => {
+      const viewCount = parseInt(localStorage.getItem('shareBubbleViewCount') || '0');
+      const hasShared = localStorage.getItem('hasSharedApp') === 'true';
 
-    const handleScroll = () => {
-      if (window.scrollY > window.innerHeight && !localStorage.getItem('hasSeenShareBubble')) {
+      // إذا شارك التطبيق بالفعل أو ظهرت الفقاعة مرتين، لا تظهرها مجدداً
+      if (hasShared || viewCount >= 2) {
+        return;
+      }
+
+      // إظهار الفقاعة بعد 20 ثانية من التصفح أو عند التمرير لمنتصف الصفحة
+      const timer = setTimeout(() => {
+        showBubble();
+      }, 20000);
+
+      const handleScroll = () => {
+        if (window.scrollY > window.innerHeight) {
+          showBubble();
+          window.removeEventListener('scroll', handleScroll);
+        }
+      };
+
+      window.addEventListener('scroll', handleScroll);
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('scroll', handleScroll);
+      };
+    };
+
+    const showBubble = () => {
+      const viewCount = parseInt(localStorage.getItem('shareBubbleViewCount') || '0');
+      if (viewCount < 2) {
         setIsVisible(true);
+        localStorage.setItem('shareBubbleViewCount', (viewCount + 1).toString());
       }
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener('scroll', handleScroll);
-    };
+    checkVisibility();
   }, []);
 
   const handleShare = () => {
     const text = "⚖️ منصة الشامل القانونية الجزائرية — دليلك الرقمي في القانون الجزائري، بحث في القوانين، حساب الآجال، وأدوات المحامي الاحترافية.\n\nتفضل بزيارة المنصة:\n" + window.location.origin;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     setIsVisible(false);
-    localStorage.setItem('hasSeenShareBubble', 'true');
+    localStorage.setItem('hasSharedApp', 'true');
   };
 
   const handleClose = () => {
     setIsVisible(false);
-    // لا نحفظ في localStorage هنا لنعطيه فرصة أخرى في زيارة قادمة
   };
 
   if (!isVisible) return null;
@@ -46,7 +64,7 @@ export default function ShareBubble() {
       <div className="bg-white dark:bg-[#1e293b] p-4 rounded-2xl shadow-2xl border border-gray-100 dark:border-gray-800 relative group">
         <button 
           onClick={handleClose}
-          className="absolute -top-2 -left-2 w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs hover:bg-gray-300 transition-colors"
+          className="absolute -top-2 -left-2 w-6 h-6 bg-gray-200 dark:bg-gray-700 rounded-full flex items-center justify-center text-xs hover:bg-gray-300 transition-colors shadow-sm"
         >
           ✕
         </button>

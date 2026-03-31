@@ -29,10 +29,14 @@ export default function HomePage() {
     setMounted(true);
   }, []);
 
-  // Fix: Scroll to top on tab change
+  // Fix: Scroll to top on tab change and initial load
   useEffect(() => {
     if (mounted) {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      // استخدام setTimeout لضمان تنفيذ التمرير بعد رندر المكونات
+      const timer = setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }, 100);
+      return () => clearTimeout(timer);
     }
   }, [activeTab, mounted]);
 
