@@ -1522,14 +1522,14 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
   const [moreOpen, setMoreOpen] = useState(false);
 
   const mainTabs = [
-    { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span>, color: '#1a3a5c' },
+    { id: 'home', label: 'الرئيسية', icon: <span className="text-lg">⚖️</span>, color: '#1a3a5c' },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon />, color: '#2563eb' },
+    { id: 'lawyer-tools', label: 'الأدوات', icon: <span className="text-lg">🛠️</span>, color: '#7c3aed' },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" />, color: '#1a3a5c' },
     { id: 'jurisprudence', label: 'الاجتهادات', icon: <span className="text-lg">🏛️</span>, color: '#7c3aed' },
   ];
 
   const moreItems = [
-    { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '⚙️', color: '#1a3a5c' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻', color: '#7c3aed' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖', color: '#059669' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁', color: '#6366f1' },
@@ -1553,7 +1553,7 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[56px]"
+                className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[48px]"
                 style={{
                   background: isActive ? `linear-gradient(135deg, ${tab.color} 0%, ${tab.color}cc 100%)` : 'transparent',
                   transform: isActive ? 'translateY(-4px)' : 'translateY(0)',
@@ -1563,14 +1563,14 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
                 }}
               >
                 <span style={{
-                  fontSize: '20px',
+                  fontSize: '18px',
                   transition: 'transform 0.25s',
                   transform: isActive ? 'scale(1.1)' : 'scale(1)'
                 }}>
                   {tab.icon}
                 </span>
                 <span style={{
-                  fontSize: '10px',
+                  fontSize: '9px',
                   fontWeight: 600,
                   whiteSpace: 'nowrap'
                 }}>
@@ -1582,7 +1582,7 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
           {/* More button */}
           <button
             onClick={() => setMoreOpen(true)}
-            className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[56px]"
+            className="flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl transition-all duration-300 min-w-[48px]"
             style={{
               background: isMoreActive ? 'linear-gradient(135deg, #475569 0%, #475569cc 100%)' : 'transparent',
               transform: isMoreActive ? 'translateY(-4px)' : 'translateY(0)',
@@ -1591,7 +1591,7 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
               minHeight: '48px'
             }}
           >
-            <span style={{ fontSize: '20px' }}>☰</span>
+            <span style={{ fontSize: '18px' }}>☰</span>
             <span style={{ fontSize: '10px', fontWeight: 600, whiteSpace: 'nowrap' }}>المزيد</span>
           </button>
         </div>
@@ -1645,14 +1645,14 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
   const moreRef = useRef<HTMLDivElement>(null);
 
   const mainTabs = [
-    { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span> },
+    { id: 'home', label: 'الرئيسية', icon: <span className="text-lg">⚖️</span> },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon /> },
+    { id: 'lawyer-tools', label: 'الأدوات', icon: <span className="text-lg">🛠️</span> },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" /> },
     { id: 'jurisprudence', label: 'الاجتهادات', icon: <span className="text-lg">🏛️</span> },
   ];
 
   const moreItems = [
-    { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '⚙️' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁' },
