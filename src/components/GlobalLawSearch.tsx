@@ -150,10 +150,10 @@ export default function GlobalLawSearch() {
       </div>
 
       {/* Laws Filter */}
-      <div className="flex flex-wrap gap-2 overflow-x-auto pb-2 no-scrollbar">
+      <div className="flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto pb-2 no-scrollbar">
         <button
           onClick={() => setActiveLaw('all')}
-          className={`px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap ${
+          className={`px-3 py-2 sm:px-4 sm:py-2 rounded-xl font-bold transition-all whitespace-nowrap text-xs sm:text-sm ${
             activeLaw === 'all' 
             ? 'bg-[#1a3a5c] text-white shadow-md' 
             : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
@@ -165,7 +165,7 @@ export default function GlobalLawSearch() {
           <button
             key={law.id}
             onClick={() => setActiveLaw(law.id)}
-            className={`px-4 py-2 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
+            className={`px-3 py-2 sm:px-4 sm:py-2 rounded-xl font-bold transition-all whitespace-nowrap flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm ${
               activeLaw === law.id 
               ? 'bg-[#1a3a5c] text-white shadow-md' 
               : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200'
@@ -178,7 +178,7 @@ export default function GlobalLawSearch() {
         {lawsMeta.length > 15 && (
           <select 
             onChange={(e) => setActiveLaw(e.target.value)}
-            className="px-4 py-2 rounded-xl font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 outline-none border-none"
+            className="px-3 py-2 sm:px-4 sm:py-2 rounded-xl font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 outline-none border-none text-xs sm:text-sm"
             value={activeLaw !== 'all' && !lawsMeta.slice(0, 15).find(l => l.id === activeLaw) ? activeLaw : ''}
           >
             <option value="" disabled>بقية القوانين...</option>
