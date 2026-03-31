@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
+import InAppBrowserBannerWrapper from "@/components/InAppBrowserBannerWrapper";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -85,6 +86,7 @@ export default function RootLayout({
       <body className="antialiased bg-background text-foreground font-['Noto_Sans_Arabic',sans-serif]">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           {children}
+          <InAppBrowserBannerWrapper />
         </ThemeProvider>
       </body>
     </html>
