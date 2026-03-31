@@ -1,5 +1,5 @@
 {
-  "totalCount": 257,
+  "totalCount": 977,
   "lastUpdate": "2026-03-31",
   "chambers": [
     {
@@ -7,49 +7,56 @@
       "name": "الغرفة المدنية",
       "icon": "⚖️",
       "color": "#2563eb",
-      "count": 91
+      "count": 194
     },
     {
       "id": "penal",
       "name": "الغرفة الجنائية",
       "icon": "🔒",
       "color": "#dc2626",
-      "count": 15
-    },
-    {
-      "id": "family",
-      "name": "غرفة الأحوال الشخصية",
-      "icon": "👨‍👩‍👧",
-      "color": "#7c3aed",
-      "count": 34
+      "count": 192
     },
     {
       "id": "realestate",
       "name": "الغرفة العقارية",
       "icon": "🏠",
       "color": "#059669",
-      "count": 78
+      "count": 174
+    },
+    {
+      "id": "family",
+      "name": "غرفة الأحوال الشخصية",
+      "icon": "👨‍👩‍👧",
+      "color": "#7c3aed",
+      "count": 104
     },
     {
       "id": "commercial",
       "name": "الغرفة التجارية والبحرية",
       "icon": "💼",
       "color": "#d97706",
-      "count": 22
+      "count": 96
     },
     {
       "id": "social",
       "name": "الغرفة الاجتماعية",
       "icon": "👷",
       "color": "#0891b2",
-      "count": 7
+      "count": 81
+    },
+    {
+      "id": "compensation",
+      "name": "لجنة التعويض",
+      "icon": "💰",
+      "color": "#be185d",
+      "count": 67
     },
     {
       "id": "misdemeanor",
       "name": "غرفة الجنح والمخالفات",
       "icon": "📋",
       "color": "#6366f1",
-      "count": 7
+      "count": 66
     },
     {
       "id": "combined",

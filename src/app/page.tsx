@@ -30,6 +30,7 @@ const DualDeadlineView = dynamic(() => import('@/components/deadlines/DualDeadli
 
 // Lazy load Jurisprudence tab
 const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
+const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 
 // Changelog Interface
 interface ChangelogChange {
@@ -1528,6 +1529,7 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
   ];
 
   const moreItems = [
+    { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '⚙️', color: '#1a3a5c' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻', color: '#7c3aed' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖', color: '#059669' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁', color: '#6366f1' },
@@ -1650,6 +1652,7 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
   ];
 
   const moreItems = [
+    { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '⚙️' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁' },
@@ -3293,7 +3296,7 @@ const HomeTab = ({ onNavigate }: { onNavigate: (tab: string) => void }) => {
               </div>
               <div className="flex items-center gap-3 text-white/90 text-sm bg-white/5 rounded-lg p-2.5">
                 <span className="w-6 h-6 bg-purple-500/20 rounded-md flex items-center justify-center">🏛️</span>
-                <span>188 اجتهاد للمحكمة العليا</span>
+                <span>977 اجتهاد للمحكمة العليا</span>
               </div>
               <div className="flex items-center gap-3 text-amber-300 text-sm bg-amber-500/10 rounded-lg p-2.5">
                 <span className="w-6 h-6 bg-amber-500/20 rounded-md flex items-center justify-center">🔜</span>
@@ -3483,7 +3486,7 @@ const ReferencesTab = () => {
         <div className="tool-icon text-3xl">🏛️</div>
         <div className="tool-info flex-1">
           <h3 className="font-bold text-gray-800">اجتهادات المحكمة العليا</h3>
-          <p className="text-sm text-gray-500">188 اجتهاد — أهم القرارات والمبادئ القضائية</p>
+          <p className="text-sm text-gray-500">977 اجتهاد — أهم القرارات والمبادئ القضائية</p>
         </div>
         <span className="bg-purple-100 text-purple-700 text-xs px-3 py-1 rounded-full font-medium">متاح</span>
       </div>
@@ -4759,6 +4762,9 @@ export default function Home() {
 
       case 'jurisprudence':
         return <JurisprudenceTab />;
+
+      case 'lawyer-tools':
+        return <LawyerToolsTab />;
 
       case 'about':
         return (
