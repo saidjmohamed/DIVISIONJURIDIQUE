@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import SmartPetitionChecker from './SmartPetitionChecker';
 import PetitionChecker from './PetitionChecker';
 import ComplaintChecker from './ComplaintChecker';
 import DeadlineCalculatorTool from './DeadlineCalculatorTool';
 import PetitionTemplates from './PetitionTemplates';
 
 const tools = [
+  { id: 'smart-petition', title: 'التحقق الذكي من العرائض', icon: '🤖', desc: 'رفع العريضة (PDF/Word) وتحليلها تلقائياً للتحقق من الشروط الشكلية وفق ق.إ.م.إ', color: '#7c3aed' },
   { id: 'petition', title: 'التحقق الشكلي للعرائض', icon: '📋', desc: 'التأكد من استيفاء العريضة لكل الشروط الشكلية وفق ق.إ.م.إ', color: '#2563eb' },
   { id: 'complaint', title: 'التحقق من الشكاوى', icon: '🔍', desc: 'التحقق من صحة الشكاوى المقدمة للنيابة وفق ق.إ.ج', color: '#dc2626' },
   { id: 'deadline', title: 'حاسبة الآجال القضائية', icon: '⏰', desc: 'حساب آجال الطعون والإجراءات القضائية', color: '#059669' },
@@ -16,6 +18,7 @@ const tools = [
 export default function LawyerToolsTab() {
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
+  if (activeTool === 'smart-petition') return <SmartPetitionChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'petition') return <PetitionChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'complaint') return <ComplaintChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'deadline') return <DeadlineCalculatorTool onBack={() => setActiveTool(null)} />;
