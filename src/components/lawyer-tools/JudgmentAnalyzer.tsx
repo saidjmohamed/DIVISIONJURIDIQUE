@@ -67,12 +67,12 @@ const APPEAL_OPTIONS: AppealOption[] = [
 /* ─────────────────────── Regex Extraction ─────────────────────── */
 
 function extractCourt(text: string): ExtractedField {
-  // Try to match "محكمة [...words...]" or "المجلس القضائي [...]"
   const patterns = [
     /المجلس القضائي\s+[لـ]?\s*([\w\s]+)/,
     /محكمة\s+([\w\s]+?)(?:\s*[-–\n]|$)/m,
     /لدى\s+محكمة\s+([\w\s]+?)(?:\s*[-–\n,،]|$)/m,
     /أمام\s+محكمة\s+([\w\s]+?)(?:\s*[-–\n,،]|$)/m,
+    /مجلس\s+قضاء\s+([\w\s]+?)(?:\s*[-–\n,،]|$)/m,
   ];
   for (const pattern of patterns) {
     const m = text.match(pattern);
@@ -85,8 +85,9 @@ function extractCourt(text: string): ExtractedField {
 
 function extractCaseNumber(text: string): ExtractedField {
   const patterns = [
-    /(?:رقم|القضية رقم|ملف رقم|تحت رقم)[:\s]+(\d[\d/\-\.]+)/i,
+    /(?:رقم|القضية رقم|ملف رقم|تحت رقم|فهرس رقم)[:\s]+(\d[\d/\-\.]+)/i,
     /\b(\d{1,6}\/\d{4})\b/,
+    /رقم\s*الجدول\s*[:\s]*(\d+)/i,
   ];
   for (const pattern of patterns) {
     const m = text.match(pattern);
@@ -101,6 +102,7 @@ function extractDate(text: string): ExtractedField {
   const patterns = [
     /\b(\d{1,2}\/\d{1,2}\/\d{4})\b/,
     /\b(\d{1,2})\s+(يناير|فبراير|مارس|أبريل|ماي|مايو|جوان|يونيو|جويلية|يوليو|أوت|أغسطس|سبتمبر|أكتوبر|نوفمبر|ديسمبر|جانفي|فيفري|أفريل|جوين)\s+(\d{4})\b/i,
+    /بتاريخ\s*[:\s]*(\d{1,2}\/\d{1,2}\/\d{4})/i,
   ];
   for (const pattern of patterns) {
     const m = text.match(pattern);
@@ -112,15 +114,14 @@ function extractDate(text: string): ExtractedField {
 }
 
 function extractPlaintiff(text: string): ExtractedField {
-  // Look for text after "بين" up to "و" or "ضد"
   const patterns = [
-    /(?:المدعي|الطاعن|المستأنف|المدعو|لفائدة)[:\s]+([^\n,،ضد]{3,60})/i,
-    /بين[:\s]+([^\n,،ضد]{3,60})/i,
+    /(?:المدعي|الطاعن|المستأنف|المدعو|لفائدة)[:\s]+([^\n,،ضد]{3,100})/i,
+    /بين[:\s]+([^\n,،ضد]{3,100})/i,
   ];
   for (const pattern of patterns) {
     const m = text.match(pattern);
     if (m && m[1]) {
-      const val = m[1].trim().replace(/\n+/g, ' ').slice(0, 80);
+      const val = m[1].trim().replace(/\n+/g, ' ').slice(0, 120);
       if (val.length > 2) return { label: 'المدعي / المستأنف', value: val, found: true };
     }
   }
@@ -129,13 +130,13 @@ function extractPlaintiff(text: string): ExtractedField {
 
 function extractDefendant(text: string): ExtractedField {
   const patterns = [
-    /(?:المدعى عليه|المطعون ضده|المستأنف عليه)[:\s]+([^\n,،]{3,60})/i,
-    /(?:ضد|في مواجهة)[:\s]+([^\n,،]{3,60})/i,
+    /(?:المدعى عليه|المطعون ضده|المستأنف عليه)[:\s]+([^\n,،]{3,100})/i,
+    /(?:ضد|في مواجهة)[:\s]+([^\n,،]{3,100})/i,
   ];
   for (const pattern of patterns) {
     const m = text.match(pattern);
     if (m && m[1]) {
-      const val = m[1].trim().replace(/\n+/g, ' ').slice(0, 80);
+      const val = m[1].trim().replace(/\n+/g, ' ').slice(0, 120);
       if (val.length > 2) return { label: 'المدعى عليه / المستأنف عليه', value: val, found: true };
     }
   }
@@ -143,12 +144,11 @@ function extractDefendant(text: string): ExtractedField {
 }
 
 function extractRuling(text: string): ExtractedField {
-  // Look for text after keywords indicating the operative part
-  const keywords = ['لهذه الأسباب', 'تقضي المحكمة', 'المنطوق', 'حكمت المحكمة', 'قرر المجلس', 'لذلك'];
+  const keywords = ['لهذه الأسباب', 'تقضي المحكمة', 'المنطوق', 'حكمت المحكمة', 'قرر المجلس', 'لذلك', 'قضت المحكمة علنيا'];
   for (const kw of keywords) {
     const idx = text.indexOf(kw);
     if (idx !== -1) {
-      const snippet = text.slice(idx, idx + 600).replace(/\n+/g, ' ').trim();
+      const snippet = text.slice(idx, idx + 1000).replace(/\n+/g, ' ').trim();
       return { label: 'منطوق الحكم', value: snippet, found: true };
     }
   }
@@ -156,13 +156,12 @@ function extractRuling(text: string): ExtractedField {
 }
 
 function extractLegalArticles(text: string): string[] {
-  // Match "المادة 123" or "م.123" or "م123"
   const articlePattern = /(?:المادة|م\.?)\s*(\d+(?:\s*مكرر(?:\s*\d+)?)?)/gi;
   const found = new Set<string>();
   let m;
   while ((m = articlePattern.exec(text)) !== null) {
     found.add(`م.${m[1].replace(/\s+/g, ' ').trim()}`);
-    if (found.size >= 15) break;
+    if (found.size >= 20) break;
   }
   return Array.from(found);
 }
@@ -181,7 +180,7 @@ function extractJudgment(text: string): JudgmentExtraction {
 
 /* ─────────────────────── Helpers ─────────────────────── */
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} بايت`;
@@ -216,7 +215,7 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     const f = acceptedFiles[0];
     if (!f) return;
     if (f.size > MAX_FILE_SIZE) {
-      setError('حجم الملف يتجاوز الحد المسموح (10 ميغابايت)');
+      setError('حجم الملف يتجاوز الحد المسموح (15 ميغابايت)');
       return;
     }
     setFile(f);
@@ -238,7 +237,7 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     progressInterval.current = setInterval(() => {
       step++;
       if (step < PROGRESS_STEPS.length) setProgressStep(step);
-    }, 500);
+    }, 400);
   }
 
   function stopProgress() {
@@ -258,7 +257,6 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     try {
       const text = await extractTextFromFile(file);
       if (!text.trim()) throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
-      // Client-side programmatic extraction — no API call
       const result = extractJudgment(text);
       setExtraction(result);
     } catch (err) {
@@ -299,271 +297,165 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     });
   }
 
-  function reset() {
-    setFile(null);
-    setExtraction(null);
-    setError(null);
-    setExpandedAppeal(null);
-  }
-
   return (
     <div className="max-w-2xl mx-auto" dir="rtl">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg">→</button>
+        <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg font-bold">→</button>
         <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">⚖️ استخراج بيانات الأحكام</h2>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-        قم برفع ملف الحكم القضائي (PDF أو Word) وسيتم استخراج البيانات الأساسية آلياً وعرض طرق الطعن المتاحة وفق القانون الجزائري.
-      </p>
-
-      <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/15 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-4">
-        <span className="text-sm flex-shrink-0 mt-0.5">✅</span>
-        <p className="text-[11px] text-green-700 dark:text-green-400 leading-relaxed">
-          الاستخراج يتم محلياً على جهازك — لا يتم إرسال أي بيانات لأي خادم
-        </p>
-      </div>
-
-      {/* Upload area */}
-      {!extraction && !loading && (
-        <>
+      {!extraction && (
+        <div className="space-y-4">
           <div
             {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all mb-4 ${
+            className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
               isDragActive
-                ? 'border-[#1a3a5c] bg-blue-50 dark:bg-blue-900/20'
-                : file
-                ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/10'
-                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-[#1a3a5c] hover:bg-blue-50/50 dark:hover:bg-blue-900/10'
+                ? 'border-[#1a3a5c] bg-[#1a3a5c]/5'
+                : 'border-gray-200 dark:border-gray-700 hover:border-[#1a3a5c]/50'
             }`}
           >
             <input {...getInputProps()} />
-            {file ? (
-              <div>
-                <div className="text-3xl mb-2">{file.name.endsWith('.pdf') ? '📄' : '📝'}</div>
-                <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{file.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{formatFileSize(file.size)}</p>
-                <p className="text-[10px] text-[#1a3a5c] dark:text-blue-400 mt-2">اضغط أو اسحب ملفاً آخر للاستبدال</p>
-              </div>
-            ) : (
-              <div>
-                <div className="text-4xl mb-3 opacity-60">⚖️</div>
-                <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
-                  {isDragActive ? 'أفلت ملف الحكم هنا...' : 'اسحب ملف الحكم القضائي هنا أو اضغط للاختيار'}
-                </p>
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">
-                  PDF أو DOCX — الحد الأقصى 10 ميغابايت
-                </p>
+            <div className="text-4xl mb-3">📄</div>
+            <p className="text-sm font-bold text-gray-700 dark:text-gray-200">
+              {file ? file.name : 'اسحب ملف الحكم هنا أو انقر للاختيار'}
+            </p>
+            <p className="text-xs text-gray-500 mt-2">يدعم PDF و DOCX (حتى 15 ميغابايت)</p>
+            {file && (
+              <div className="mt-4 inline-flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full text-[10px] text-gray-600 dark:text-gray-400">
+                <span>{formatFileSize(file.size)}</span>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFile(null);
+                  }}
+                  className="text-red-500 hover:text-red-600"
+                >
+                  حذف
+                </button>
               </div>
             )}
           </div>
 
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4">
-              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-              <button onClick={() => { setError(null); setFile(null); }} className="text-xs text-red-500 dark:text-red-400 underline mt-1">
-                حاول مرة أخرى
-              </button>
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-xs text-red-600 dark:text-red-400">
+              ⚠️ {error}
             </div>
           )}
 
-          {file && !error && (
-            <button
-              onClick={analyze}
-              className="w-full py-3 bg-[#1a3a5c] hover:bg-[#142d47] text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-            >
-              <span>⚖️</span>
-              <span>استخراج بيانات الحكم</span>
-            </button>
-          )}
-        </>
-      )}
-
-      {/* Loading state */}
-      {loading && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-4">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-8 h-8 rounded-full border-2 border-[#1a3a5c] border-t-transparent animate-spin" />
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري استخراج البيانات...</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{PROGRESS_STEPS[progressStep]}</p>
-            </div>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-            <div
-              className="h-full bg-[#1a3a5c] rounded-full transition-all duration-500 ease-out"
-              style={{ width: `${Math.min(((progressStep + 1) / PROGRESS_STEPS.length) * 95, 95)}%` }}
-            />
-          </div>
-          <div className="mt-4 space-y-1.5">
-            {PROGRESS_STEPS.map((step, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-2 text-xs transition-all duration-300 ${
-                  i < progressStep ? 'text-green-600 dark:text-green-400' :
-                  i === progressStep ? 'text-[#1a3a5c] dark:text-blue-400 font-medium' :
-                  'text-gray-300 dark:text-gray-600'
-                }`}
-              >
-                <span className="flex-shrink-0">{i < progressStep ? '✅' : i === progressStep ? '⏳' : '○'}</span>
-                <span>{step}</span>
-              </div>
-            ))}
-          </div>
+          <button
+            onClick={analyze}
+            disabled={!file || loading}
+            className="w-full py-3 bg-[#1a3a5c] hover:bg-[#1a3a5c]/90 disabled:opacity-50 text-white rounded-xl font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span>{PROGRESS_STEPS[progressStep]}</span>
+              </>
+            ) : (
+              <>
+                <span>🔍 تحليل الحكم واستخراج البيانات</span>
+              </>
+            )}
+          </button>
         </div>
       )}
 
-      {/* Results */}
       {extraction && (
-        <div className="space-y-4">
-          {/* Header card */}
-          <div className="bg-[#1a3a5c] dark:bg-[#1a3a5c]/80 rounded-xl p-4 text-white">
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1">
-                <p className="text-blue-200 text-[10px] mb-1">الجهة القضائية</p>
-                <h3 className="font-bold text-base leading-relaxed">
-                  {extraction.court.found ? extraction.court.value : '—'}
-                </h3>
-              </div>
-              <div className="text-left flex-shrink-0">
-                <p className="text-xs text-blue-300">رقم القضية</p>
-                <p className="text-sm font-bold">{extraction.caseNumber.found ? extraction.caseNumber.value : '—'}</p>
-                <p className="text-xs text-blue-300 mt-1">{extraction.date.found ? extraction.date.value : '—'}</p>
-              </div>
+        <div className="space-y-4 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+            <div className="bg-[#1a3a5c] p-4 text-white flex justify-between items-center">
+              <h3 className="font-bold text-sm">البيانات المستخرجة</h3>
+              <button
+                onClick={() => setExtraction(null)}
+                className="text-xs bg-white/10 hover:bg-white/20 px-2 py-1 rounded"
+              >
+                تحليل ملف آخر
+              </button>
             </div>
-            <div className="mt-3 pt-3 border-t border-blue-700/50 grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-[10px] text-blue-300">المدعي / المستأنف</p>
-                <p className="text-xs text-white font-medium">
-                  {extraction.plaintiff.found ? extraction.plaintiff.value : '—'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] text-blue-300">المدعى عليه</p>
-                <p className="text-xs text-white font-medium">
-                  {extraction.defendant.found ? extraction.defendant.value : '—'}
-                </p>
-              </div>
-            </div>
-          </div>
 
-          {/* Extracted fields (not-found ones) */}
-          {[extraction.court, extraction.caseNumber, extraction.date, extraction.plaintiff, extraction.defendant].some(f => !f.found) && (
-            <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-700 rounded-xl p-3">
-              <p className="text-[11px] text-amber-800 dark:text-amber-300 font-bold mb-1">⚠️ حقول لم يتم استخراجها تلقائياً:</p>
-              {[extraction.court, extraction.caseNumber, extraction.date, extraction.plaintiff, extraction.defendant]
-                .filter(f => !f.found)
-                .map((f, i) => (
-                  <p key={i} className="text-[11px] text-amber-700 dark:text-amber-400">• {f.label}: يرجى المراجعة يدوياً</p>
-                ))}
-            </div>
-          )}
-
-          {/* Ruling */}
-          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4">
-            <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400 mb-2">📜 منطوق الحكم</h4>
-            <p className="text-sm text-amber-900 dark:text-amber-300 leading-relaxed font-medium whitespace-pre-wrap">
-              {extraction.ruling.found ? extraction.ruling.value : 'لم يتم استخراجه — يرجى المراجعة يدوياً'}
-            </p>
-          </div>
-
-          {/* Legal Articles */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-3">📚 المواد القانونية المذكورة في الحكم</h4>
-            {extraction.legalArticles.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {extraction.legalArticles.map((article, i) => (
-                  <span
-                    key={i}
-                    className="text-xs px-3 py-1.5 bg-[#1a3a5c]/10 dark:bg-[#1a3a5c]/30 text-[#1a3a5c] dark:text-blue-300 rounded-full border border-[#1a3a5c]/20 dark:border-blue-700/50"
-                  >
-                    {article}
+            <div className="p-4 space-y-3">
+              {[
+                extraction.court,
+                extraction.caseNumber,
+                extraction.date,
+                extraction.plaintiff,
+                extraction.defendant,
+              ].map((field, i) => (
+                <div key={i} className="flex flex-col gap-1 border-b border-gray-50 dark:border-gray-700/50 pb-2 last:border-0">
+                  <span className="text-[10px] text-gray-500">{field.label}:</span>
+                  <span className={`text-xs font-bold ${field.found ? 'text-gray-800 dark:text-gray-200' : 'text-amber-600 italic'}`}>
+                    {field.value}
                   </span>
-                ))}
+                </div>
+              ))}
+
+              <div className="pt-2">
+                <span className="text-[10px] text-gray-500 block mb-1">منطوق الحكم:</span>
+                <div className="bg-gray-50 dark:bg-gray-900/50 p-3 rounded-lg text-xs text-gray-700 dark:text-gray-300 leading-relaxed max-h-40 overflow-y-auto">
+                  {extraction.ruling.value}
+                </div>
               </div>
-            ) : (
-              <p className="text-xs text-gray-500 dark:text-gray-400">لم يتم العثور على مواد قانونية صريحة.</p>
-            )}
+
+              <div className="pt-2">
+                <span className="text-[10px] text-gray-500 block mb-2">المواد القانونية المكتشفة:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {extraction.legalArticles.length > 0 ? (
+                    extraction.legalArticles.map((art, i) => (
+                      <span key={i} className="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px] font-mono">
+                        {art}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-gray-400 italic">لم يتم اكتشاف مواد صريحة</span>
+                  )}
+                </div>
+              </div>
+
+              <button
+                onClick={copyResults}
+                className="w-full mt-4 py-2 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 rounded-lg text-xs font-bold transition-all"
+              >
+                {copied ? '✅ تم النسخ' : '📋 نسخ التقرير كاملاً'}
+              </button>
+            </div>
           </div>
 
-          {/* Appeal Options — Static table always shown */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-3">🔔 طرق الطعن المتاحة (وفق القانون الجزائري)</h4>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+            <h3 className="font-bold text-sm text-[#1a3a5c] dark:text-[#f0c040] mb-3">طرق الطعن المتاحة</h3>
             <div className="space-y-2">
-              {APPEAL_OPTIONS.map((appeal, i) => (
-                <div
-                  key={i}
-                  className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden"
-                >
+              {APPEAL_OPTIONS.map((opt, i) => (
+                <div key={i} className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden">
                   <button
                     onClick={() => setExpandedAppeal(expandedAppeal === i ? null : i)}
-                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-all text-right"
+                    className="w-full flex items-center justify-between p-3 text-right hover:bg-gray-50 dark:hover:bg-gray-900/50 transition-all"
                   >
-                    <div className="flex items-center gap-2 flex-1">
-                      <span className="text-base">⚡</span>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{appeal.type}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-2 py-0.5 rounded-full">
-                            الأجل: {appeal.deadline}
-                          </span>
-                          <span className="text-[10px] text-gray-400 dark:text-gray-500">{appeal.article}</span>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-gray-800 dark:text-gray-200">{opt.type}</span>
+                      <span className="text-[10px] bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 px-1.5 py-0.5 rounded">
+                        {opt.deadline}
+                      </span>
                     </div>
-                    <span className="text-gray-400 dark:text-gray-500 text-sm flex-shrink-0">
-                      {expandedAppeal === i ? '▲' : '▼'}
-                    </span>
+                    <span className={`text-xs transition-transform ${expandedAppeal === i ? 'rotate-180' : ''}`}>↓</span>
                   </button>
                   {expandedAppeal === i && (
-                    <div className="px-3 pb-3 pt-1 bg-gray-50 dark:bg-gray-700/30 border-t border-gray-200 dark:border-gray-600">
-                      <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">الشروط: </span>
-                        {appeal.conditions}
-                      </p>
+                    <div className="p-3 pt-0 bg-gray-50 dark:bg-gray-900/30 text-[11px] text-gray-600 dark:text-gray-400 leading-relaxed border-t border-gray-100 dark:border-gray-700">
+                      <p className="font-bold text-blue-600 dark:text-blue-400 mb-1">{opt.article}</p>
+                      {opt.conditions}
                     </div>
                   )}
                 </div>
               ))}
             </div>
           </div>
-
-          {/* Disclaimer */}
-          <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-3">
-            <p className="text-[10px] text-yellow-700 dark:text-yellow-400 leading-relaxed">
-              ⚠️ تنبيه: الاستخراج الآلي للبيانات يعتمد على أنماط نصية ويحتاج للمراجعة اليدوية. طرق الطعن المعروضة ثابتة وفق القانون الجزائري وتسري على جميع الأحكام.
-            </p>
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button
-              onClick={copyResults}
-              className="flex-1 py-2.5 bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] rounded-xl text-sm font-medium transition-all active:scale-[0.98]"
-            >
-              {copied ? '✅ تم النسخ' : '📋 نسخ التقرير'}
-            </button>
-            <button
-              onClick={reset}
-              className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 transition-all active:scale-[0.98]"
-            >
-              🔄 تحليل حكم آخر
-            </button>
-          </div>
         </div>
       )}
 
-      {!loading && !extraction && error && (
-        <div className="mt-4">
-          <button
-            onClick={() => setError(null)}
-            className="w-full py-2.5 bg-[#1a3a5c] hover:bg-[#142d47] text-white rounded-xl text-sm font-medium transition-all"
-          >
-            🔄 حاول مرة أخرى
-          </button>
-        </div>
-      )}
+      <div className="mt-6 bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
+        <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+          ⚠️ تنبيه: هذا الاستخراج آلي ويعتمد على جودة النص في الملف المرفوع. يجب على المحامي مراجعة البيانات يدوياً ومطابقتها مع أصل الحكم قبل اتخاذ أي إجراء قانوني.
+        </p>
+      </div>
     </div>
   );
 }

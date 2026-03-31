@@ -4,11 +4,12 @@ import { useState } from 'react';
 
 /* ─────────────────────── Types ─────────────────────── */
 
-type MemoType = 'response' | 'closing' | 'appeal' | 'appeal_cassation' | 'objection' | 'opening';
+type MemoType = 'response' | 'closing' | 'appeal' | 'appeal_cassation' | 'objection' | 'opening' | 'preliminary_plea';
 
 interface FormData {
   memoType: MemoType;
   court: string;
+  caseNumber: string;
   plaintiff: string;
   defendant: string;
   facts: string;
@@ -18,12 +19,13 @@ interface FormData {
 }
 
 const MEMO_TYPES: { key: MemoType; label: string; icon: string; desc: string }[] = [
-  { key: 'response', label: 'مذكرة جوابية', icon: '↩️', desc: 'رداً على مذكرة الطرف الآخر' },
-  { key: 'closing', label: 'مذكرة ختامية', icon: '🏁', desc: 'في ختام المرافعات' },
-  { key: 'appeal', label: 'مذكرة استئناف', icon: '⬆️', desc: 'للطعن في حكم ابتدائي' },
-  { key: 'appeal_cassation', label: 'مذكرة نقض', icon: '🔝', desc: 'للطعن أمام المحكمة العليا' },
-  { key: 'objection', label: 'مذكرة معارضة', icon: '🚫', desc: 'ضد حكم غيابي' },
-  { key: 'opening', label: 'مذكرة افتتاحية', icon: '📖', desc: 'في بداية الدعوى' },
+  { key: 'opening', label: 'عريضة افتتاحية', icon: '📖', desc: 'لبدء دعوى قضائية جديدة (المادة 14 ق.إ.م.إ)' },
+  { key: 'response', label: 'مذكرة جوابية', icon: '↩️', desc: 'للرد على ادعاءات الخصم وتقديم الدفوع' },
+  { key: 'preliminary_plea', label: 'مذكرة دفع شكلي', icon: '🛡️', desc: 'للدفع بعدم الاختصاص أو بطلان الإجراءات' },
+  { key: 'closing', label: 'مذكرة ختامية', icon: '🏁', desc: 'لتلخيص الموقف القانوني قبل حجز القضية للنطق بالحكم' },
+  { key: 'appeal', label: 'مذكرة استئناف', icon: '⬆️', desc: 'للطعن في حكم ابتدائي أمام المجلس القضائي' },
+  { key: 'appeal_cassation', label: 'مذكرة طعن بالنقض', icon: '🔝', desc: 'للطعن أمام المحكمة العليا (أوجه النقض الحصرية)' },
+  { key: 'objection', label: 'مذكرة معارضة', icon: '🚫', desc: 'للطعن في الأحكام الغيابية (المادة 327 ق.إ.م.إ)' },
 ];
 
 /* ─────────────────────── Templates ─────────────────────── */
@@ -31,247 +33,123 @@ const MEMO_TYPES: { key: MemoType; label: string; icon: string; desc: string }[]
 function generateMemo(data: FormData): string {
   const today = new Date().toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
   const lawyerLine = data.lawyerName ? data.lawyerName : 'الأستاذ / ...........';
-  const legalBasisLine = data.legalBasis.trim()
-    ? data.legalBasis.trim()
-    : 'المبادئ العامة للقانون المدني والإجرائي الجزائري';
+  const caseNum = data.caseNumber ? data.caseNumber : '.......................';
+  const legalBasisLine = data.legalBasis.trim() ? data.legalBasis.trim() : 'نصوص قانون الإجراءات المدنية والإدارية والقانون المدني';
+
+  const header = `الجمهورية الجزائرية الديمقراطية الشعبية
+وزارة العدل
+
+إلى السيد رئيس ${data.court}
+${data.memoType === 'appeal' ? 'المجلس القضائي لـ ' + data.court : ''}
+${data.memoType === 'appeal_cassation' ? 'المحكمة العليا - غرفة ...........' : ''}
+
+القضية رقم: ${caseNum}
+الجدول: .......................
+
+لفائدة: ${data.plaintiff} (المدعي/المستأنف)
+ضد: ${data.defendant} (المدعى عليه/المستأنف عليه)
+
+الموضوع: ${MEMO_TYPES.find(m => m.key === data.memoType)?.label}
+--------------------------------------------------
+
+سيدي الرئيس، حضرات السادة القضاة،
+
+يتشرف الأستاذ ${lawyerLine}، محام لدى المجلس، القائم في حق ${data.plaintiff}، بتقديم هذه المذكرة الموقرة:
+
+`;
+
+  const footer = `
+--------------------------------------------------
+لهذه الأسباب ومن أجلها:
+يلتمس العارض من عدالة المحكمة الموقرة التفضل بالقضاء بـ:
+${data.requests}
+
+مع كافة التحفظات
+عن العارض/ وكيله الأستاذ: ${lawyerLine}
+الجزائر في: ${today}
+`;
 
   switch (data.memoType) {
-    case 'response':
-      return `الجمهورية الجزائرية الديمقراطية الشعبية
-وزارة العدل
+    case 'opening':
+      return header + `أولاً: من حيث الشكل:
+حيث أن الدعوى الحالية استوفت كافة الشروط الشكلية المنصوص عليها في المواد 13، 14، 15 من قانون الإجراءات المدنية والإدارية، مما يتعين قبولها شكلاً.
 
-مذكرة جوابية
-
-لدى ${data.court}
-في القضية رقم: .......................
-
-لفائدة المدعى عليه / الطرف المجيب: ${data.defendant}
-ضد المدعي: ${data.plaintiff}
-
-الموضوع: مذكرة جوابية على عريضة المدعي
-
-سيدي الرئيس، حضرات السادة القضاة،
-
-يتشرف الدفاع باسم موكله المدعى عليه السيد / السيدة ${data.defendant}، بتقديم هذه المذكرة الجوابية على العريضة الافتتاحية للمدعي، موضحاً ما يلي:
-
-أولاً — في الشكل:
-يلتمس الدفاع من المحكمة الموقرة التصريح بعدم قبول الدعوى شكلاً لـ[يكمل المحامي]، أو على الأقل قبولها لأنها استوفت الشروط الشكلية المقررة قانوناً.
-
-ثانياً — في الوقائع:
+ثانياً: من حيث الوقائع:
 ${data.facts}
 
-ثالثاً — في القانون:
-استناداً إلى ${legalBasisLine}،
-يؤكد الدفاع أن ادعاءات المدعي لا سند لها من القانون ولا من الواقع، وذلك للأسباب التالية:
-[يفصّل المحامي حججه القانونية]
+ثالثاً: من حيث القانون:
+حيث أن طلبات العارض تجد سندها القانوني في ${legalBasisLine}.
+حيث أن [يفصل المحامي هنا الأسانيد القانونية].
+` + footer;
 
-لهذه الأسباب مجتمعةً:
-يلتمس الدفاع من المحكمة الموقرة التفضل بالقضاء:
-${data.requests}
+    case 'response':
+      return header + `أولاً: الرد على الوقائع:
+حيث أن ما جاء في عريضة الخصم من وقائع لا يمت للحقيقة بصلة، والواقع هو:
+${data.facts}
 
-وتقبلوا منا فائق الاحترام والتقدير.
+ثانياً: الدفوع الموضوعية:
+حيث أن ${legalBasisLine} تنص على [يكتب النص القانوني].
+حيث أن ادعاءات الخصم تفتقر إلى الدليل المادي والقانوني.
+` + footer;
 
-الجزائر في: ${today}
-المحامي
-${lawyerLine}`;
+    case 'preliminary_plea':
+      return header + `أولاً: الدفوع الشكلية (قبل أي دفاع في الموضوع):
+حيث يلتمس العارض الدفع بـ [عدم الاختصاص النوعي / بطلان إجراءات التبليغ / انعدام الصفة].
+حيث أن المادة [رقم المادة] من ق.إ.م.إ تنص على [نص المادة].
+
+ثانياً: من حيث الوقائع المرتبطة بالدفع:
+${data.facts}
+` + footer;
 
     case 'closing':
-      return `الجمهورية الجزائرية الديمقراطية الشعبية
-وزارة العدل
+      return header + `حيث أن القضية استوفت كافة مراحل التحقيق والتبادل، يتشرف الدفاع بتلخيص طلباته الختامية:
 
-مذكرة ختامية
-
-لدى ${data.court}
-في القضية رقم: .......................
-
-لفائدة: ${data.defendant}
-ضد: ${data.plaintiff}
-
-الموضوع: مذكرة ختامية في ختام المرافعات
-
-سيدي الرئيس، حضرات السادة القضاة،
-
-في ختام هذه المرافعات وتلخيصاً لما أُثير من وسائل دفاع، يتشرف الدفاع بتقديم هذه المذكرة الختامية:
-
-أولاً — ملخص الوقائع:
+أولاً: تذكير موجز بالوقائع:
 ${data.facts}
 
-ثانياً — تدحيض حجج الخصم:
-يؤكد الدفاع أن ما تمسك به الطرف الآخر من حجج لا يرتكز على سند قانوني أو واقعي صحيح، وذلك للأسباب التفصيلية المبينة في المذكرات السابقة.
-
-ثالثاً — الموقف القانوني للدفاع:
-بالرجوع إلى ${legalBasisLine}، يتضح جلياً أن موقف موكلنا هو الموقف السليم قانوناً وواقعاً.
-
-للأسباب المذكورة أعلاه وفي المذكرات السابقة:
-يلتمس الدفاع من المحكمة الموقرة التفضل بالقضاء:
-${data.requests}
-
-وتقبلوا منا فائق الاحترام والتقدير.
-
-الجزائر في: ${today}
-المحامي
-${lawyerLine}`;
+ثانياً: الخلاصة القانونية:
+بناءً على ما تم تقديمه من مستندات ودفوع، واستناداً إلى ${legalBasisLine}، يتبين لعدالتكم صحة موقف العارض.
+` + footer;
 
     case 'appeal':
-      return `الجمهورية الجزائرية الديمقراطية الشعبية
-وزارة العدل
+      return header + `ضد الحكم الابتدائي الصادر عن محكمة ........... بتاريخ ........... تحت رقم ...........
 
-مذكرة استئناف
+أولاً: أسباب الاستئناف (أوجه الطعن):
+الوجه الأول: الخطأ في تطبيق القانون.
+الوجه الثاني: القصور في التسبيب وفساد الاستدلال.
+الوجه الثالث: [يضيف المحامي أوجه أخرى].
 
-لدى المجلس القضائي / ${data.court}
-في القضية رقم: .......................
-
-لفائدة المستأنف: ${data.defendant}
-ضد المستأنف عليه: ${data.plaintiff}
-
-الموضوع: استئناف الحكم الابتدائي الصادر عن ................... بتاريخ ...................
-
-سيدي الرئيس، حضرات السادة القضاة،
-
-يتقدم الدفاع عن المستأنف السيد / السيدة ${data.defendant} باستئنافه للحكم الابتدائي المذكور، مستنداً إلى الأسباب الآتية:
-
-أولاً — ملخص وقائع النزاع:
+ثانياً: مناقشة أوجه الطعن:
+حيث أن الحكم المستأنف قد جانبه الصواب عندما قضى بـ [يذكر عيب الحكم]، في حين أن ${legalBasisLine} تقتضي خلاف ذلك.
 ${data.facts}
-
-ثانياً — أسباب الاستئناف وعيوب الحكم المستأنف:
-الوجه الأول: [يكتب المحامي أول وجه من أوجه الطعن]
-الوجه الثاني: [يكتب المحامي الوجه الثاني]
-
-إن المحكمة الابتدائية قد أخطأت في تطبيق القانون و/أو في تقدير الوقائع إذ:
-[يفصّل المحامي]
-
-ثالثاً — الأساس القانوني:
-استناداً إلى ${legalBasisLine}، وإلى المادة 336 من قانون الإجراءات المدنية والإدارية.
-
-لهذه الأسباب:
-يلتمس الدفاع من المجلس القضائي الموقر التفضل بالقضاء:
-${data.requests}
-
-وتقبلوا منا فائق الاحترام والتقدير.
-
-الجزائر في: ${today}
-المحامي
-${lawyerLine}`;
+` + footer;
 
     case 'appeal_cassation':
-      return `الجمهورية الجزائرية الديمقراطية الشعبية
-وزارة العدل
+      return header + `ضد القرار الصادر عن المجلس القضائي لـ ........... بتاريخ ........... تحت رقم ...........
 
-مذكرة طعن بالنقض
+أولاً: أوجه الطعن بالنقض (المادة 358 ق.إ.م.إ):
+الوجه الأول: مخالفة قاعدة جوهرية في الإجراءات.
+الوجه الثاني: انعدام الأساس القانوني.
+الوجه الثالث: تناقض القرارات.
 
-لدى المحكمة العليا — ${data.court}
-في القضية رقم: .......................
-
-لفائدة الطاعن بالنقض: ${data.defendant}
-ضد المطعون ضده: ${data.plaintiff}
-
-الموضوع: مذكرة في الطعن بالنقض ضد القرار الصادر عن ................... بتاريخ ...................
-
-سيدي الرئيس الأول، حضرات السادة المستشارين،
-
-يتشرف الدفاع، المعتمد لدى المحكمة العليا، بتقديم هذه المذكرة في الطعن بالنقض المرفوع من موكله ضد القرار المطعون فيه، مستنداً إلى الأوجه الآتية:
-
-أولاً — ملخص وقائع القضية:
-${data.facts}
-
-ثانياً — أوجه الطعن بالنقض:
-الوجه الأول — مخالفة القانون:
-يعيب الطاعن على القرار المطعون فيه مخالفته لـ[المادة...] إذ أن [يفصّل المحامي].
-
-الوجه الثاني — القصور في التسبيب:
-أغفل القرار الرد على الدفوع الجوهرية المقدمة من الطاعن، مما يجعله مشوباً بالقصور في التسبيب الموجب للنقض.
-
-الوجه الثالث — [يضيف المحامي أوجهاً أخرى إن وجدت]
-
-ثالثاً — الأساس القانوني:
-استناداً إلى ${legalBasisLine}، وإلى المادتين 354 و358 ق.إ.م.إ.
-
-لهذه الأسباب:
-يلتمس الدفاع من المحكمة العليا الموقرة التفضل بـ:
-نقض وإبطال القرار المطعون فيه و:
-${data.requests}
-
-وتقبلوا منا فائق الاحترام والتقدير.
-
-الجزائر في: ${today}
-المحامي المعتمد لدى المحكمة العليا
-${lawyerLine}`;
+ثانياً: شرح الأوجه:
+حيث يعيب الطاعن على القرار المطعون فيه [يشرح المحامي وجه النقض بدقة].
+استناداً إلى ${legalBasisLine}.
+` + footer;
 
     case 'objection':
-      return `الجمهورية الجزائرية الديمقراطية الشعبية
-وزارة العدل
+      return header + `ضد الحكم الغيابي الصادر بتاريخ ........... تحت رقم ...........
 
-مذكرة معارضة
+أولاً: في الشكل:
+حيث أن المعارضة الحالية قدمت في الأجل القانوني (المادة 327 ق.إ.م.إ) كون العارض لم يبلغ شخصياً بالحكم الغيابي.
 
-لدى ${data.court}
-في القضية رقم: .......................
-
-لفائدة المعارض: ${data.defendant}
-ضد: ${data.plaintiff}
-
-الموضوع: معارضة في الحكم الغيابي الصادر بتاريخ ...................
-
-سيدي الرئيس، حضرات السادة القضاة،
-
-يتشرف الدفاع عن المعارض السيد / السيدة ${data.defendant} بتقديم هذه المعارضة في الحكم الغيابي الصادر ضده بتاريخ ...................، استناداً إلى المادتين 327–328 من قانون الإجراءات المدنية والإدارية.
-
-أولاً — في الشكل:
-المعارضة مقدمة في الأجل القانوني وعلى الشكل المقرر قانوناً، يتعين قبولها شكلاً.
-
-ثانياً — في الموضوع:
-الوقائع:
+ثانياً: في الموضوع:
+حيث أن العارض يطعن في الحكم الغيابي للأسباب التالية:
 ${data.facts}
+` + footer;
 
-الحجج القانونية:
-استناداً إلى ${legalBasisLine}، يؤكد المعارض أن الحكم الغيابي الصادر ضده مبني على وقائع منقوصة وعلى تطبيق خاطئ للقانون.
-
-لهذه الأسباب:
-يلتمس الدفاع من المحكمة الموقرة التفضل بالقضاء:
-في الشكل: قبول المعارضة شكلاً
-في الموضوع:
-${data.requests}
-
-وتقبلوا منا فائق الاحترام والتقدير.
-
-الجزائر في: ${today}
-المحامي
-${lawyerLine}`;
-
-    case 'opening':
     default:
-      return `الجمهورية الجزائرية الديمقراطية الشعبية
-وزارة العدل
-
-عريضة افتتاحية
-
-لدى ${data.court}
-
-لفائدة المدعي / الطالب: ${data.plaintiff}
-ضد المدعى عليه / المطلوب: ${data.defendant}
-
-الموضوع: دعوى قضائية في موضوع [يحدده المحامي]
-
-سيدي الرئيس، حضرات السادة القضاة،
-
-يتشرف الدفاع باسم موكله السيد / السيدة ${data.plaintiff} بعرض ما يلي:
-
-أولاً — في الوقائع:
-${data.facts}
-
-ثانياً — في القانون:
-استناداً إلى ${legalBasisLine}، وإلى المادة 15 من قانون الإجراءات المدنية والإدارية، يتضح جلياً أن المدعي يملك الصفة والمصلحة والأهلية للتقاضي وأن طلبه مؤسس قانوناً وواقعاً.
-
-لهذه الأسباب:
-يلتمس الدفاع من المحكمة الموقرة التفضل بالقضاء:
-${data.requests}
-
-مع احتفاظ الدفاع بحق تقديم مذكرات تكميلية عند الاقتضاء.
-
-وتقبلوا منا فائق الاحترام والتقدير.
-
-الجزائر في: ${today}
-المحامي
-${lawyerLine}`;
+      return header + data.facts + footer;
   }
 }
 
@@ -281,6 +159,7 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
   const [formData, setFormData] = useState<FormData>({
     memoType: 'response',
     court: '',
+    caseNumber: '',
     plaintiff: '',
     defendant: '',
     facts: '',
@@ -320,58 +199,31 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
   if (memo) {
     return (
       <div className="max-w-2xl mx-auto" dir="rtl">
-        {/* Header */}
         <div className="flex items-center gap-3 mb-4">
-          <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg">→</button>
-          <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">✍️ قوالب المذكرات القانونية</h2>
+          <button onClick={reset} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg font-bold">→</button>
+          <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">✍️ المذكرة الجاهزة</h2>
         </div>
 
-        {/* Title bar */}
-        <div className="bg-[#6d28d9] dark:bg-[#6d28d9]/80 rounded-xl p-4 text-white mb-4">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1">
-              <p className="text-purple-200 text-[10px] mb-1">المذكرة المُنشأة</p>
-              <h3 className="font-bold text-base leading-relaxed">
-                {MEMO_TYPES.find(m => m.key === formData.memoType)?.label}
-              </h3>
-              <p className="text-purple-200 text-[10px] mt-0.5">لدى {formData.court}</p>
-            </div>
-            <span className="text-3xl opacity-80">✍️</span>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-lg mb-6">
+          <div className="bg-[#6d28d9] p-4 text-white flex justify-between items-center">
+            <span className="text-xs font-bold">{MEMO_TYPES.find(m => m.key === formData.memoType)?.label}</span>
+            <button onClick={copyMemo} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-all">
+              {copied ? '✅ تم النسخ' : '📋 نسخ النص'}
+            </button>
+          </div>
+          <div className="p-6">
+            <pre className="whitespace-pre-wrap font-serif text-sm text-gray-800 dark:text-gray-200 leading-relaxed bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-700 max-h-[500px] overflow-y-auto">
+              {memo}
+            </pre>
           </div>
         </div>
 
-        {/* Memo text */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden mb-4">
-          <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-600">
-            <h4 className="text-xs font-bold text-[#1a3a5c] dark:text-[#f0c040]">نص المذكرة</h4>
-            <p className="text-[10px] text-gray-400 dark:text-gray-500">يمكن تعديل النص بعد النسخ</p>
-          </div>
-          <div className="p-4">
-            <pre className="text-sm text-gray-800 dark:text-gray-200 leading-loose whitespace-pre-wrap font-sans">{memo}</pre>
-          </div>
-        </div>
-
-        {/* Disclaimer */}
-        <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-3 mb-4">
-          <p className="text-[10px] text-yellow-700 dark:text-yellow-400 leading-relaxed">
-            ⚠️ تنبيه: هذا القالب للإرشاد فقط. يجب على المحامي مراجعته وتكييفه مع ملابسات القضية قبل استخدامه الفعلي أمام المحكمة.
-          </p>
-        </div>
-
-        {/* Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={copyMemo}
-            className="flex-1 py-2.5 bg-[#6d28d9] hover:bg-[#5b21b6] text-white rounded-xl text-sm font-medium transition-all active:scale-[0.98] flex items-center justify-center gap-1.5"
-          >
-            <span>{copied ? '✅' : '📋'}</span>
-            <span>{copied ? 'تم النسخ' : 'نسخ المذكرة كاملة'}</span>
+        <div className="flex gap-3">
+          <button onClick={reset} className="flex-1 py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold hover:bg-gray-200 transition-all">
+            تعديل البيانات
           </button>
-          <button
-            onClick={reset}
-            className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 transition-all active:scale-[0.98]"
-          >
-            🔄 مذكرة أخرى
+          <button onClick={copyMemo} className="flex-1 py-3 bg-[#6d28d9] text-white rounded-xl font-bold hover:bg-[#5b21b6] transition-all shadow-md">
+            نسخ المذكرة
           </button>
         </div>
       </div>
@@ -380,170 +232,129 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="max-w-2xl mx-auto" dir="rtl">
-      {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg">→</button>
-        <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">✍️ قوالب المذكرات القانونية</h2>
+        <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg font-bold">→</button>
+        <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">✍️ صياغة المذكرات القانونية</h2>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-        أدخل بيانات القضية وسيتم إدراجها في قالب مذكرة قانونية جاهز وفق الأسلوب الجزائري المعتمد.
-      </p>
-
-      <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/15 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-4">
-        <span className="text-sm flex-shrink-0 mt-0.5">✅</span>
-        <p className="text-[11px] text-green-700 dark:text-green-400 leading-relaxed">
-          المذكرة تُنشأ محلياً على جهازك — لا يتم إرسال أي بيانات لأي خادم
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        {/* Memo Type */}
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-2">
-            نوع المذكرة <span className="text-red-500">*</span>
-          </label>
-          <div className="grid grid-cols-2 gap-2">
-            {MEMO_TYPES.map(mt => (
-              <button
-                key={mt.key}
-                type="button"
-                onClick={() => updateField('memoType', mt.key)}
-                className={`text-right p-3 rounded-xl border transition-all ${
-                  formData.memoType === mt.key
-                    ? 'bg-[#6d28d9] border-[#6d28d9] text-white'
-                    : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:border-[#6d28d9]/50'
-                }`}
-              >
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <span className="text-base">{mt.icon}</span>
-                  <span className="text-xs font-bold">{mt.label}</span>
-                </div>
-                <p className={`text-[10px] ${formData.memoType === mt.key ? 'text-purple-200' : 'text-gray-400 dark:text-gray-500'}`}>
-                  {mt.desc}
-                </p>
-              </button>
-            ))}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-full">
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-2">نوع المذكرة:</label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {MEMO_TYPES.map(type => (
+                <button
+                  key={type.key}
+                  onClick={() => updateField('memoType', type.key)}
+                  className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${
+                    formData.memoType === type.key
+                      ? 'bg-[#6d28d9] text-white border-[#6d28d9]'
+                      : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#6d28d9]/50'
+                  }`}
+                >
+                  <span className="block text-base mb-1">{type.icon}</span>
+                  {type.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Court */}
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            اسم المحكمة <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            value={formData.court}
-            onChange={e => updateField('court', e.target.value)}
-            placeholder="مثال: المحكمة الابتدائية بالجزائر العاصمة"
-            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors"
-          />
-        </div>
-
-        {/* Parties */}
-        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-              المدعي / الطاعن <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">الجهة القضائية:</label>
             <input
               type="text"
+              placeholder="مثال: محكمة بئر مراد رايس"
+              value={formData.court}
+              onChange={e => updateField('court', e.target.value)}
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">رقم القضية (اختياري):</label>
+            <input
+              type="text"
+              placeholder="مثال: 24/00123"
+              value={formData.caseNumber}
+              onChange={e => updateField('caseNumber', e.target.value)}
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">المدعي / المستأنف:</label>
+            <input
+              type="text"
+              placeholder="الاسم الكامل"
               value={formData.plaintiff}
               onChange={e => updateField('plaintiff', e.target.value)}
-              placeholder="الاسم الكامل"
-              className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors"
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none"
             />
           </div>
+
           <div>
-            <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-              المدعى عليه <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">المدعى عليه / المستأنف عليه:</label>
             <input
               type="text"
+              placeholder="الاسم الكامل"
               value={formData.defendant}
               onChange={e => updateField('defendant', e.target.value)}
-              placeholder="الاسم الكامل"
-              className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors"
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none"
+            />
+          </div>
+
+          <div className="col-span-full">
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">الوقائع / الدفوع الأساسية:</label>
+            <textarea
+              rows={4}
+              placeholder="اكتب ملخص الوقائع أو الدفوع التي تريد إدراجها..."
+              value={formData.facts}
+              onChange={e => updateField('facts', e.target.value)}
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none resize-none"
+            />
+          </div>
+
+          <div className="col-span-full">
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">الطلبات الختامية:</label>
+            <textarea
+              rows={3}
+              placeholder="مثال: القضاء برفض الدعوى لعدم التأسيس..."
+              value={formData.requests}
+              onChange={e => updateField('requests', e.target.value)}
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none resize-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">السند القانوني (اختياري):</label>
+            <input
+              type="text"
+              placeholder="مثال: المادة 124 من القانون المدني"
+              value={formData.legalBasis}
+              onChange={e => updateField('legalBasis', e.target.value)}
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1">اسم المحامي:</label>
+            <input
+              type="text"
+              placeholder="الأستاذ / ..........."
+              value={formData.lawyerName}
+              onChange={e => updateField('lawyerName', e.target.value)}
+              className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#6d28d9]/40 outline-none"
             />
           </div>
         </div>
 
-        {/* Facts */}
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            ملخص وقائع القضية <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            value={formData.facts}
-            onChange={e => updateField('facts', e.target.value)}
-            placeholder="اكتب ملخصاً واضحاً لوقائع القضية: ما حدث، متى، وكيف..."
-            rows={4}
-            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors resize-none leading-relaxed"
-          />
-        </div>
-
-        {/* Requests */}
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            الطلبات <span className="text-red-500">*</span>
-          </label>
-          <textarea
-            value={formData.requests}
-            onChange={e => updateField('requests', e.target.value)}
-            placeholder="حدد الطلبات بدقة: ما الذي تطلبه من المحكمة؟ (رفض الدعوى، الحكم بالتعويض، إلغاء الحكم المستأنف...)"
-            rows={3}
-            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors resize-none leading-relaxed"
-          />
-        </div>
-
-        {/* Legal Basis */}
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            الأسانيد القانونية
-            <span className="text-gray-400 dark:text-gray-500 font-normal mr-1">(اختياري)</span>
-          </label>
-          <textarea
-            value={formData.legalBasis}
-            onChange={e => updateField('legalBasis', e.target.value)}
-            placeholder="مثال: م.106 ق.م، م.123 ق.م، م.336 ق.إ.م.إ..."
-            rows={2}
-            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors resize-none leading-relaxed"
-          />
-        </div>
-
-        {/* Lawyer Name */}
-        <div>
-          <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
-            اسم المحامي
-            <span className="text-gray-400 dark:text-gray-500 font-normal mr-1">(اختياري)</span>
-          </label>
-          <input
-            type="text"
-            value={formData.lawyerName}
-            onChange={e => updateField('lawyerName', e.target.value)}
-            placeholder="مثال: الأستاذ محمد بن يوسف"
-            className="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:border-[#6d28d9] dark:focus:border-purple-500 transition-colors"
-          />
-        </div>
-
-        {/* Submit */}
         <button
           onClick={handleGenerate}
           disabled={!isValid}
-          className={`w-full py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-            isValid
-              ? 'bg-[#6d28d9] hover:bg-[#5b21b6] text-white active:scale-[0.98]'
-              : 'bg-gray-200 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
-          }`}
+          className="w-full py-4 bg-[#6d28d9] hover:bg-[#5b21b6] disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md active:scale-[0.98]"
         >
-          <span>✍️</span>
-          <span>إنشاء المذكرة</span>
+          ✨ إنشاء المذكرة القانونية
         </button>
-
-        <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center">
-          الحقول المعلّمة بـ <span className="text-red-500">*</span> إلزامية
-        </p>
       </div>
     </div>
   );
