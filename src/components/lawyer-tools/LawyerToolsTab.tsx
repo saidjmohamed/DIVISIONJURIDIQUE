@@ -8,7 +8,7 @@ import DeadlineCalculatorTool from './DeadlineCalculatorTool';
 import PetitionTemplates from './PetitionTemplates';
 
 const tools = [
-  { id: 'smart-petition', title: 'التحقق الذكي من العرائض', icon: '🤖', desc: 'رفع العريضة (PDF/Word) وتحليلها تلقائياً للتحقق من الشروط الشكلية وفق ق.إ.م.إ', color: '#7c3aed' },
+  { id: 'smart-petition', title: 'التحقق الذكي من العرائض والشكاوى', icon: '🤖', desc: 'رفع العريضة أو الشكوى (PDF/Word) وتحليلها تلقائياً للتحقق من الشروط الشكلية وفق ق.إ.م.إ وق.إ.ج', color: '#7c3aed' },
   { id: 'petition', title: 'التحقق الشكلي للعرائض', icon: '📋', desc: 'التأكد من استيفاء العريضة لكل الشروط الشكلية وفق ق.إ.م.إ', color: '#2563eb' },
   { id: 'complaint', title: 'التحقق من الشكاوى', icon: '🔍', desc: 'التحقق من صحة الشكاوى المقدمة للنيابة وفق ق.إ.ج', color: '#dc2626' },
   { id: 'deadline', title: 'حاسبة الآجال القضائية', icon: '⏰', desc: 'حساب آجال الطعون والإجراءات القضائية', color: '#059669' },

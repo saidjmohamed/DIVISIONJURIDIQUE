@@ -4,7 +4,9 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL = "models/gemini-2.5-flash";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-/* ─────────────────────── النصوص القانونية حسب نوع العريضة ─────────────────────── */
+/* ─────────────────────── النصوص القانونية حسب النوع ─────────────────────── */
+
+type DocumentType = "opening" | "appeal" | "complaint_regular" | "complaint_civil" | "complaint_direct";
 
 const OPENING_PETITION_ARTICLES = `
 ## الشروط الشكلية للعريضة الافتتاحية (المستوى الابتدائي) — قانون الإجراءات المدنية والإدارية 08-09:
@@ -79,17 +81,90 @@ const APPEAL_PETITION_ARTICLES = `
 يجوز الاستئناف الفرعي حتى في حالة سقوط الحق في الاستئناف الأصلي.
 `;
 
+/* ─────────────── الشروط الشكلية للشكاوى — قانون الإجراءات الجزائية ─────────────── */
+
+const COMPLAINT_REGULAR_ARTICLES = `
+## الشروط الشكلية للشكوى العادية المقدمة للنيابة — قانون الإجراءات الجزائية:
+
+### المادة 36 ق.إ.ج — البيانات الأساسية للشكوى:
+1. هوية الشاكي كاملة: الاسم الكامل (الاسم واللقب)، تاريخ ومكان الميلاد، العنوان الكامل [critical]
+2. صفة الشاكي: ضحية مباشرة، ذوي حقوق، ممثل قانوني [critical]
+3. هوية المشتكى منه: الاسم واللقب والعنوان إن كان معلوماً (not_found إذا كان مجهولاً)
+4. وصف الوقائع بدقة: الزمان (متى وقعت)، المكان (أين وقعت)، الكيفية (كيف وقعت) [critical]
+5. التكييف القانوني المحتمل: هل تمت الإشارة إلى نوع الجريمة (جناية/جنحة/مخالفة) أو المواد القانونية
+6. الأدلة والمستندات: هل تمت الإشارة إلى أدلة أو وثائق مرفقة
+7. تحديد الضرر اللاحق: مادي أو معنوي أو جسدي
+8. توقيع الشاكي أو محاميه [critical]
+9. تاريخ الشكوى
+10. الجهة الموجهة إليها الشكوى: وكيل الجمهورية لدى المحكمة المختصة [critical]
+
+### المادة 37 ق.إ.ج — صلاحيات وكيل الجمهورية:
+- وكيل الجمهورية يتلقى الشكاوى ويقرر: الحفظ، أو تحريك الدعوى العمومية، أو الإحالة لقاضي التحقيق
+
+### المادة 38 ق.إ.ج — التقادم:
+- يجب التحقق من عدم انقضاء الدعوى العمومية بالتقادم (3 سنوات للجنح، 10 سنوات للجنايات، سنتان للمخالفات)
+`;
+
+const COMPLAINT_CIVIL_PARTY_ARTICLES = `
+## الشروط الشكلية للشكوى مع الادعاء المدني — قانون الإجراءات الجزائية:
+
+### المادة 72 ق.إ.ج — شروط الشكوى مع الادعاء المدني:
+1. هوية الشاكي كاملة: الاسم واللقب، تاريخ ومكان الميلاد، العنوان [critical]
+2. صفة الشاكي كضحية أو ذوي حقوق [critical]
+3. هوية المشتكى منه
+4. وصف الوقائع بدقة (الزمان، المكان، الكيفية) [critical]
+5. التأسيس كطرف مدني صراحة: يجب أن تتضمن الشكوى عبارة صريحة بالتأسيس كطرف مدني [critical]
+6. تحديد مبلغ التعويض المطالب به [critical]
+7. الأدلة والمستندات المرفقة
+8. توقيع المحامي [critical]
+
+### المادة 73 ق.إ.ج — شرط عدم الحفظ السابق:
+- يجب التأكد من عدم وجود حفظ سابق من النيابة لنفس الوقائع [critical]
+
+### المادة 75 ق.إ.ج — إيداع الكفالة المالية:
+- يجب إيداع كفالة مالية يحددها قاضي التحقيق [critical]
+- تحقق: هل تمت الإشارة إلى استعداد الشاكي لإيداع الكفالة
+
+### المادة 72 فقرة 2 ق.إ.ج — اختصاص قاضي التحقيق:
+- تقدم الشكوى لقاضي التحقيق المختص مكانياً [critical]
+- تحقق: هل تم تحديد الجهة القضائية (قاضي التحقيق لدى محكمة معينة)
+`;
+
+const COMPLAINT_DIRECT_ARTICLES = `
+## الشروط الشكلية للتكليف المباشر — قانون الإجراءات الجزائية:
+
+### المادة 337 مكرر ق.إ.ج — شروط التكليف المباشر:
+1. الوقائع تشكل جنحة (ليست جناية أو مخالفة) [critical]
+2. تكليف المتهم بالحضور عن طريق محضر قضائي [critical]
+3. احترام أجل التكليف (10 أيام على الأقل قبل الجلسة) [critical]
+4. إيداع كفالة مالية [critical]
+5. تحديد الوقائع بدقة: الزمان والمكان والكيفية [critical]
+6. ذكر المواد القانونية المطبقة (مواد قانون العقوبات)
+7. تحديد مبلغ التعويض المدني
+8. هوية المتهم كاملة: الاسم واللقب والعنوان [critical]
+9. توقيع المحامي [critical]
+10. تحديد المحكمة المختصة [critical]
+`;
+
 /* ─────────────────────── موجّه النظام لـ Gemini ─────────────────────── */
 
-function buildSystemPrompt(petitionType: "opening" | "appeal"): string {
-  const articles = petitionType === "opening" ? OPENING_PETITION_ARTICLES : APPEAL_PETITION_ARTICLES;
-  const typeName = petitionType === "opening" ? "عريضة افتتاحية (المستوى الابتدائي)" : "عريضة استئنافية";
+const ARTICLES_MAP: Record<DocumentType, { articles: string; typeName: string; law: string }> = {
+  opening: { articles: OPENING_PETITION_ARTICLES, typeName: "عريضة افتتاحية (المستوى الابتدائي)", law: "قانون الإجراءات المدنية والإدارية 08-09" },
+  appeal: { articles: APPEAL_PETITION_ARTICLES, typeName: "عريضة استئنافية", law: "قانون الإجراءات المدنية والإدارية 08-09" },
+  complaint_regular: { articles: COMPLAINT_REGULAR_ARTICLES, typeName: "شكوى عادية للنيابة", law: "قانون الإجراءات الجزائية" },
+  complaint_civil: { articles: COMPLAINT_CIVIL_PARTY_ARTICLES, typeName: "شكوى مع ادعاء مدني", law: "قانون الإجراءات الجزائية" },
+  complaint_direct: { articles: COMPLAINT_DIRECT_ARTICLES, typeName: "تكليف مباشر", law: "قانون الإجراءات الجزائية" },
+};
 
-  return `أنت خبير قانوني جزائري متخصص في التحقق الشكلي للعرائض وفقاً لقانون الإجراءات المدنية والإدارية 08-09.
+function buildSystemPrompt(docType: DocumentType): string {
+  const { articles, typeName, law } = ARTICLES_MAP[docType];
+  const docLabel = docType.startsWith("complaint") ? "الشكوى" : "العريضة";
 
-مهمتك: تحليل نص العريضة المقدمة وفحصها شكلياً للتحقق من استيفائها لجميع الشروط الشكلية المنصوص عليها قانوناً.
+  return `أنت خبير قانوني جزائري متخصص في التحقق الشكلي وفقاً لـ${law}.
 
-نوع العريضة المطلوب فحصها: ${typeName}
+مهمتك: تحليل نص ${docLabel} المقدمة وفحصها شكلياً للتحقق من استيفائها لجميع الشروط الشكلية المنصوص عليها قانوناً.
+
+نوع المستند المطلوب فحصه: ${typeName}
 
 ${articles}
 
@@ -158,24 +233,26 @@ export async function POST(req: NextRequest) {
     const { text, pdfBase64, petitionType } = body as {
       text?: string;
       pdfBase64?: string;
-      petitionType: "opening" | "appeal";
+      petitionType: string;
     };
 
-    if (!petitionType || !["opening", "appeal"].includes(petitionType)) {
-      return NextResponse.json({ error: "نوع العريضة غير صالح" }, { status: 400 });
+    const validTypes: DocumentType[] = ["opening", "appeal", "complaint_regular", "complaint_civil", "complaint_direct"];
+    if (!petitionType || !validTypes.includes(petitionType as DocumentType)) {
+      return NextResponse.json({ error: "نوع المستند غير صالح" }, { status: 400 });
     }
 
     if (!text && !pdfBase64) {
-      return NextResponse.json({ error: "لم يتم تقديم نص العريضة أو ملف PDF" }, { status: 400 });
+      return NextResponse.json({ error: "لم يتم تقديم نص المستند أو ملف PDF" }, { status: 400 });
     }
 
-    const systemPrompt = buildSystemPrompt(petitionType);
+    const docType = petitionType as DocumentType;
+    const systemPrompt = buildSystemPrompt(docType);
+    const docLabel = docType.startsWith("complaint") ? "الشكوى" : "العريضة";
 
     // Build the user content parts
     const userParts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [];
 
     if (pdfBase64) {
-      // PDF: send as inline_data for Gemini's document understanding
       userParts.push({
         inline_data: {
           mime_type: "application/pdf",
@@ -183,11 +260,11 @@ export async function POST(req: NextRequest) {
         },
       });
       userParts.push({
-        text: "هذه هي العريضة المطلوب فحصها شكلياً. قم بتحليلها وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.",
+        text: `هذه هي ${docLabel} المطلوب فحصها شكلياً. قم بتحليلها وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`,
       });
     } else if (text) {
       userParts.push({
-        text: `هذا هو نص العريضة المطلوب فحصها شكلياً:\n\n---\n${text}\n---\n\nقم بتحليل هذا النص وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`,
+        text: `هذا هو نص ${docLabel} المطلوب فحصها شكلياً:\n\n---\n${text}\n---\n\nقم بتحليل هذا النص وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`,
       });
     }
 

@@ -22,7 +22,33 @@ interface AnalysisResult {
   recommendations: string[];
 }
 
-type PetitionType = 'opening' | 'appeal';
+type DocumentType = 'opening' | 'appeal' | 'complaint_regular' | 'complaint_civil' | 'complaint_direct';
+type DocumentCategory = 'petition' | 'complaint';
+
+const DOC_CATEGORIES: { key: DocumentCategory; label: string }[] = [
+  { key: 'petition', label: 'عريضة مدنية' },
+  { key: 'complaint', label: 'شكوى جزائية' },
+];
+
+const DOC_TYPES: Record<DocumentCategory, { key: DocumentType; label: string }[]> = {
+  petition: [
+    { key: 'opening', label: 'عريضة افتتاحية' },
+    { key: 'appeal', label: 'عريضة استئنافية' },
+  ],
+  complaint: [
+    { key: 'complaint_regular', label: 'شكوى عادية' },
+    { key: 'complaint_civil', label: 'شكوى مع ادعاء مدني' },
+    { key: 'complaint_direct', label: 'تكليف مباشر' },
+  ],
+};
+
+const DOC_TYPE_LABELS: Record<DocumentType, string> = {
+  opening: 'عريضة افتتاحية',
+  appeal: 'عريضة استئنافية',
+  complaint_regular: 'شكوى عادية',
+  complaint_civil: 'شكوى مع ادعاء مدني',
+  complaint_direct: 'تكليف مباشر',
+};
 
 /* ─────────────────────── Helpers ─────────────────────── */
 
@@ -116,7 +142,8 @@ const PROGRESS_STEPS = [
 /* ─────────────────────── Component ─────────────────────── */
 
 export default function SmartPetitionChecker({ onBack }: { onBack: () => void }) {
-  const [petitionType, setPetitionType] = useState<PetitionType>('opening');
+  const [category, setCategory] = useState<DocumentCategory>('petition');
+  const [petitionType, setPetitionType] = useState<DocumentType>('opening');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [progressStep, setProgressStep] = useState(0);
@@ -220,7 +247,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
   /* ── Export ── */
   function exportResults() {
     if (!analysis) return;
-    const typeName = petitionType === 'opening' ? 'عريضة افتتاحية' : 'عريضة استئنافية';
+    const typeName = DOC_TYPE_LABELS[petitionType] ?? petitionType;
     const verdict = verdictInfo(analysis.result);
 
     const lines: string[] = [
@@ -297,39 +324,52 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-        قم برفع العريضة (PDF أو Word) وسيتم تحليلها تلقائياً للتحقق من استيفاء جميع الشروط الشكلية وفقاً لقانون الإجراءات المدنية والإدارية 08-09.
+قم برفع العريضة أو الشكوى (PDF أو Word) وسيتم تحليلها تلقائياً للتحقق من استيفاء الشروط الشكلية وفقاً لـق.إ.م.إ وق.إ.ج.
       </p>
 
       <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/15 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-4">
         <span className="text-sm flex-shrink-0 mt-0.5">🔒</span>
         <p className="text-[11px] text-green-700 dark:text-green-400 leading-relaxed">
-          خصوصيتك محمية: لا يتم حفظ العريضة على أي سيرفر. يتم تحليلها فورياً ثم حذفها تلقائياً بعد إرجاع النتيجة.
+خصوصيتك محمية: لا يتم حفظ المستند على أي سيرفر. يتم تحليله فورياً ثم حذفه تلقائياً بعد إرجاع النتيجة.
         </p>
       </div>
 
-      {/* Petition Type Selector */}
+      {/* Document Type Selector */}
       {!analysis && (
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setPetitionType('opening')}
-            className={`flex-1 text-xs px-3 py-2.5 rounded-xl transition-all font-medium ${
-              petitionType === 'opening'
-                ? 'bg-[#1a3a5c] text-white dark:bg-[#f0c040] dark:text-[#1a3a5c]'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
-            }`}
-          >
-            عريضة افتتاحية
-          </button>
-          <button
-            onClick={() => setPetitionType('appeal')}
-            className={`flex-1 text-xs px-3 py-2.5 rounded-xl transition-all font-medium ${
-              petitionType === 'appeal'
-                ? 'bg-[#1a3a5c] text-white dark:bg-[#f0c040] dark:text-[#1a3a5c]'
-                : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
-            }`}
-          >
-            عريضة استئنافية
-          </button>
+        <div className="space-y-3 mb-4">
+          {/* Category selector */}
+          <div className="flex gap-2">
+            {DOC_CATEGORIES.map((cat) => (
+              <button
+                key={cat.key}
+                onClick={() => { setCategory(cat.key); setPetitionType(DOC_TYPES[cat.key][0].key); }}
+                className={`flex-1 text-xs px-3 py-2.5 rounded-xl transition-all font-medium ${
+                  category === cat.key
+                    ? 'bg-[#1a3a5c] text-white dark:bg-[#f0c040] dark:text-[#1a3a5c]'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700'
+                }`}
+              >
+                {cat.key === 'petition' ? '⚖️' : '📝'} {cat.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Sub-type selector */}
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {DOC_TYPES[category].map((dt) => (
+              <button
+                key={dt.key}
+                onClick={() => setPetitionType(dt.key)}
+                className={`whitespace-nowrap text-[11px] px-3 py-1.5 rounded-full transition-all ${
+                  petitionType === dt.key
+                    ? 'bg-[#7c3aed] text-white'
+                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                }`}
+              >
+                {dt.label}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -455,7 +495,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
                     <div>
                       <h3 className={`text-base font-bold ${v.color}`}>{v.label}</h3>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">
-                        {petitionType === 'opening' ? 'عريضة افتتاحية' : 'عريضة استئنافية'} — {file?.name}
+                        {DOC_TYPE_LABELS[petitionType]} — {file?.name}
                       </p>
                     </div>
                   </div>
