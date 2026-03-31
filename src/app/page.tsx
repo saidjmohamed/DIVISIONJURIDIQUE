@@ -16,9 +16,10 @@ const DeadlinesTable = dynamic(() => import('@/components/deadlines/DeadlinesTab
 const DualDeadlineView = dynamic(() => import('@/components/deadlines/DualDeadlineView'), { ssr: false });
 const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
+const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
 
 export default function HomePage() {
-  const [activeTab, setActiveTab] = useState<'search' | 'deadlines' | 'jurisprudence' | 'lawyer-tools'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'deadlines' | 'jurisprudence' | 'lawyer-tools' | 'judicial'>('search');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -35,9 +36,17 @@ export default function HomePage() {
     }
   }, []);
 
+  // Fix: Scroll to top on tab change
+  useEffect(() => {
+    if (mounted) {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [activeTab, mounted]);
+
   const tabs = useMemo(() => [
     { id: 'search', label: 'البحث', icon: '🔍' },
     { id: 'deadlines', label: 'الآجال', icon: '📅' },
+    { id: 'judicial', label: 'الجهات القضائية', icon: '🏛️' },
     { id: 'jurisprudence', label: 'الاجتهاد', icon: '⚖️' },
     { id: 'lawyer-tools', label: 'الأدوات', icon: '💼' },
   ], []);
@@ -151,6 +160,16 @@ export default function HomePage() {
                   <DeadlinesTable />
                 </div>
               </div>
+            </div>
+          )}
+
+          {activeTab === 'judicial' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="mb-6 sm:mb-8 text-center">
+                <h3 className="text-xl sm:text-2xl font-bold text-[#1a3a5c] dark:text-white mb-2">الجهات القضائية والاختصاص</h3>
+                <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">تحديد المحكمة والمجلس المختص إقليمياً لكل بلدية</p>
+              </div>
+              <JudicialHierarchy />
             </div>
           )}
 
