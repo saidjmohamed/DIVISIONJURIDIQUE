@@ -98,12 +98,12 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
         body: JSON.stringify(formData),
       });
 
+      const resText = await res.text();
       let data;
       try {
-        data = await res.json();
+        data = JSON.parse(resText);
       } catch {
-        const text = await res.clone().text().catch(() => '');
-        throw new Error(text.slice(0, 200) || 'حدث خطأ أثناء الصياغة');
+        throw new Error(resText.slice(0, 200) || '');
       }
       if (!res.ok || data.error) throw new Error(data.error || 'حدث خطأ أثناء الصياغة');
       if (!data.memo) throw new Error('لم يتم الحصول على نتائج الصياغة');
