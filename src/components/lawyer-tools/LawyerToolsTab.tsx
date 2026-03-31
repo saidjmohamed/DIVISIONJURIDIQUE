@@ -13,9 +13,11 @@ import CompensationCalculator from './CompensationCalculator';
 import ProceduresComparison from './ProceduresComparison';
 import LegalDictionary from './LegalDictionary';
 import AiPromptsGuide from './AiPromptsGuide';
+import SubjectMatterJurisdiction from './SubjectMatterJurisdiction';
 
 const tools = [
   { id: 'smart-petition', title: 'التحقق الشكلي الآلي من العرائض والشكاوى', icon: '📋', desc: 'رفع العريضة أو الشكوى (PDF/Word) والتحقق الآلي من الشروط الشكلية وفق ق.إ.م.إ وق.إ.ج', color: '#7c3aed' },
+  { id: 'jurisdiction', title: 'تحديد الاختصاص النوعي', icon: '🏛️', desc: 'تحديد القسم المختص والتشكيل القانوني وفق قانون الإجراءات المدنية والإدارية', color: '#1a3a5c' },
   { id: 'judgment-analyzer', title: 'استخراج بيانات الأحكام', icon: '⚖️', desc: 'استخراج المعلومات الأساسية من الأحكام القضائية وعرض طرق الطعن المتاحة وفق ق.إ.م.إ', color: '#1a3a5c' },
   { id: 'contract-reviewer', title: 'فحص العقود', icon: '📑', desc: 'فحص البنود الأساسية للعقود للكشف عن الإشكاليات والمخاطر وفق القانون المدني الجزائري', color: '#059669' },
   { id: 'memo-drafter', title: 'قوالب المذكرات القانونية', icon: '✍️', desc: 'قوالب جاهزة للمذكرات القانونية (جوابية، ختامية، استئناف، نقض، معارضة، افتتاحية)', color: '#6d28d9' },
@@ -32,6 +34,7 @@ const tools = [
 export default function LawyerToolsTab() {
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
+  if (activeTool === 'jurisdiction') return <SubjectMatterJurisdiction onBack={() => setActiveTool(null)} />;
   if (activeTool === 'judgment-analyzer') return <JudgmentAnalyzer onBack={() => setActiveTool(null)} />;
   if (activeTool === 'contract-reviewer') return <ContractReviewer onBack={() => setActiveTool(null)} />;
   if (activeTool === 'memo-drafter') return <MemoDrafter onBack={() => setActiveTool(null)} />;
