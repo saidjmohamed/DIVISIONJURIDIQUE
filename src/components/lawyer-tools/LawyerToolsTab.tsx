@@ -14,6 +14,7 @@ import CompensationCalculator from './CompensationCalculator';
 import CourtFeesGuide from './CourtFeesGuide';
 import ProceduresComparison from './ProceduresComparison';
 import LegalDictionary from './LegalDictionary';
+import AiPromptsGuide from './AiPromptsGuide';
 
 const tools = [
   // AI Tools section
@@ -29,6 +30,7 @@ const tools = [
   { id: 'compensation', title: 'حاسبة التعويضات والفوائد', icon: '💰', desc: 'حساب التعويضات عن الأضرار الجسدية والفوائد القانونية وفق القانون المدني', color: '#059669', badge: null },
   { id: 'court-fees', title: 'دليل الرسوم القضائية', icon: '🏦', desc: 'جدول الرسوم القضائية حسب نوع المحكمة ودرجة التقاضي', color: '#d97706', badge: null },
   { id: 'procedures', title: 'مقارنة الإجراءات ومسار القضية', icon: '🔄', desc: 'مقارنة بين الإجراءات القضائية وعرض مسار الدعوى بصرياً', color: '#0891b2', badge: null },
+  { id: 'ai-prompts', title: 'دليل برومبتات الذكاء الاصطناعي', icon: '💡', desc: '20 برومبت جاهز للنسخ — تحليل قضايا، صياغة، بحث، استراتيجية، ترجمة', color: '#8b5cf6', badge: null },
   { id: 'dictionary', title: 'معجم المصطلحات القانونية', icon: '📖', desc: 'قاموس عربي-فرنسي للمصطلحات القانونية مع الشرح والمراجع', color: '#6366f1', badge: null },
   { id: 'templates', title: 'نماذج العرائض', icon: '📄', desc: 'نماذج جاهزة للعرائض والشكاوى يمكن نسخها وتعديلها', color: '#d97706', badge: null },
 ];
@@ -49,6 +51,7 @@ export default function LawyerToolsTab() {
   if (activeTool === 'court-fees') return <CourtFeesGuide onBack={() => setActiveTool(null)} />;
   if (activeTool === 'procedures') return <ProceduresComparison onBack={() => setActiveTool(null)} />;
   if (activeTool === 'dictionary') return <LegalDictionary onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'ai-prompts') return <AiPromptsGuide onBack={() => setActiveTool(null)} />;
 
   // Split tools into AI and classic sections
   const aiTools = tools.filter(t => t.badge === 'AI');
