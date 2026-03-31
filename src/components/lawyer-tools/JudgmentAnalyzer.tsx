@@ -1,5 +1,6 @@
 'use client';
 
+import { extractTextFromFile } from '@/lib/extract-text';
 import { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
 
@@ -37,25 +38,7 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} ميغابايت`;
 }
 
-async function extractDocxText(file: File): Promise<string> {
-  const mammoth = await import('mammoth/mammoth.browser');
-  const arrayBuffer = await file.arrayBuffer();
-  const result = await mammoth.extractRawText({ arrayBuffer });
-  return result.value;
-}
 
-async function fileToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const base64 = dataUrl.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error('فشل قراءة الملف'));
-    reader.readAsDataURL(file);
-  });
-}
 
 /* ─────────────────────── Progress Steps ─────────────────────── */
 
@@ -130,17 +113,9 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     startProgress();
 
     try {
-      const isPdf = file.name.toLowerCase().endsWith('.pdf');
-      let payload: Record<string, string>;
-
-      if (isPdf) {
-        const base64 = await fileToBase64(file);
-        payload = { pdfBase64: base64 };
-      } else {
-        const text = await extractDocxText(file);
-        if (!text.trim()) throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
-        payload = { text };
-      }
+      const text = await extractTextFromFile(file);
+      if (!text.trim()) throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
+      const payload = { text };
 
       const res = await fetch('/api/judgment-analysis', {
         method: 'POST',
