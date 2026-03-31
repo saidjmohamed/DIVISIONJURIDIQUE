@@ -1,5 +1,5 @@
 {
-  "totalCount": 220,
+  "totalCount": 257,
   "lastUpdate": "2026-03-31",
   "chambers": [
     {
@@ -7,21 +7,21 @@
       "name": "الغرفة المدنية",
       "icon": "⚖️",
       "color": "#2563eb",
-      "count": 86
+      "count": 91
     },
     {
       "id": "penal",
       "name": "الغرفة الجنائية",
       "icon": "🔒",
       "color": "#dc2626",
-      "count": 13
+      "count": 15
     },
     {
       "id": "family",
       "name": "غرفة الأحوال الشخصية",
       "icon": "👨‍👩‍👧",
       "color": "#7c3aed",
-      "count": 10
+      "count": 34
     },
     {
       "id": "realestate",
@@ -35,7 +35,7 @@
       "name": "الغرفة التجارية والبحرية",
       "icon": "💼",
       "color": "#d97706",
-      "count": 19
+      "count": 22
     },
     {
       "id": "social",
@@ -49,14 +49,14 @@
       "name": "غرفة الجنح والمخالفات",
       "icon": "📋",
       "color": "#6366f1",
-      "count": 5
+      "count": 7
     },
     {
       "id": "combined",
       "name": "الغرف المجتمعة",
       "icon": "🏛️",
       "color": "#1a3a5c",
-      "count": 2
+      "count": 3
     }
   ]
 }
