@@ -205,7 +205,8 @@ export async function POST(req: NextRequest) {
         temperature: 0.2,
         topK: 20,
         topP: 0.9,
-        maxOutputTokens: 4096,
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
       },
       safetySettings: [
         { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
@@ -235,31 +236,51 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    // Gemini 2.5 Flash uses "thinking" mode — the response may have multiple parts
+    // The actual text is in the part where thought !== true
+    const parts = data?.candidates?.[0]?.content?.parts ?? [];
+    let rawText = "";
+    for (const part of parts) {
+      if (part.text && !part.thought) {
+        rawText = part.text;
+      }
+    }
+    // Fallback: if no non-thought part found, try the last part or first part
+    if (!rawText && parts.length > 0) {
+      rawText = parts[parts.length - 1]?.text ?? parts[0]?.text ?? "";
+    }
 
     if (!rawText) {
+      console.error("Gemini returned no text. Full response:", JSON.stringify(data).slice(0, 1000));
       return NextResponse.json(
         { error: "لم ترجع خدمة التحليل أي نتيجة. يرجى المحاولة مرة أخرى." },
         { status: 500 }
       );
     }
 
-    // Parse the JSON from Gemini's response — handle possible markdown wrapping
+    // Parse JSON — handle markdown wrapping and extra text
     let cleaned = rawText.trim();
-    // Remove ```json ... ``` wrapper if present
-    if (cleaned.startsWith("```")) {
-      cleaned = cleaned.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+
+    // Remove ```json ... ``` wrapper
+    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+
+    // If there's text before the JSON object, extract just the JSON
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
     }
 
     let parsed;
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      console.error("Failed to parse Gemini JSON response:", cleaned.slice(0, 500));
+      console.error("Failed to parse Gemini JSON. Raw text (first 800 chars):", rawText.slice(0, 800));
       return NextResponse.json(
         {
           error: "تعذّر قراءة نتيجة التحليل. يرجى المحاولة مرة أخرى.",
-          raw: cleaned.slice(0, 1000),
+          raw: rawText.slice(0, 1000),
         },
         { status: 500 }
       );
