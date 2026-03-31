@@ -1676,7 +1676,7 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
   return (
     <nav className="hidden sm:block bg-white dark:bg-[#1e293b] border-b border-gray-200 dark:border-gray-700 sticky top-0 z-40">
       <div className="max-w-4xl mx-auto px-4">
-        <div className="flex justify-center gap-2 py-2 overflow-x-auto">
+        <div className="flex justify-center gap-2 py-2 flex-wrap">
           {mainTabs.map((tab) => (
             <button
               key={tab.id}
@@ -1705,7 +1705,7 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
               <span>المزيد</span>
             </button>
             {moreOpen && (
-              <div className="absolute top-full left-0 mt-2 bg-white dark:bg-[#1e293b] rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[200px] z-50 animate-fade-in">
+              <div className="absolute top-full end-0 mt-2 bg-white dark:bg-[#1e293b] rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 min-w-[200px] z-50 animate-fade-in">
                 {moreItems.map((item) => (
                   <button
                     key={item.id}
