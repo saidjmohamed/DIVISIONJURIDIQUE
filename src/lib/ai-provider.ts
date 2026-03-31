@@ -11,12 +11,10 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_MODEL = "models/gemini-2.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-// النماذج المجانية المختبرة والعاملة على OpenRouter (محدّثة 2026-03-31)
+// النماذج المجانية على OpenRouter (محدّثة 2026-03-31)
 const OPENROUTER_MODELS = {
-  reasoning: "qwen/qwen3.6-plus-preview:free",              // الأقوى — سياق 1M رمز
-  general: "minimax/minimax-m2.5:free",                      // ممتاز للعربية والصياغة
-  fast: "arcee-ai/trinity-large-preview:free",               // سريع وجيد
-  fallback: "meta-llama/llama-3.3-70b-instruct:free",       // احتياطي
+  primary: "minimax/minimax-m2.5:free",                      // الأسرع والأثبت
+  secondary: "qwen/qwen3.6-plus-preview:free",              // الأقوى — سياق 1M رمز
 };
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -91,17 +89,9 @@ async function callGemini(
 
 /* ─────────────────────── OpenRouter Call ─────────────────────── */
 
-function getOpenRouterModels(task: AITask): string[] {
-  // ترتيب النماذج حسب الأولوية — يجرب الأول فإن فشل ينتقل للتالي
-  switch (task) {
-    case "analysis":
-    case "research":
-      return [OPENROUTER_MODELS.reasoning, OPENROUTER_MODELS.general, OPENROUTER_MODELS.fast];
-    case "drafting":
-      return [OPENROUTER_MODELS.general, OPENROUTER_MODELS.reasoning, OPENROUTER_MODELS.fast];
-    default:
-      return [OPENROUTER_MODELS.general, OPENROUTER_MODELS.fast, OPENROUTER_MODELS.reasoning];
-  }
+function getOpenRouterModels(): string[] {
+  // نموذجان فقط لتجنب timeout على Vercel
+  return [OPENROUTER_MODELS.primary, OPENROUTER_MODELS.secondary];
 }
 
 async function callOpenRouter(
@@ -112,7 +102,7 @@ async function callOpenRouter(
 ): Promise<{ text: string; provider: string; model: string }> {
   if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_KEY_MISSING");
 
-  const models = getOpenRouterModels(task);
+  const models = getOpenRouterModels();
   const errors: string[] = [];
 
   // جرب كل نموذج بالترتيب حتى ينجح واحد
