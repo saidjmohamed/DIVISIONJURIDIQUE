@@ -11,12 +11,12 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const GEMINI_MODEL = "models/gemini-2.5-flash";
 const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
-// أفضل النماذج المجانية على OpenRouter
+// النماذج المجانية المختبرة والعاملة على OpenRouter (محدّثة 2026-03-31)
 const OPENROUTER_MODELS = {
-  reasoning: "deepseek/deepseek-r1:free",           // أقوى نموذج للتحليل والتفكير
-  general: "meta-llama/llama-3.3-70b-instruct:free", // ممتاز للصياغة والإجابات العامة
-  fast: "google/gemini-2.0-flash-exp:free",           // سريع جداً مع سياق كبير
-  vision: "qwen/qwen2.5-vl-72b-instruct:free",       // يدعم قراءة الصور والمستندات
+  reasoning: "qwen/qwen3.6-plus-preview:free",              // الأقوى — سياق 1M رمز
+  general: "minimax/minimax-m2.5:free",                      // ممتاز للعربية والصياغة
+  fast: "arcee-ai/trinity-large-preview:free",               // سريع وجيد
+  fallback: "meta-llama/llama-3.3-70b-instruct:free",       // احتياطي
 };
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -91,12 +91,16 @@ async function callGemini(
 
 /* ─────────────────────── OpenRouter Call ─────────────────────── */
 
-function pickOpenRouterModel(task: AITask): string {
+function getOpenRouterModels(task: AITask): string[] {
+  // ترتيب النماذج حسب الأولوية — يجرب الأول فإن فشل ينتقل للتالي
   switch (task) {
-    case "analysis": return OPENROUTER_MODELS.reasoning;
-    case "drafting": return OPENROUTER_MODELS.general;
-    case "research": return OPENROUTER_MODELS.reasoning;
-    default: return OPENROUTER_MODELS.general;
+    case "analysis":
+    case "research":
+      return [OPENROUTER_MODELS.reasoning, OPENROUTER_MODELS.general, OPENROUTER_MODELS.fast];
+    case "drafting":
+      return [OPENROUTER_MODELS.general, OPENROUTER_MODELS.reasoning, OPENROUTER_MODELS.fast];
+    default:
+      return [OPENROUTER_MODELS.general, OPENROUTER_MODELS.fast, OPENROUTER_MODELS.reasoning];
   }
 }
 
@@ -108,44 +112,57 @@ async function callOpenRouter(
 ): Promise<{ text: string; provider: string; model: string }> {
   if (!OPENROUTER_API_KEY) throw new Error("OPENROUTER_KEY_MISSING");
 
-  const model = pickOpenRouterModel(task);
+  const models = getOpenRouterModels(task);
+  const errors: string[] = [];
 
-  const body = {
-    model,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userMessage },
-    ],
-    temperature: 0.2,
-    max_tokens: 8192,
-    ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
-  };
+  // جرب كل نموذج بالترتيب حتى ينجح واحد
+  for (const model of models) {
+    try {
+      const body = {
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        temperature: 0.2,
+        max_tokens: 8192,
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+      };
 
-  const response = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-      "HTTP-Referer": "https://shamil-law.vercel.app",
-      "X-Title": "الشامل - المنصة القانونية الذكية",
-    },
-    body: JSON.stringify(body),
-  });
+      const response = await fetch(OPENROUTER_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "HTTP-Referer": "https://shamil-law.vercel.app",
+          "X-Title": "الشامل - المنصة القانونية الذكية",
+        },
+        body: JSON.stringify(body),
+      });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(
-      (err as { error?: { message?: string } })?.error?.message ??
-        `OpenRouter HTTP ${response.status}`
-    );
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        const msg = (err as { error?: { message?: string } })?.error?.message ?? `HTTP ${response.status}`;
+        errors.push(`${model}: ${msg}`);
+        continue; // جرب النموذج التالي
+      }
+
+      const data = await response.json();
+      const rawText = data?.choices?.[0]?.message?.content ?? "";
+
+      if (!rawText) {
+        errors.push(`${model}: empty response`);
+        continue;
+      }
+
+      return { text: rawText, provider: "openrouter", model };
+    } catch (err) {
+      errors.push(`${model}: ${err instanceof Error ? err.message : String(err)}`);
+      continue;
+    }
   }
 
-  const data = await response.json();
-  const rawText = data?.choices?.[0]?.message?.content ?? "";
-
-  if (!rawText) throw new Error("OPENROUTER_EMPTY_RESPONSE");
-
-  return { text: rawText, provider: "openrouter", model };
+  throw new Error(`فشلت كل النماذج المجانية: ${errors.join(" | ")}`);
 }
 
 /* ─────────────────────── Main: Gemini + OpenRouter Fallback ─────────────────────── */
