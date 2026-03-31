@@ -23,17 +23,21 @@ export default function SubjectMatterJurisdiction({ onBack }: { onBack: () => vo
   };
 
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
-      <div className="flex items-center gap-3 mb-4">
-        <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg font-bold">→</button>
-        <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">🏛️ تحديد الاختصاص النوعي</h2>
+    <div className="max-w-3xl mx-auto px-2 sm:px-4" dir="rtl">
+      <div className="flex items-center gap-4 mb-6">
+        <button onClick={onBack} className="w-10 h-10 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-[#1a3a5c] dark:text-[#f0c040] text-xl font-bold transition-all hover:bg-gray-200 dark:hover:bg-gray-700 shadow-sm">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+        <h2 className="text-xl sm:text-2xl font-black text-[#1a3a5c] dark:text-[#f0c040]">🏛️ تحديد الاختصاص النوعي</h2>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+      <p className="text-sm text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
         اختر نوع النزاع لتحديد القسم المختص والتشكيل القانوني وفق قانون الإجراءات المدنية والإدارية.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-10">
         {CASE_TYPES.map((type) => (
           <button
             key={type.id}

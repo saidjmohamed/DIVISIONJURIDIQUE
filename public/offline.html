@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>أنت غير متصل - الشامل القانوني</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f8fafc;
+            color: #1a3a5c;
+            text-align: center;
+            padding: 20px;
+        }
+        .icon { font-size: 64px; margin-bottom: 20px; }
+        h1 { font-size: 24px; margin-bottom: 10px; }
+        p { color: #64748b; margin-bottom: 30px; }
+        button {
+            background-color: #1a3a5c;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="icon">⚖️</div>
+    <h1>أنت غير متصل بالإنترنت</h1>
+    <p>يرجى التحقق من اتصالك بالشبكة للمتابعة في استخدام الشامل القانوني.</p>
+    <button onclick="window.location.reload()">إعادة المحاولة</button>
+</body>
+</html>

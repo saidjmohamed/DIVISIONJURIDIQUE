@@ -49,13 +49,13 @@ export default function LawyerToolsTab() {
   if (activeTool === 'ai-prompts') return <AiPromptsGuide onBack={() => setActiveTool(null)} />;
 
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
-      <div className="text-center mb-6">
-        <h2 className="text-xl font-bold text-[#1a3a5c] dark:text-[#f0c040]">أدوات المحامي</h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">أدوات عملية تخدم المحامي الجزائري في عمله اليومي</p>
+    <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-black text-[#1a3a5c] dark:text-[#f0c040]">أدوات المحامي الذكية</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">أدوات برمجية دقيقة تخدم المحامي الجزائري في عمله اليومي</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tools.map(tool => (
           <button
             key={tool.id}
