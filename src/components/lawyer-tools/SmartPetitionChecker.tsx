@@ -225,7 +225,13 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        const text = await res.clone().text().catch(() => '');
+        throw new Error(text.slice(0, 200) || 'حدث خطأ أثناء التحليل');
+      }
 
       if (!res.ok || data.error) {
         throw new Error(data.error || 'حدث خطأ أثناء التحليل');
