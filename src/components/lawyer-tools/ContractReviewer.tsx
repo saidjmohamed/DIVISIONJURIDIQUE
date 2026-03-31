@@ -17,14 +17,12 @@ interface ContractCheck {
 
 interface ContractAnalysis {
   contractType: string;
-  parties: { name: string; role: string }[];
   result: 'valid' | 'has_issues' | 'major_issues';
   score: number;
   checks: ContractCheck[];
   missingClauses: string[];
   risks: string[];
   summary: string;
-  recommendations: string[];
 }
 
 type ContractType = 'sale' | 'rent' | 'work' | 'company' | 'property' | 'general';
@@ -38,6 +36,223 @@ const CONTRACT_TYPES: { key: ContractType; label: string; icon: string }[] = [
   { key: 'property', label: 'عقاري', icon: '🏗️' },
 ];
 
+/* ─────────────────────── Check rules ─────────────────────── */
+
+function hasKeywords(text: string, keywords: string[]): boolean {
+  return keywords.some(kw => text.includes(kw));
+}
+
+function hasDatePattern(text: string): boolean {
+  return /\d{1,2}\/\d{1,2}\/\d{4}/.test(text) ||
+    /(يناير|فبراير|مارس|أبريل|ماي|مايو|جوان|يونيو|جويلية|يوليو|أوت|أغسطس|سبتمبر|أكتوبر|نوفمبر|ديسمبر)/.test(text);
+}
+
+interface CheckRule {
+  id: string;
+  label: string;
+  article: string;
+  criticalFor: ContractType[] | 'all';
+  check: (text: string) => { status: 'pass' | 'fail' | 'warning'; details: string };
+}
+
+const COMMON_RULES: CheckRule[] = [
+  {
+    id: 'parties',
+    label: 'تحديد أطراف العقد',
+    article: 'م.54 ق.م',
+    criticalFor: 'all',
+    check: (text) => {
+      const found = hasKeywords(text, ['الطرف الأول', 'الطرف الثاني', 'البائع', 'المشتري', 'المؤجر', 'المستأجر', 'صاحب العمل', 'العامل', 'الشريك']);
+      return found
+        ? { status: 'pass', details: 'تم تحديد أطراف العقد.' }
+        : { status: 'fail', details: 'لم يتم تحديد أطراف العقد. يجب ذكر الاسم الكامل والعنوان لكل طرف.' };
+    },
+  },
+  {
+    id: 'subject',
+    label: 'موضوع / محل العقد',
+    article: 'م.92 ق.م',
+    criticalFor: 'all',
+    check: (text) => {
+      const found = hasKeywords(text, ['المحل', 'موضوع العقد', 'الموضوع', 'محل العقد', 'المبيع', 'العقار', 'الخدمة', 'المنتوج']);
+      return found
+        ? { status: 'pass', details: 'تم ذكر موضوع العقد.' }
+        : { status: 'fail', details: 'لم يتم تحديد محل العقد. يجب وصف الشيء أو الخدمة المتعاقد عليها.' };
+    },
+  },
+  {
+    id: 'price',
+    label: 'الثمن / المقابل المادي',
+    article: 'م.383 ق.م',
+    criticalFor: ['sale', 'rent', 'work', 'property'],
+    check: (text) => {
+      const found = hasKeywords(text, ['الثمن', 'المقابل', 'المبلغ', 'دج', 'دينار', 'الأجرة', 'الراتب', 'التعويض', 'المبالغ']);
+      if (found) {
+        const hasAmount = /\d[\d\s.,]*(?:دج|دينار)/.test(text) || /(?:دج|دينار)\s*[\d\s.,]+/.test(text);
+        if (hasAmount) return { status: 'pass', details: 'تم تحديد الثمن أو المقابل المادي.' };
+        return { status: 'warning', details: 'تمت الإشارة للثمن لكن المبلغ غير محدد بوضوح.' };
+      }
+      return { status: 'fail', details: 'لم يتم تحديد الثمن. يجب ذكر المبلغ المتفق عليه بوضوح.' };
+    },
+  },
+  {
+    id: 'date',
+    label: 'تاريخ إبرام العقد',
+    article: 'م.54 ق.م',
+    criticalFor: 'all',
+    check: (text) => {
+      return hasDatePattern(text)
+        ? { status: 'pass', details: 'تم العثور على تاريخ في العقد.' }
+        : { status: 'warning', details: 'لم يتم العثور على تاريخ واضح لإبرام العقد.' };
+    },
+  },
+  {
+    id: 'signatures',
+    label: 'توقيعات الأطراف',
+    article: 'م.327 ق.م',
+    criticalFor: 'all',
+    check: (text) => {
+      const found = hasKeywords(text, ['التوقيع', 'الإمضاء', 'وقّع', 'وقع', 'إمضاء']);
+      return found
+        ? { status: 'pass', details: 'تمت الإشارة إلى التوقيعات.' }
+        : { status: 'warning', details: 'لا توجد إشارة للتوقيعات. تأكد من توقيع الطرفين على العقد.' };
+    },
+  },
+  {
+    id: 'duration',
+    label: 'مدة العقد',
+    article: 'م.467 ق.م',
+    criticalFor: ['rent', 'work', 'company'],
+    check: (text) => {
+      const found = hasKeywords(text, ['المدة', 'لمدة', 'مدة العقد', 'سنة', 'سنوات', 'أشهر', 'شهر']);
+      return found
+        ? { status: 'pass', details: 'تم تحديد مدة العقد.' }
+        : { status: 'warning', details: 'لم يتم تحديد مدة العقد. يُنصح بتحديدها بوضوح.' };
+    },
+  },
+  {
+    id: 'warranty',
+    label: 'بند الضمان',
+    article: 'م.379 ق.م',
+    criticalFor: ['sale', 'property'],
+    check: (text) => {
+      const found = hasKeywords(text, ['الضمان', 'ضمان العيوب', 'ضمان الاستحقاق', 'ضمان خفي', 'خلو من العيوب']);
+      return found
+        ? { status: 'pass', details: 'يتضمن العقد بند الضمان.' }
+        : { status: 'warning', details: 'لا يوجد بند صريح للضمان. يُنصح بإدراج ضمان العيوب الخفية.' };
+    },
+  },
+  {
+    id: 'termination',
+    label: 'شرط الفسخ / الإنهاء',
+    article: 'م.119 ق.م',
+    criticalFor: ['rent', 'work', 'company'],
+    check: (text) => {
+      const found = hasKeywords(text, ['الفسخ', 'الإنهاء', 'فسخ العقد', 'إنهاء العقد', 'الإلغاء', 'الإخلال']);
+      return found
+        ? { status: 'pass', details: 'يتضمن العقد شروط الفسخ والإنهاء.' }
+        : { status: 'warning', details: 'لا توجد شروط واضحة للفسخ. يُنصح بتحديد حالات إنهاء العقد.' };
+    },
+  },
+  {
+    id: 'dispute_resolution',
+    label: 'بند حل النزاعات',
+    article: 'م.1006 ق.إ.م.إ',
+    criticalFor: ['sale', 'company', 'property'],
+    check: (text) => {
+      const found = hasKeywords(text, ['حل النزاعات', 'التحكيم', 'المحكمة المختصة', 'الاختصاص القضائي', 'النزاع', 'الخلاف']);
+      return found
+        ? { status: 'pass', details: 'يتضمن العقد بند لحل النزاعات.' }
+        : { status: 'warning', details: 'لا يوجد بند لحل النزاعات. يُنصح بتحديد الجهة المختصة.' };
+    },
+  },
+  {
+    id: 'notarization',
+    label: 'التوثيق الرسمي (إلزامي للعقار)',
+    article: 'م.324 مكرر 1 ق.م',
+    criticalFor: ['property'],
+    check: (text) => {
+      const found = hasKeywords(text, ['توثيق', 'موثق', 'عقد رسمي', 'كاتب العدل', 'محضر رسمي', 'رسمي']);
+      return found
+        ? { status: 'pass', details: 'تمت الإشارة إلى التوثيق الرسمي.' }
+        : { status: 'fail', details: 'لا توجد إشارة للتوثيق. عقود نقل الملكية تستوجب التوثيق الرسمي وجوباً (م.324 مكرر 1 ق.م).' };
+    },
+  },
+];
+
+function isCriticalForType(rule: CheckRule, contractType: ContractType): boolean {
+  if (rule.criticalFor === 'all') return true;
+  return rule.criticalFor.includes(contractType);
+}
+
+function reviewContract(text: string, contractType: ContractType): ContractAnalysis {
+  const checks: ContractCheck[] = COMMON_RULES.map(rule => {
+    const { status, details } = rule.check(text);
+    const isCritical = isCriticalForType(rule, contractType);
+    return {
+      id: rule.id,
+      label: rule.label,
+      article: rule.article,
+      status,
+      critical: isCritical,
+      details,
+    };
+  });
+
+  // Score
+  let totalWeight = 0;
+  let passedWeight = 0;
+  checks.forEach(c => {
+    const w = c.critical ? 2 : 1;
+    totalWeight += w;
+    if (c.status === 'pass') passedWeight += w;
+    else if (c.status === 'warning') passedWeight += w * 0.5;
+  });
+  const score = Math.round((passedWeight / totalWeight) * 100);
+
+  const criticalFails = checks.filter(c => c.critical && c.status === 'fail');
+  let result: ContractAnalysis['result'];
+  if (criticalFails.length > 0) result = 'major_issues';
+  else if (score >= 75) result = 'valid';
+  else result = 'has_issues';
+
+  const missingClauses = checks
+    .filter(c => c.status === 'fail' || c.status === 'warning')
+    .map(c => `${c.label}: ${c.details}`);
+
+  const risks: string[] = [];
+  if (checks.find(c => c.id === 'notarization' && c.status === 'fail' && contractType === 'property')) {
+    risks.push('العقد العقاري غير الموثق رسمياً باطل بطلاناً مطلقاً وفق م.324 مكرر 1 ق.م');
+  }
+  if (checks.find(c => c.id === 'price' && (c.status === 'fail' || c.status === 'warning'))) {
+    risks.push('غياب أو غموض الثمن قد يعرض العقد للإبطال (م.92 ق.م)');
+  }
+  if (checks.find(c => c.id === 'subject' && c.status === 'fail')) {
+    risks.push('انعدام محل العقد يجعله باطلاً بطلاناً مطلقاً (م.92 ق.م)');
+  }
+  if (checks.find(c => c.id === 'parties' && c.status === 'fail')) {
+    risks.push('عدم تحديد الأطراف يثير إشكاليات تنفيذية جسيمة');
+  }
+
+  const typeLabel = CONTRACT_TYPES.find(ct => ct.key === contractType)?.label ?? contractType;
+  const passCount = checks.filter(c => c.status === 'pass').length;
+  const summary = result === 'valid'
+    ? `العقد يستوفي الشروط الأساسية (${passCount}/${checks.length} بند مستوفى). يُنصح بمراجعة قانونية متخصصة قبل التوقيع.`
+    : result === 'major_issues'
+    ? `العقد يتضمن إشكاليات قانونية جوهرية (${criticalFails.length} بند حرج مفقود) تستوجب تصحيحاً عاجلاً.`
+    : `العقد يستوفي بعض الشروط (${passCount}/${checks.length}) لكن ثمة بنود تحتاج للتدقيق.`;
+
+  return {
+    contractType: typeLabel,
+    result,
+    score,
+    checks,
+    missingClauses: missingClauses.slice(0, 5),
+    risks,
+    summary,
+  };
+}
+
 /* ─────────────────────── Helpers ─────────────────────── */
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -47,8 +262,6 @@ function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} كيلوبايت`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} ميغابايت`;
 }
-
-
 
 function statusIcon(status: ContractCheck['status']): string {
   switch (status) {
@@ -79,7 +292,7 @@ function resultInfo(result: ContractAnalysis['result']): { label: string; color:
     case 'valid':
       return { label: 'عقد سليم قانونياً', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700', icon: '✅' };
     case 'has_issues':
-      return { label: 'يوجد إشكاليات بسيطة', color: 'text-yellow-700 dark:text-yellow-300', bg: 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700', icon: '⚠️' };
+      return { label: 'يوجد إشكاليات تستوجب المراجعة', color: 'text-yellow-700 dark:text-yellow-300', bg: 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700', icon: '⚠️' };
     case 'major_issues':
       return { label: 'إشكاليات قانونية جوهرية', color: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700', icon: '❌' };
   }
@@ -91,15 +304,11 @@ function scoreColor(score: number): string {
   return 'bg-red-500';
 }
 
-/* ─────────────────────── Progress Steps ─────────────────────── */
-
 const PROGRESS_STEPS = [
   'جاري قراءة الملف...',
   'استخراج نص العقد...',
-  'إرسال العقد للمراجعة...',
   'فحص أركان العقد...',
-  'التحقق من عيوب الإرادة...',
-  'مراجعة الشروط والبنود...',
+  'التحقق من البنود الأساسية...',
   'تحديد المخاطر القانونية...',
   'إعداد تقرير المراجعة...',
 ];
@@ -117,7 +326,6 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
   const [copied, setCopied] = useState(false);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  /* ── Dropzone ── */
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setError(null);
     setAnalysis(null);
@@ -140,14 +348,13 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     multiple: false,
   });
 
-  /* ── Progress ── */
   function startProgress() {
     setProgressStep(0);
     let step = 0;
     progressInterval.current = setInterval(() => {
       step++;
       if (step < PROGRESS_STEPS.length) setProgressStep(step);
-    }, 2500);
+    }, 500);
   }
 
   function stopProgress() {
@@ -157,8 +364,7 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     }
   }
 
-  /* ── Review ── */
-  async function reviewContract() {
+  async function doReview() {
     if (!file) return;
     setLoading(true);
     setError(null);
@@ -168,24 +374,9 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     try {
       const text = await extractTextFromFile(file);
       if (!text.trim()) throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
-      const payload = { text, contractType };
-
-      const res = await fetch('/api/contract-review', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const resText = await res.text();
-      let data;
-      try {
-        data = JSON.parse(resText);
-      } catch {
-        throw new Error(resText.slice(0, 200) || '');
-      }
-      if (!res.ok || data.error) throw new Error(data.error || 'حدث خطأ أثناء المراجعة');
-      if (!data.analysis) throw new Error('لم يتم الحصول على نتائج المراجعة');
-      setAnalysis(data.analysis as ContractAnalysis);
+      // Client-side programmatic check — no API call
+      const result = reviewContract(text, contractType);
+      setAnalysis(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
@@ -194,12 +385,11 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     }
   }
 
-  /* ── Copy ── */
   function copyResults() {
     if (!analysis) return;
     const ri = resultInfo(analysis.result);
     const lines: string[] = [
-      `تقرير مراجعة العقد القانونية`,
+      `تقرير فحص العقد القانوني`,
       `نوع العقد: ${analysis.contractType}`,
       `النتيجة: ${ri.label} (${analysis.score}/100)`,
       `${'─'.repeat(50)}`,
@@ -216,28 +406,19 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
       lines.push(`   ${check.details}`);
       lines.push(``);
     }
-    if (analysis.missingClauses.length > 0) {
-      lines.push(`${'─'.repeat(50)}`);
-      lines.push(`البنود المفقودة:`);
-      analysis.missingClauses.forEach((c, i) => lines.push(`${i + 1}. ${c}`));
-    }
     if (analysis.risks.length > 0) {
-      lines.push(``, `المخاطر القانونية:`);
+      lines.push(`${'─'.repeat(50)}`);
+      lines.push(`المخاطر القانونية:`);
       analysis.risks.forEach((r, i) => lines.push(`${i + 1}. ${r}`));
     }
-    if (analysis.recommendations.length > 0) {
-      lines.push(``, `التوصيات:`);
-      analysis.recommendations.forEach((r, i) => lines.push(`${i + 1}. ${r}`));
-    }
     lines.push(``, `${'─'.repeat(50)}`);
-    lines.push(`⚠️ تنبيه: هذا التحليل للإرشاد فقط ولا يغني عن الاستشارة القانونية المتخصصة.`);
+    lines.push(`⚠️ تنبيه: هذا الفحص الآلي للإرشاد فقط ولا يغني عن المراجعة القانونية المتخصصة.`);
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
   }
 
-  /* ── Reset ── */
   function reset() {
     setFile(null);
     setAnalysis(null);
@@ -245,7 +426,6 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     setFilterStatus('all');
   }
 
-  /* ── Filtered checks ── */
   const filteredChecks = analysis
     ? filterStatus === 'all' ? analysis.checks : analysis.checks.filter(c => c.status === filterStatus)
     : [];
@@ -257,24 +437,22 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     warning: analysis.checks.filter(c => c.status === 'warning').length,
   } : null;
 
-  /* ─────────────────────── Render ─────────────────────── */
-
   return (
     <div className="max-w-2xl mx-auto" dir="rtl">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg">→</button>
-        <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">📑 مراجعة العقود</h2>
+        <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">📑 فحص العقود</h2>
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
-        قم برفع ملف العقد (PDF أو Word) وسيتم مراجعته قانونياً للكشف عن أي إشكاليات أو مخاطر وفق القانون المدني الجزائري.
+        قم برفع ملف العقد (PDF أو Word) وسيتم فحص البنود الأساسية للكشف عن أي إشكاليات وفق القانون المدني الجزائري.
       </p>
 
       <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/15 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-4">
-        <span className="text-sm flex-shrink-0 mt-0.5">🔒</span>
+        <span className="text-sm flex-shrink-0 mt-0.5">✅</span>
         <p className="text-[11px] text-green-700 dark:text-green-400 leading-relaxed">
-          خصوصيتك محمية: لا يتم حفظ المستند على أي سيرفر. يتم تحليله فورياً ثم حذفه تلقائياً بعد إرجاع النتيجة.
+          الفحص يتم محلياً على جهازك — لا يتم إرسال أي بيانات لأي خادم
         </p>
       </div>
 
@@ -346,11 +524,11 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
 
           {file && !error && (
             <button
-              onClick={reviewContract}
+              onClick={doReview}
               className="w-full py-3 bg-[#059669] hover:bg-[#047857] text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             >
               <span>📑</span>
-              <span>بدء مراجعة العقد</span>
+              <span>بدء فحص العقد</span>
             </button>
           )}
         </>
@@ -362,21 +540,21 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full border-2 border-[#059669] border-t-transparent animate-spin" />
             <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري مراجعة العقد...</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري فحص العقد...</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{PROGRESS_STEPS[progressStep]}</p>
             </div>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-full bg-[#059669] rounded-full transition-all duration-1000 ease-out"
-              style={{ width: `${Math.min(((progressStep + 1) / PROGRESS_STEPS.length) * 90, 90)}%` }}
+              className="h-full bg-[#059669] rounded-full transition-all duration-500 ease-out"
+              style={{ width: `${Math.min(((progressStep + 1) / PROGRESS_STEPS.length) * 95, 95)}%` }}
             />
           </div>
           <div className="mt-4 space-y-1.5">
             {PROGRESS_STEPS.map((step, i) => (
               <div
                 key={i}
-                className={`flex items-center gap-2 text-xs transition-all duration-500 ${
+                className={`flex items-center gap-2 text-xs transition-all duration-300 ${
                   i < progressStep ? 'text-green-600 dark:text-green-400' :
                   i === progressStep ? 'text-[#059669] dark:text-green-400 font-medium' :
                   'text-gray-300 dark:text-gray-600'
@@ -425,24 +603,9 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
             );
           })()}
 
-          {/* Parties */}
-          {analysis.parties && analysis.parties.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-3">👥 أطراف العقد</h4>
-              <div className="grid grid-cols-2 gap-2">
-                {analysis.parties.map((party, i) => (
-                  <div key={i} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-2.5">
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500">{party.role}</p>
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mt-0.5">{party.name}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* Summary */}
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-2">📝 ملخص المراجعة</h4>
+            <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-2">📝 ملخص الفحص</h4>
             <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{analysis.summary}</p>
           </div>
 
@@ -509,21 +672,6 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
             ))}
           </div>
 
-          {/* Missing clauses */}
-          {analysis.missingClauses && analysis.missingClauses.length > 0 && (
-            <div className="bg-orange-50 dark:bg-orange-900/15 border border-orange-200 dark:border-orange-700 rounded-xl p-4">
-              <h4 className="text-sm font-bold text-orange-800 dark:text-orange-400 mb-3">📌 بنود مفقودة يُنصح بإضافتها</h4>
-              <ul className="space-y-1.5">
-                {analysis.missingClauses.map((clause, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-orange-700 dark:text-orange-300">
-                    <span className="flex-shrink-0 mt-0.5">+</span>
-                    <span className="leading-relaxed">{clause}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* Risks */}
           {analysis.risks && analysis.risks.length > 0 && (
             <div className="bg-red-50 dark:bg-red-900/15 border border-red-200 dark:border-red-700 rounded-xl p-4">
@@ -539,25 +687,10 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
             </div>
           )}
 
-          {/* Recommendations */}
-          {analysis.recommendations && analysis.recommendations.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-3">💡 التوصيات</h4>
-              <ul className="space-y-2">
-                {analysis.recommendations.map((rec, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-700 dark:text-gray-300">
-                    <span className="text-[#059669] dark:text-green-400 flex-shrink-0 mt-0.5">●</span>
-                    <span className="leading-relaxed">{rec}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
           {/* Disclaimer */}
           <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-3">
             <p className="text-[10px] text-yellow-700 dark:text-yellow-400 leading-relaxed">
-              ⚠️ تنبيه: هذا التحليل الذكي للإرشاد فقط ولا يغني عن المراجعة القانونية المتخصصة. يعتمد على الذكاء الاصطناعي وقد لا يكون دقيقاً بنسبة 100%.
+              ⚠️ تنبيه: هذا الفحص الآلي للبنود للإرشاد فقط ويعتمد على الكلمات المفتاحية. لا يغني عن المراجعة القانونية المتخصصة قبل توقيع أي عقد.
             </p>
           </div>
 
@@ -573,13 +706,12 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
               onClick={reset}
               className="flex-1 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl text-sm font-medium border border-gray-200 dark:border-gray-700 transition-all active:scale-[0.98]"
             >
-              🔄 مراجعة عقد آخر
+              🔄 فحص عقد آخر
             </button>
           </div>
         </div>
       )}
 
-      {/* Error state */}
       {!loading && !analysis && error && (
         <div className="mt-4">
           <button
