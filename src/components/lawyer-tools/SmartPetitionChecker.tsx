@@ -296,9 +296,16 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">🤖 التحقق الذكي من العرائض</h2>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4 leading-relaxed">
+      <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 leading-relaxed">
         قم برفع العريضة (PDF أو Word) وسيتم تحليلها تلقائياً للتحقق من استيفاء جميع الشروط الشكلية وفقاً لقانون الإجراءات المدنية والإدارية 08-09.
       </p>
+
+      <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/15 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-4">
+        <span className="text-sm flex-shrink-0 mt-0.5">🔒</span>
+        <p className="text-[11px] text-green-700 dark:text-green-400 leading-relaxed">
+          خصوصيتك محمية: لا يتم حفظ العريضة على أي سيرفر. يتم تحليلها فورياً ثم حذفها تلقائياً بعد إرجاع النتيجة.
+        </p>
+      </div>
 
       {/* Petition Type Selector */}
       {!analysis && (
