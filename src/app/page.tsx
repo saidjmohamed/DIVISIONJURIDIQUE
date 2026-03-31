@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from 'next-themes';
 import GlobalLawSearch from '@/components/GlobalLawSearch';
+import ShareBubble from '@/components/ShareBubble';
+import DeveloperInfo from '@/components/DeveloperInfo';
 
 // Lazy load components with proper loading states
 const AiAssistant = dynamic(() => import('@/components/AiAssistant'), { 
@@ -83,6 +85,16 @@ export default function HomePage() {
           <p className="max-w-2xl mx-auto text-gray-600 dark:text-gray-400 text-sm sm:text-lg mb-8 sm:mb-10 leading-relaxed px-2">
             ابحث في القوانين، احسب الآجال القضائية، استخرج بيانات الأحكام، وصغ مذكراتك القانونية بدقة واحترافية.
           </p>
+          
+          {/* Sadaqa Jariya Section */}
+          <div className="max-w-md mx-auto mb-8 sm:mb-12 animate-in fade-in zoom-in duration-1000">
+            <div className="bg-white/50 dark:bg-[#1e293b]/50 backdrop-blur-sm p-4 sm:p-6 rounded-3xl border border-amber-200/50 dark:border-amber-900/30 shadow-xl shadow-amber-900/5">
+              <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">هذا التطبيق صدقة جارية لروح والدي الغالي</p>
+              <h3 className="text-xl sm:text-2xl font-black text-amber-700 dark:text-amber-500 mb-1">سايج عبد النور</h3>
+              <p className="text-[10px] sm:text-xs text-gray-400 dark:text-gray-500 font-bold uppercase tracking-widest">رحمه الله وأسكنه فسيح جناته — نسألكم الدعاء له</p>
+              <div className="w-12 h-1 bg-amber-400/30 mx-auto mt-4 rounded-full"></div>
+            </div>
+          </div>
           
           <div className="flex flex-wrap justify-center gap-3 sm:gap-4">
             <div className="px-4 py-2 sm:px-6 sm:py-3 bg-white dark:bg-[#1e293b] rounded-2xl shadow-md border border-gray-100 dark:border-gray-800 flex items-center gap-2 sm:gap-3">
@@ -186,8 +198,10 @@ export default function HomePage() {
         </div>
       </main>
 
-      {/* AI Assistant Floating Button */}
+      {/* Floating Components */}
       <AiAssistant />
+      <ShareBubble />
+      <DeveloperInfo />
 
       {/* Footer */}
       <footer className="bg-white dark:bg-[#0f172a] border-t border-gray-200 dark:border-gray-800 py-8 sm:py-12 mt-auto">
