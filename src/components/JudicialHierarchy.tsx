@@ -479,9 +479,14 @@ export default function JudicialHierarchy() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
 
+  const allCouncils = useMemo(() => {
+    const councils = Array.from(new Set(judicialData.map(d => d.council)));
+    return councils.sort((a, b) => a.localeCompare(b, 'ar'));
+  }, []);
+
   const handleSearch = (val: string) => {
     setQuery(val);
-    if (val.length < 2) {
+    if (val.trim().length < 2) {
       setResults([]);
       return;
     }
@@ -491,9 +496,12 @@ export default function JudicialHierarchy() {
 
     // Search in Ordinary Courts
     judicialData.forEach(entry => {
-      if (entry.municipalities.some(m => normalize(m).includes(q)) ||
-          normalize(entry.court).includes(q) ||
-          normalize(entry.council).includes(q)) {
+      const matchMuni = entry.municipalities.some(m => normalize(m).includes(q));
+      const matchCourt = normalize(entry.court).includes(q);
+      const matchCouncil = normalize(entry.council).includes(q);
+      const matchBranch = entry.branch && normalize(entry.branch).includes(q);
+
+      if (matchMuni || matchCourt || matchCouncil || matchBranch) {
         found.push({
           ...entry,
           searchType: 'ordinary'
@@ -503,9 +511,11 @@ export default function JudicialHierarchy() {
 
     // Search in Admin Courts
     adminCourtsData.forEach(entry => {
-      if (entry.municipalities.some(m => normalize(m).includes(q)) ||
-          normalize(entry.adminCourt).includes(q) ||
-          normalize(entry.appealCourt).includes(q)) {
+      const matchMuni = entry.municipalities.some(m => normalize(m).includes(q));
+      const matchCourt = normalize(entry.adminCourt).includes(q);
+      const matchAppeal = normalize(entry.appealCourt).includes(q);
+
+      if (matchMuni || matchCourt || matchAppeal) {
         found.push({
           council: entry.appealCourt,
           court: entry.adminCourt,
@@ -515,7 +525,7 @@ export default function JudicialHierarchy() {
       }
     });
 
-    setResults(found.slice(0, 20));
+    setResults(found.slice(0, 30));
   };
 
   return (
@@ -572,21 +582,40 @@ export default function JudicialHierarchy() {
         )}
 
         {query.length < 2 && (
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/30">
-              <span className="text-2xl mb-3 block">🇩🇿</span>
-              <h5 className="font-bold text-blue-900 dark:text-blue-300 mb-1">تغطية وطنية</h5>
-              <p className="text-xs text-blue-700 dark:text-blue-400/70">تشمل كافة المجالس القضائية والمحاكم العادية والإدارية عبر 58 ولاية.</p>
+          <div className="space-y-8">
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/30">
+                <span className="text-2xl mb-3 block">🇩🇿</span>
+                <h5 className="font-bold text-blue-900 dark:text-blue-300 mb-1">تغطية وطنية</h5>
+                <p className="text-xs text-blue-700 dark:text-blue-400/70">تشمل كافة المجالس القضائية والمحاكم العادية والإدارية عبر 58 ولاية.</p>
+              </div>
+              <div className="p-6 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                <span className="text-2xl mb-3 block">🏢</span>
+                <h5 className="font-bold text-amber-900 dark:text-amber-300 mb-1">الفروع القضائية</h5>
+                <p className="text-xs text-amber-700 dark:text-amber-400/70">تحديثات 2024 للفروع القضائية الجديدة المنشأة مؤخراً.</p>
+              </div>
+              <div className="p-6 bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-900/30">
+                <span className="text-2xl mb-3 block">🔍</span>
+                <h5 className="font-bold text-green-900 dark:text-green-300 mb-1">بحث بالبلدية</h5>
+                <p className="text-xs text-green-700 dark:text-green-400/70">اكتب اسم بلديتك لتعرف فوراً الجهة القضائية المختصة (عادي وإداري).</p>
+              </div>
             </div>
-            <div className="p-6 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-              <span className="text-2xl mb-3 block">🏢</span>
-              <h5 className="font-bold text-amber-900 dark:text-amber-300 mb-1">الفروع القضائية</h5>
-              <p className="text-xs text-amber-700 dark:text-amber-400/70">تحديثات 2024 للفروع القضائية الجديدة المنشأة مؤخراً.</p>
-            </div>
-            <div className="p-6 bg-green-50 dark:bg-green-900/10 rounded-2xl border border-green-100 dark:border-green-900/30">
-              <span className="text-2xl mb-3 block">🔍</span>
-              <h5 className="font-bold text-green-900 dark:text-green-300 mb-1">بحث بالبلدية</h5>
-              <p className="text-xs text-green-700 dark:text-green-400/70">اكتب اسم بلديتك لتعرف فوراً الجهة القضائية المختصة (عادي وإداري).</p>
+
+            <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
+              <h4 className="text-lg font-bold text-[#1a3a5c] dark:text-white mb-4 flex items-center gap-2">
+                <span>📋</span> قائمة المجالس القضائية (58 ولاية)
+              </h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                {allCouncils.map((council) => (
+                  <button
+                    key={council}
+                    onClick={() => handleSearch(council)}
+                    className="p-3 text-sm font-medium bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-xl hover:border-[#1a3a5c] dark:hover:border-[#f0c040] hover:shadow-md transition-all text-center text-gray-700 dark:text-gray-300"
+                  >
+                    {council}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
