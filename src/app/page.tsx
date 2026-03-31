@@ -1524,11 +1524,11 @@ const BottomNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange:
     { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span>, color: '#1a3a5c' },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon />, color: '#2563eb' },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" />, color: '#1a3a5c' },
-    { id: 'e-litigation', label: 'التقاضي', icon: <span className="text-lg">💻</span>, color: '#7c3aed' },
+    { id: 'jurisprudence', label: 'الاجتهادات', icon: <span className="text-lg">🏛️</span>, color: '#7c3aed' },
   ];
 
   const moreItems = [
-    { id: 'jurisprudence', label: 'اجتهادات المحكمة العليا', icon: '⚖️', color: '#1a3a5c' },
+    { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻', color: '#7c3aed' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖', color: '#059669' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁', color: '#6366f1' },
     { id: 'quiz', label: 'الاختبار القانوني', icon: '🎯', color: '#dc2626' },
@@ -1646,11 +1646,11 @@ const TopNav = ({ activeTab, onTabChange }: { activeTab: string; onTabChange: (t
     { id: 'home', label: 'الشامل', icon: <span className="text-lg">⚖️</span> },
     { id: 'search', label: 'الاختصاص', icon: <SearchIcon /> },
     { id: 'laws', label: 'القوانين', icon: <ScaleIcon className="w-5 h-5" /> },
-    { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: <span className="text-lg">💻</span> },
+    { id: 'jurisprudence', label: 'الاجتهادات', icon: <span className="text-lg">🏛️</span> },
   ];
 
   const moreItems = [
-    { id: 'jurisprudence', label: 'اجتهادات المحكمة العليا', icon: '⚖️' },
+    { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻' },
     { id: 'ai', label: 'المساعد الذكي', icon: '🤖' },
     { id: 'shared-library', label: 'المكتبة القانونية', icon: '📁' },
     { id: 'quiz', label: 'الاختبار القانوني', icon: '🎯' },
@@ -3291,9 +3291,9 @@ const HomeTab = ({ onNavigate }: { onNavigate: (tab: string) => void }) => {
                 <span className="w-6 h-6 bg-green-500/20 rounded-md flex items-center justify-center">✅</span>
                 <span>تصنيف القوانين في 7 فئات</span>
               </div>
-              <div className="flex items-center gap-3 text-amber-300 text-sm bg-amber-500/10 rounded-lg p-2.5">
-                <span className="w-6 h-6 bg-amber-500/20 rounded-md flex items-center justify-center">🔜</span>
-                <span>اجتهادات المحكمة العليا — قريباً</span>
+              <div className="flex items-center gap-3 text-white/90 text-sm bg-white/5 rounded-lg p-2.5">
+                <span className="w-6 h-6 bg-purple-500/20 rounded-md flex items-center justify-center">🏛️</span>
+                <span>188 اجتهاد للمحكمة العليا</span>
               </div>
               <div className="flex items-center gap-3 text-amber-300 text-sm bg-amber-500/10 rounded-lg p-2.5">
                 <span className="w-6 h-6 bg-amber-500/20 rounded-md flex items-center justify-center">🔜</span>
@@ -3479,13 +3479,13 @@ const ReferencesTab = () => {
       </div>
 
       {/* اجتهادات المحكمة العليا */}
-      <div className="tool-card coming-soon bg-white rounded-xl p-4 mb-4 border border-gray-100 flex items-center gap-4 shadow-sm opacity-75">
-        <div className="tool-icon text-3xl">⚖️</div>
+      <div className="tool-card bg-white rounded-xl p-4 mb-4 border border-gray-100 flex items-center gap-4 shadow-sm hover:shadow-md transition-shadow">
+        <div className="tool-icon text-3xl">🏛️</div>
         <div className="tool-info flex-1">
           <h3 className="font-bold text-gray-800">اجتهادات المحكمة العليا</h3>
-          <p className="text-sm text-gray-500">أهم القرارات والمبادئ القضائية</p>
+          <p className="text-sm text-gray-500">188 اجتهاد — أهم القرارات والمبادئ القضائية</p>
         </div>
-        <span className="soon-badge bg-amber-100 text-amber-700 text-xs px-3 py-1 rounded-full font-medium">قريباً</span>
+        <span className="bg-purple-100 text-purple-700 text-xs px-3 py-1 rounded-full font-medium">متاح</span>
       </div>
 
       {/* مواقع رسمية أخرى */}
