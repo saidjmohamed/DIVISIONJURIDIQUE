@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { useTheme } from 'next-theme';
+import { useTheme } from 'next-themes';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ShareBubble from '@/components/ShareBubble';
 import DeveloperInfo from '@/components/DeveloperInfo';
