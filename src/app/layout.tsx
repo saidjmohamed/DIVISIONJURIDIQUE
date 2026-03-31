@@ -1,6 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
+import dynamic from "next/dynamic";
 import "./globals.css";
+
+const InAppBrowserBanner = dynamic(() => import("@/components/InAppBrowserBanner"), { ssr: false });
 
 export const metadata: Metadata = {
   title: "الشامل ⚖️ — المنصة القانونية الذكية في الجزائر",
@@ -85,6 +88,7 @@ export default function RootLayout({
       <body className="antialiased bg-background text-foreground font-['Noto_Sans_Arabic',sans-serif]">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
           {children}
+          <InAppBrowserBanner />
         </ThemeProvider>
       </body>
     </html>
