@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = "models/gemini-2.5-flash";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+import { callAI, parseAIJson } from "@/lib/ai-provider";
 
 /* ─────────────────────── الأنواع ─────────────────────── */
 
@@ -79,13 +76,6 @@ function buildSystemPrompt(input: MemoInput): string {
 /* ─────────────────────── معالج الطلب ─────────────────────── */
 
 export async function POST(req: NextRequest) {
-  if (!GEMINI_API_KEY) {
-    return NextResponse.json(
-      { error: "مفتاح Gemini غير مضبوط. يرجى إضافة GEMINI_API_KEY في إعدادات المشروع." },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await req.json();
     const {
@@ -110,108 +100,39 @@ export async function POST(req: NextRequest) {
     const input: MemoInput = { memoType, court, plaintiff, defendant, facts, requests, legalBasis, lawyerName };
     const systemPrompt = buildSystemPrompt(input);
 
-    const geminiBody = {
-      system_instruction: {
-        parts: [{ text: systemPrompt }],
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `قم بصياغة المذكرة القانونية المطلوبة بناءً على المعلومات المقدمة وأرجع النتيجة بصيغة JSON فقط.`,
-            },
-          ],
-        },
-      ],
-      generationConfig: {
-        temperature: 0.4,
-        topK: 30,
-        topP: 0.95,
-        maxOutputTokens: 8192,
-        responseMimeType: "application/json",
-      },
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-      ],
-    };
+    const userMessage = `قم بصياغة المذكرة القانونية المطلوبة بناءً على المعلومات المقدمة وأرجع النتيجة بصيغة JSON فقط.`;
 
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiBody),
+    const result = await callAI({
+      systemPrompt,
+      userMessage,
+      task: "drafting",
     });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error("Gemini API Error:", err);
-      return NextResponse.json(
-        {
-          error:
-            (err as { error?: { message?: string } })?.error?.message ??
-            `خطأ في الاتصال بخدمة الصياغة (HTTP ${response.status})`,
-        },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    // Gemini 2.5 Flash thinking mode handling
-    const parts = data?.candidates?.[0]?.content?.parts ?? [];
-    let rawText = "";
-    for (const part of parts) {
-      if (part.text && !part.thought) {
-        rawText = part.text;
-      }
-    }
-    if (!rawText && parts.length > 0) {
-      rawText = parts[parts.length - 1]?.text ?? parts[0]?.text ?? "";
-    }
-
-    if (!rawText) {
-      console.error("Gemini returned no text. Full response:", JSON.stringify(data).slice(0, 1000));
-      return NextResponse.json(
-        { error: "لم ترجع خدمة الصياغة أي نتيجة. يرجى المحاولة مرة أخرى." },
-        { status: 500 }
-      );
-    }
-
-    let cleaned = rawText.trim();
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
-    }
 
     let parsed;
     try {
-      parsed = JSON.parse(cleaned);
+      parsed = parseAIJson(result.text);
     } catch {
-      console.error("Failed to parse Gemini JSON. Raw text (first 800 chars):", rawText.slice(0, 800));
+      console.error("JSON parse failed:", result.text.slice(0, 500));
       return NextResponse.json(
-        {
-          error: "تعذّر قراءة نتيجة الصياغة. يرجى المحاولة مرة أخرى.",
-          raw: rawText.slice(0, 1000),
-        },
+        { error: "تعذّر قراءة نتيجة التحليل. يرجى المحاولة مرة أخرى." },
         { status: 500 }
       );
     }
 
-    if (!parsed.body || !parsed.title) {
+    const p = parsed as Record<string, unknown>;
+    if (!p.body || !p.title) {
       return NextResponse.json(
         { error: "نتيجة الصياغة غير مكتملة. يرجى المحاولة مرة أخرى." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ memo: parsed });
+    return NextResponse.json({ memo: parsed, provider: result.provider });
   } catch (err) {
-    console.error("Server Error:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("Error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
 }

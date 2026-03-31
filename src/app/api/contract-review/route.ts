@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL = "models/gemini-2.5-flash";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+import { callAI, parseAIJson } from "@/lib/ai-provider";
 
 /* ─────────────────────── موجّه النظام ─────────────────────── */
 
@@ -97,13 +94,6 @@ function buildSystemPrompt(contractType: string): string {
 /* ─────────────────────── معالج الطلب ─────────────────────── */
 
 export async function POST(req: NextRequest) {
-  if (!GEMINI_API_KEY) {
-    return NextResponse.json(
-      { error: "مفتاح Gemini غير مضبوط. يرجى إضافة GEMINI_API_KEY في إعدادات المشروع." },
-      { status: 500 }
-    );
-  }
-
   try {
     const body = await req.json();
     const { text, pdfBase64, contractType = "general" } = body as {
@@ -121,123 +111,42 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = buildSystemPrompt(contractType);
 
-    // Build the user content parts
-    const userParts: Array<{ text: string } | { inline_data: { mime_type: string; data: string } }> = [];
+    const userMessage = pdfBase64
+      ? `هذا هو العقد المطلوب مراجعته. قم بمراجعته وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`
+      : `هذا هو نص العقد المطلوب مراجعته:\n\n---\n${text}\n---\n\nقم بمراجعة هذا العقد وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`;
 
-    if (pdfBase64) {
-      userParts.push({
-        inline_data: {
-          mime_type: "application/pdf",
-          data: pdfBase64,
-        },
-      });
-      userParts.push({
-        text: `هذا هو العقد المطلوب مراجعته. قم بمراجعته وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`,
-      });
-    } else if (text) {
-      userParts.push({
-        text: `هذا هو نص العقد المطلوب مراجعته:\n\n---\n${text}\n---\n\nقم بمراجعة هذا العقد وفق التعليمات المذكورة وأرجع النتيجة بصيغة JSON فقط.`,
-      });
-    }
-
-    const geminiBody = {
-      system_instruction: {
-        parts: [{ text: systemPrompt }],
-      },
-      contents: [
-        {
-          role: "user",
-          parts: userParts,
-        },
-      ],
-      generationConfig: {
-        temperature: 0.2,
-        topK: 20,
-        topP: 0.9,
-        maxOutputTokens: 8192,
-        responseMimeType: "application/json",
-      },
-      safetySettings: [
-        { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
-        { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
-      ],
-    };
-
-    const response = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(geminiBody),
+    const result = await callAI({
+      systemPrompt,
+      userMessage,
+      pdfBase64: pdfBase64 || undefined,
+      task: "analysis",
     });
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      console.error("Gemini API Error:", err);
-      return NextResponse.json(
-        {
-          error:
-            (err as { error?: { message?: string } })?.error?.message ??
-            `خطأ في الاتصال بخدمة التحليل (HTTP ${response.status})`,
-        },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-
-    // Gemini 2.5 Flash uses "thinking" mode — the response may have multiple parts
-    const parts = data?.candidates?.[0]?.content?.parts ?? [];
-    let rawText = "";
-    for (const part of parts) {
-      if (part.text && !part.thought) {
-        rawText = part.text;
-      }
-    }
-    if (!rawText && parts.length > 0) {
-      rawText = parts[parts.length - 1]?.text ?? parts[0]?.text ?? "";
-    }
-
-    if (!rawText) {
-      console.error("Gemini returned no text. Full response:", JSON.stringify(data).slice(0, 1000));
-      return NextResponse.json(
-        { error: "لم ترجع خدمة التحليل أي نتيجة. يرجى المحاولة مرة أخرى." },
-        { status: 500 }
-      );
-    }
-
-    let cleaned = rawText.trim();
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
-      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
-    }
 
     let parsed;
     try {
-      parsed = JSON.parse(cleaned);
+      parsed = parseAIJson(result.text);
     } catch {
-      console.error("Failed to parse Gemini JSON. Raw text (first 800 chars):", rawText.slice(0, 800));
+      console.error("JSON parse failed:", result.text.slice(0, 500));
       return NextResponse.json(
-        {
-          error: "تعذّر قراءة نتيجة التحليل. يرجى المحاولة مرة أخرى.",
-          raw: rawText.slice(0, 1000),
-        },
+        { error: "تعذّر قراءة نتيجة التحليل. يرجى المحاولة مرة أخرى." },
         { status: 500 }
       );
     }
 
-    if (!parsed.result || !Array.isArray(parsed.checks)) {
+    const p = parsed as Record<string, unknown>;
+    if (!p.result || !Array.isArray(p.checks)) {
       return NextResponse.json(
         { error: "نتيجة المراجعة غير مكتملة. يرجى المحاولة مرة أخرى." },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ analysis: parsed });
+    return NextResponse.json({ analysis: parsed, provider: result.provider });
   } catch (err) {
-    console.error("Server Error:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("Error:", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
 }
