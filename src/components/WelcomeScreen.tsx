@@ -39,7 +39,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#1a3a5c] to-[#0f172a] text-white flex flex-col items-center justify-center px-6 py-12 relative overflow-hidden" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-b from-[#0f172a] via-[#1a3a5c] to-[#0f172a] text-white flex flex-col items-center px-6 py-12 relative overflow-x-hidden" dir="rtl">
       {/* Background Decorative Elements */}
       <div className="absolute top-[-10%] right-[-10%] w-64 h-64 bg-[#f0c040]/10 rounded-full blur-3xl animate-pulse" />
       <div className="absolute bottom-[-10%] left-[-10%] w-64 h-64 bg-blue-500/10 rounded-full blur-3xl animate-pulse" />
@@ -48,7 +48,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8 }}
-        className="max-w-2xl w-full text-center space-y-8 relative z-10"
+        className="max-w-3xl w-full text-center space-y-10 relative z-10"
       >
         {/* Logo & Title */}
         <div className="space-y-4">
@@ -77,22 +77,59 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
           <p className="text-gray-400 text-sm italic">"اللهم اغفر له وارحمه وأسكنه فسيح جناتك"</p>
         </motion.div>
 
-        {/* About Section */}
-        <div className="grid sm:grid-cols-2 gap-4 text-right">
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-            <h3 className="text-[#f0c040] font-bold mb-2 flex items-center gap-2">
-              <span>👨‍⚖️</span> المطور
-            </h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              الأستاذ <span className="text-white font-bold">سايج محمد</span>، محامٍ لدى مجلس قضاء الجزائر، يسعى لرقمنة العمل القانوني وتسهيله.
-            </p>
+        {/* Detailed App Info */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/5 p-8 rounded-3xl text-right space-y-6">
+          <h3 className="text-xl font-bold text-[#f0c040] border-b border-white/10 pb-2">عن منصة الشامل القانوني</h3>
+          <div className="grid sm:grid-cols-2 gap-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-white font-bold">
+                <span className="w-6 h-6 bg-blue-500/20 rounded flex items-center justify-center text-xs">📜</span>
+                <h4>المكتبة القانونية</h4>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                تضم المنصة أكثر من 116 قانوناً جزائرياً محيناً، مع محرك بحث ذكي يبحث في آلاف المواد القانونية دفعة واحدة وبسرعة فائقة.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-white font-bold">
+                <span className="w-6 h-6 bg-blue-500/20 rounded flex items-center justify-center text-xs">🏛️</span>
+                <h4>الاختصاص الإقليمي</h4>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                دليل شامل لكافة بلديات الوطن، يحدد بدقة المحكمة الابتدائية، مجلس القضاء، والمحاكم الإدارية المختصة إقليمياً لكل بلدية.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-white font-bold">
+                <span className="w-6 h-6 bg-blue-500/20 rounded flex items-center justify-center text-xs">📅</span>
+                <h4>حاسبة الآجال</h4>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                أداة برمجية دقيقة لحساب آجال الطعون والمواعيد القانونية، تأخذ في الاعتبار العطل الرسمية وعطل نهاية الأسبوع في الجزائر.
+              </p>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-white font-bold">
+                <span className="w-6 h-6 bg-blue-500/20 rounded flex items-center justify-center text-xs">💼</span>
+                <h4>أدوات المحامي</h4>
+              </div>
+              <p className="text-xs text-gray-400 leading-relaxed">
+                تشمل فحص العرائض والشكاوى شكلياً، صياغة المذكرات القانونية، وتحليل الأحكام القضائية لاستخراج البيانات الهامة.
+              </p>
+            </div>
           </div>
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-            <h3 className="text-[#f0c040] font-bold mb-2 flex items-center gap-2">
-              <span>🚀</span> المنصة
-            </h3>
-            <p className="text-sm text-gray-300 leading-relaxed">
-              تطبيق ذكي يجمع 116 قانوناً، حاسبة آجال دقيقة، اختصاص إقليمي شامل، وأدوات احترافية للمحامي.
+        </div>
+
+        {/* Developer Info */}
+        <div className="bg-white/5 backdrop-blur-sm border border-white/5 p-8 rounded-3xl text-right flex flex-col sm:flex-row items-center gap-6">
+          <div className="w-24 h-24 bg-gray-800 rounded-2xl overflow-hidden border-2 border-[#f0c040]/30 flex-shrink-0">
+            <div className="w-full h-full flex items-center justify-center text-4xl bg-gradient-to-br from-gray-700 to-gray-900">👨‍⚖️</div>
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-bold text-white">الأستاذ سايج محمد</h3>
+            <p className="text-[#f0c040] text-sm font-medium">محامٍ لدى مجلس قضاء الجزائر</p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              مطور المنصة، يسعى لدمج التكنولوجيا في العمل القانوني لتسهيل الوصول للمعلومة القانونية وتطوير الأداء المهني للمحامين والمواطنين في الجزائر.
             </p>
           </div>
         </div>
@@ -101,7 +138,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         <div className="flex flex-col gap-4 pt-4">
           <button 
             onClick={onStart}
-            className="w-full bg-[#f0c040] hover:bg-[#e0b030] text-[#1a3a5c] py-4 rounded-2xl font-black text-xl shadow-xl shadow-[#f0c040]/20 transition-all active:scale-95"
+            className="w-full bg-[#f0c040] hover:bg-[#e0b030] text-[#1a3a5c] py-5 rounded-2xl font-black text-xl shadow-xl shadow-[#f0c040]/20 transition-all active:scale-95"
           >
             دخول المنصة 🏛️
           </button>
