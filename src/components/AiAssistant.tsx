@@ -7,6 +7,17 @@ interface Message {
   content: string;
   timestamp: Date;
   error?: boolean;
+  reasoning?: string;
+  modelLabel?: string;
+  tier?: number;
+}
+
+interface AvailableModel {
+  id: string;
+  label: string;
+  tier: number;
+  description: string;
+  supportsReasoning: boolean;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -18,13 +29,42 @@ const SUGGESTED_QUESTIONS = [
   "ما هو الاختصاص الإقليمي في دعاوى العقارات؟",
 ];
 
+const TIER_COLORS: Record<number, { bg: string; text: string; border: string }> = {
+  1: { bg: "#ecfdf5", text: "#065f46", border: "#a7f3d0" },
+  2: { bg: "#eff6ff", text: "#1e40af", border: "#93c5fd" },
+  3: { bg: "#fef3c7", text: "#92400e", border: "#fcd34d" },
+};
+
+const TIER_LABELS: Record<number, string> = {
+  1: "🏆 Premium",
+  2: "⚡ متقدم",
+  3: "🔵 احتياطي",
+};
+
 export default function AiAssistant() {
-  const [messages, setMessages]     = useState<Message[]>([]);
-  const [input, setInput]           = useState("");
-  const [isLoading, setIsLoading]   = useState(false);
-  const [copiedIdx, setCopiedIdx]   = useState<number | null>(null);
-  const messagesEndRef               = useRef<HTMLDivElement>(null);
-  const inputRef                     = useRef<HTMLTextAreaElement>(null);
+  const [messages, setMessages]         = useState<Message[]>([]);
+  const [input, setInput]               = useState("");
+  const [isLoading, setIsLoading]       = useState(false);
+  const [copiedIdx, setCopiedIdx]       = useState<number | null>(null);
+  const [models, setModels]             = useState<AvailableModel[]>([]);
+  const [selectedModel, setSelectedModel] = useState("auto");
+  const [showReasoning, setShowReasoning] = useState<number | null>(null);
+  const [isExpanded, setIsExpanded]     = useState(false);
+  const messagesEndRef                 = useRef<HTMLDivElement>(null);
+  const inputRef                       = useRef<HTMLTextAreaElement>(null);
+  const chatContainerRef               = useRef<HTMLDivElement>(null);
+
+  // Fetch available models on mount
+  useEffect(() => {
+    fetch("/api/ai")
+      .then(r => r.json())
+      .then(data => {
+        if (data.models && data.models.length > 0) {
+          setModels(data.models);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -42,12 +82,13 @@ export default function AiAssistant() {
     setIsLoading(true);
 
     try {
-      const res = await fetch("/api/gemini", {
-        method:  "POST",
+      const res = await fetch("/api/ai", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
+        body: JSON.stringify({
           userMessage: msg,
           messages: messages.slice(-10),
+          model: selectedModel === "auto" ? null : selectedModel,
         }),
       });
 
@@ -55,30 +96,33 @@ export default function AiAssistant() {
 
       if (!res.ok || data.error) {
         setMessages(prev => [...prev, {
-          role:      "assistant",
-          content:   `❌ خطأ: ${data.error ?? "خطأ غير معروف"}`,
+          role: "assistant",
+          content: `❌ خطأ: ${data.error ?? "خطأ غير معروف"}`,
           timestamp: new Date(),
-          error:     true,
+          error: true,
         }]);
       } else {
         setMessages(prev => [...prev, {
-          role:      "assistant",
-          content:   data.reply,
+          role: "assistant",
+          content: data.reply,
           timestamp: new Date(),
+          reasoning: data.reasoning,
+          modelLabel: data.modelLabel,
+          tier: data.tier,
         }]);
       }
     } catch {
       setMessages(prev => [...prev, {
-        role:      "assistant",
-        content:   "❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت.",
+        role: "assistant",
+        content: "❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت.",
         timestamp: new Date(),
-        error:     true,
+        error: true,
       }]);
     } finally {
       setIsLoading(false);
       inputRef.current?.focus();
     }
-  }, [input, isLoading, messages]);
+  }, [input, isLoading, messages, selectedModel]);
 
   const copyMessage = useCallback((text: string, idx: number) => {
     navigator.clipboard.writeText(text);
@@ -109,180 +153,276 @@ export default function AiAssistant() {
       .replace(/\n/g,             "<br/>");
   };
 
+  const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant" && !m.error);
+  const currentTier = lastAssistantMsg?.tier || 0;
+
+  // Floating button when collapsed
+  if (!isExpanded) {
+    return (
+      <button
+        onClick={() => setIsExpanded(true)}
+        className="fixed bottom-6 left-6 w-14 h-14 rounded-full shadow-xl z-50 flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+        style={{
+          background: "linear-gradient(135deg, #0f2540 0%, #1a3a5c 50%, #2d5a8a 100%)",
+          boxShadow: "0 8px 32px rgba(26,58,92,0.4)",
+        }}
+        aria-label="فتح المساعد الذكي"
+      >
+        <span className="text-2xl">⚖️🤖</span>
+        {currentTier > 0 && (
+          <span
+            className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[8px] font-bold flex items-center justify-center"
+            style={{ background: currentTier === 1 ? "#10b981" : currentTier === 2 ? "#3b82f6" : "#f59e0b", color: "#fff" }}
+          >
+            {models.length}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
-    <div className="max-w-4xl mx-auto px-4 py-4 animate-fade-in flex flex-col"
-         style={{ height: "calc(100vh - 140px)", minHeight: 400 }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4"
+         style={{ background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)" }}>
+      <div className="w-full max-w-2xl h-[90vh] sm:h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in"
+           style={{ background: "#ffffff" }}>
 
-      {/* Header */}
-      <div className="rounded-2xl p-4 mb-4 text-center shadow-lg"
-           style={{ background: "linear-gradient(135deg, #0f2540 0%, #1a3a5c 50%, #2d5a8a 100%)" }}>
-        <div className="text-3xl mb-1">⚖️🤖</div>
-        <h1 className="text-xl font-bold text-white">المساعد القانوني الذكي</h1>
-        <p className="text-white/70 text-xs mt-1">مدعوم بـ Gemini 2.5 Flash — متخصص في القانون الجزائري</p>
-      </div>
-
-      {/* منطقة الرسائل */}
-      <div className="flex-1 overflow-y-auto rounded-2xl shadow-inner p-4 mb-4"
-           style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
-
-        {messages.length === 0 && (
-          <div className="text-center py-8">
-            <div className="text-5xl mb-4">⚖️</div>
-            <h2 className="text-lg font-bold mb-2" style={{ color: "#1a3a5c" }}>
-              مرحباً بك في المساعد القانوني
-            </h2>
-            <p className="text-gray-500 text-sm mb-6">
-              اسألني عن أي موضوع قانوني جزائري
-            </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-right">
-              {SUGGESTED_QUESTIONS.map((q, i) => (
-                <button key={i} onClick={() => sendMessage(q)}
-                  className="p-3 rounded-xl text-sm text-gray-700 transition-all text-right"
-                  style={{
-                    background: "#f8fafc",
-                    border: "1px solid #e2e8f0",
-                  }}>
-                  {q}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {messages.map((msg, idx) => (
-          <div key={idx} className={`mb-4 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-            <div className={`max-w-[85%] ${msg.role === "user" ? "order-1" : "order-2"}`}>
-              <div className={`flex items-end gap-2 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
-                <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0"
-                     style={{
-                       background: msg.role === "user"
-                         ? "#1a3a5c" : "#fef3c7",
-                       color: msg.role === "user" ? "#fff" : "#92400e",
-                     }}>
-                  {msg.role === "user" ? "👤" : "⚖️"}
-                </div>
-
-                <div className="rounded-2xl px-4 py-3 shadow-sm"
-                     style={{
-                       borderRadius: msg.role === "user"
-                         ? "16px 16px 4px 16px"
-                         : "16px 16px 16px 4px",
-                       background: msg.role === "user"
-                         ? "#1a3a5c"
-                         : msg.error
-                           ? "#fef2f2"
-                           : "#f8fafc",
-                       color: msg.role === "user"
-                         ? "#fff"
-                         : msg.error
-                           ? "#991b1b"
-                           : "#1e293b",
-                       border: msg.role === "assistant" && !msg.error
-                         ? "1px solid #e2e8f0"
-                         : msg.error
-                           ? "1px solid #fecaca"
-                           : "none",
-                     }}>
-                  {msg.role === "assistant" && !msg.error ? (
-                    <div className="text-sm leading-relaxed"
-                         dir="rtl"
-                         dangerouslySetInnerHTML={{ __html: formatText(msg.content) }} />
-                  ) : (
-                    <p className="text-sm leading-relaxed" dir="rtl">{msg.content}</p>
-                  )}
-
-                  {msg.role === "assistant" && !msg.error && (
-                    <div className="flex gap-2 mt-2 pt-2" style={{ borderTop: "1px solid #f1f5f9" }}>
-                      <button onClick={() => copyMessage(msg.content, idx)}
-                        className="text-xs flex items-center gap-1 transition-colors"
-                        style={{ color: copiedIdx === idx ? "#16a34a" : "#94a3b8" }}>
-                        {copiedIdx === idx ? "✅ نُسخ" : "📋 نسخ"}
-                      </button>
-                      <button onClick={() => shareWhatsApp(msg.content)}
-                        className="text-xs flex items-center gap-1 transition-colors"
-                        style={{ color: "#94a3b8" }}>
-                        📤 واتساب
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <p className={`text-xs mt-1 ${msg.role === "user" ? "text-left" : "text-right"}`}
-                 style={{ color: "#94a3b8" }}>
-                {msg.timestamp.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" })}
-              </p>
-            </div>
-          </div>
-        ))}
-
-        {isLoading && (
-          <div className="flex justify-start mb-4">
-            <div className="flex items-end gap-2">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center"
-                   style={{ background: "#fef3c7", color: "#92400e" }}>⚖️</div>
-              <div className="rounded-2xl px-4 py-3"
-                   style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "16px 16px 16px 4px" }}>
-                <div className="flex gap-1 items-center">
-                  <span className="text-xs mr-2" style={{ color: "#94a3b8" }}>يفكر...</span>
-                  {[0, 1, 2].map(i => (
-                    <div key={i} className="w-2 h-2 rounded-full animate-bounce"
-                         style={{ background: "#1a3a5c", animationDelay: `${i * 0.15}s` }} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* منطقة الإدخال */}
-      <div className="rounded-2xl shadow-md p-3" style={{ background: "#ffffff", border: "1px solid #e2e8f0" }}>
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="اسأل عن أي موضوع قانوني جزائري..."
-            rows={2}
-            dir="rtl"
-            disabled={isLoading}
-            className="flex-1 resize-none rounded-xl px-4 py-3 text-sm text-gray-700 transition-all disabled:opacity-50"
-            style={{
-              background: "#f8fafc",
-              border: "2px solid transparent",
-              minHeight: 56,
-              maxHeight: 120,
-              outline: "none",
-            }}
-            onFocus={(e) => { e.currentTarget.style.borderColor = "#c9a84c"; }}
-            onBlur={(e) => { e.currentTarget.style.borderColor = "transparent"; }}
-          />
-          <button
-            onClick={() => sendMessage()}
-            disabled={isLoading || !input.trim()}
-            className="w-12 h-12 rounded-xl font-bold transition-all flex items-center justify-center flex-shrink-0 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              background: isLoading || !input.trim() ? "#e2e8f0" : "linear-gradient(135deg, #c9a84c, #f0c040)",
-              color: isLoading || !input.trim() ? "#94a3b8" : "#fff",
-              boxShadow: isLoading || !input.trim() ? "none" : "0 4px 12px rgba(201,168,76,0.4)",
-            }}
-            aria-label="إرسال">
-            {isLoading ? (
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <svg className="w-5 h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-              </svg>
-            )}
+        {/* Header */}
+        <div className="p-3 sm:p-4 text-center flex-shrink-0 relative"
+             style={{ background: "linear-gradient(135deg, #0f2540 0%, #1a3a5c 50%, #2d5a8a 100%)" }}>
+          <button onClick={() => setIsExpanded(false)}
+            className="absolute top-3 left-3 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center text-white">
+            ✕
           </button>
+          <div className="text-2xl sm:text-3xl mb-0.5">⚖️🤖</div>
+          <h1 className="text-lg sm:text-xl font-bold text-white">المساعد القانوني الذكي</h1>
+          <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
+            <span className="text-white/70 text-[10px] sm:text-xs">
+              {models.length} نماذج مجانية — نظام Fallback ذكي
+            </span>
+            {lastAssistantMsg && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: TIER_COLORS[lastAssistantMsg.tier || 3]?.bg, color: TIER_COLORS[lastAssistantMsg.tier || 3]?.text }}>
+                {TIER_LABELS[lastAssistantMsg.tier || 3]} • {lastAssistantMsg.modelLabel}
+              </span>
+            )}
+          </div>
         </div>
-        <p className="text-xs text-center mt-2" style={{ color: "#94a3b8" }}>
-          Enter للإرسال • Shift+Enter لسطر جديد • للإرشاد فقط، استشر محامياً
-        </p>
+
+        {/* Model Selector */}
+        {models.length > 0 && (
+          <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 bg-gray-50">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold text-gray-500">🤖 النموذج:</span>
+              <select
+                value={selectedModel}
+                onChange={e => setSelectedModel(e.target.value)}
+                disabled={isLoading}
+                className="text-[11px] px-2 py-1 rounded-lg border font-bold transition-all flex-1 min-w-[140px]"
+                style={{
+                  background: "#f0fdf4",
+                  borderColor: "#86efac",
+                  color: "#15803d",
+                  outline: "none",
+                  cursor: "pointer",
+                }}
+              >
+                <option value="auto">🔄 تلقائي (Fallback ذكي)</option>
+                {models.map(m => (
+                  <option key={m.id} value={m.id}>
+                    {m.tier === 1 ? "⭐" : m.tier === 2 ? "⚡" : "🔵"} {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* Chat Messages */}
+        <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 sm:p-4"
+             style={{ background: "#ffffff" }}>
+
+          {messages.length === 0 && (
+            <div className="text-center py-6">
+              <div className="text-5xl mb-3">⚖️</div>
+              <h2 className="text-base font-bold mb-1" style={{ color: "#1a3a5c" }}>
+                مرحباً بك في المساعد القانوني
+              </h2>
+              <p className="text-gray-400 text-xs mb-1">مدعوم بـ {models.length} نموذج ذكاء اصطناعي مجاني</p>
+              <p className="text-gray-400 text-[10px] mb-4">
+                نظام Fallback ذكي يختار أفضل نموذج تلقائياً
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-right">
+                {SUGGESTED_QUESTIONS.map((q, i) => (
+                  <button key={i} onClick={() => sendMessage(q)}
+                    className="p-2.5 rounded-xl text-[11px] text-gray-600 transition-all text-right hover:shadow-md active:scale-[0.98]"
+                    style={{ background: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {messages.map((msg, idx) => (
+            <div key={idx} className={`mb-3 flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div className="max-w-[88%]">
+                <div className={`flex items-end gap-1.5 ${msg.role === "user" ? "flex-row-reverse" : "flex-row"}`}>
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs flex-shrink-0"
+                       style={{
+                         background: msg.role === "user" ? "#1a3a5c" : "#fef3c7",
+                         color: msg.role === "user" ? "#fff" : "#92400e",
+                       }}>
+                    {msg.role === "user" ? "👤" : "⚖️"}
+                  </div>
+
+                  <div className="rounded-2xl px-3 py-2.5 shadow-sm"
+                       style={{
+                         borderRadius: msg.role === "user"
+                           ? "14px 14px 4px 14px"
+                           : "14px 14px 14px 4px",
+                         background: msg.role === "user"
+                           ? "#1a3a5c"
+                           : msg.error ? "#fef2f2" : "#f8fafc",
+                         color: msg.role === "user"
+                           ? "#fff"
+                           : msg.error ? "#991b1b" : "#1e293b",
+                         border: msg.role === "assistant" && !msg.error
+                           ? "1px solid #e2e8f0"
+                           : "none",
+                       }}>
+                    {msg.role === "assistant" && !msg.error ? (
+                      <div className="text-[13px] leading-relaxed"
+                           dir="rtl"
+                           dangerouslySetInnerHTML={{ __html: formatText(msg.content) }} />
+                    ) : (
+                      <p className="text-[13px] leading-relaxed" dir="rtl">{msg.content}</p>
+                    )}
+
+                    {msg.role === "assistant" && !msg.error && (
+                      <div className="flex gap-2 mt-1.5 pt-1.5 flex-wrap" style={{ borderTop: "1px solid #f1f5f9" }}>
+                        <button onClick={() => copyMessage(msg.content, idx)}
+                          className="text-[10px] flex items-center gap-0.5 transition-colors"
+                          style={{ color: copiedIdx === idx ? "#16a34a" : "#94a3b8" }}>
+                          {copiedIdx === idx ? "✅ نُسخ" : "📋 نسخ"}
+                        </button>
+                        <button onClick={() => shareWhatsApp(msg.content)}
+                          className="text-[10px] flex items-center gap-0.5 transition-colors"
+                          style={{ color: "#94a3b8" }}>
+                          📤 واتساب
+                        </button>
+                        {msg.reasoning && (
+                          <button onClick={() => setShowReasoning(showReasoning === idx ? null : idx)}
+                            className="text-[10px] flex items-center gap-0.5 transition-colors"
+                            style={{ color: "#3b82f6" }}>
+                            🧠 {showReasoning === idx ? "إخفاء التفكير" : "عرض التفكير"}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Reasoning Panel */}
+                {msg.role === "assistant" && msg.reasoning && showReasoning === idx && (
+                  <div className="mt-1 rounded-xl p-2.5 text-[11px] leading-relaxed mr-8"
+                       style={{ background: "#eff6ff", border: "1px solid #bfdbfe", color: "#1e40af" }}
+                       dir="rtl">
+                    <p className="font-bold mb-1">🧠 عملية التفكير:</p>
+                    <p className="whitespace-pre-wrap">{msg.reasoning}</p>
+                  </div>
+                )}
+
+                {/* Metadata */}
+                <div className={`flex items-center gap-1.5 mt-0.5 ${msg.role === "user" ? "text-left" : "text-right"}`}>
+                  <p className="text-[9px]" style={{ color: "#c0c0c0" }}>
+                    {msg.timestamp.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" })}
+                  </p>
+                  {msg.role === "assistant" && !msg.error && msg.tier && (
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
+                          style={{
+                            background: TIER_COLORS[msg.tier]?.bg,
+                            color: TIER_COLORS[msg.tier]?.text,
+                            border: `1px solid ${TIER_COLORS[msg.tier]?.border}`,
+                          }}>
+                      {TIER_LABELS[msg.tier]} • {msg.modelLabel}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {isLoading && (
+            <div className="flex justify-start mb-3">
+              <div className="flex items-end gap-1.5">
+                <div className="w-7 h-7 rounded-full flex items-center justify-center"
+                     style={{ background: "#fef3c7", color: "#92400e" }}>⚖️</div>
+                <div className="rounded-2xl px-3 py-2.5"
+                     style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "14px 14px 14px 4px" }}>
+                  <div className="flex gap-1 items-center">
+                    <span className="text-[10px] mr-1.5" style={{ color: "#94a3b8" }}>
+                      {selectedModel === "auto" ? "🔄 يجرب أفضل نموذج..." : "يفكر..."}
+                    </span>
+                    {[0, 1, 2].map(i => (
+                      <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
+                           style={{ background: "#1a3a5c", animationDelay: `${i * 0.15}s` }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input Area */}
+        <div className="p-2.5 sm:p-3 border-t border-gray-100 flex-shrink-0" style={{ background: "#fafafa" }}>
+          <div className="flex gap-2 items-end">
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="اسأل عن أي موضوع قانوني جزائري..."
+              rows={2}
+              dir="rtl"
+              disabled={isLoading}
+              className="flex-1 resize-none rounded-xl px-3 py-2.5 text-[13px] text-gray-700 transition-all disabled:opacity-50"
+              style={{
+                background: "#ffffff",
+                border: "2px solid #e2e8f0",
+                minHeight: 48,
+                maxHeight: 100,
+                outline: "none",
+              }}
+              onFocus={(e) => { e.currentTarget.style.borderColor = "#c9a84c"; }}
+              onBlur={(e) => { e.currentTarget.style.borderColor = "#e2e8f0"; }}
+            />
+            <button
+              onClick={() => sendMessage()}
+              disabled={isLoading || !input.trim()}
+              className="w-10 h-10 rounded-xl font-bold transition-all flex items-center justify-center flex-shrink-0 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                background: isLoading || !input.trim() ? "#e2e8f0" : "linear-gradient(135deg, #c9a84c, #f0c040)",
+                color: isLoading || !input.trim() ? "#94a3b8" : "#fff",
+                boxShadow: isLoading || !input.trim() ? "none" : "0 4px 12px rgba(201,168,76,0.4)",
+              }}
+              aria-label="إرسال">
+              {isLoading ? (
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <p className="text-[9px] text-center mt-1.5" style={{ color: "#c0c0c0" }}>
+            Enter للإرسال • Shift+Enter لسطر جديد • للإرشاد فقط، استشر محامياً
+          </p>
+        </div>
       </div>
     </div>
   );
