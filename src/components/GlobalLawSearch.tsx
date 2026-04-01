@@ -54,6 +54,29 @@ function truncateText(text: string, maxLen: number): string {
   return text.substring(0, maxLen) + '...';
 }
 
+// ─── Text Highlighter ─────────────────────────────────────────────────────────
+
+function HighlightedText({ text, query }: { text: string; query: string }) {
+  if (!query || !query.trim()) {
+    return <>{text}</>;
+  }
+  const q = query.trim();
+  const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp(`(${escaped})`, 'gi');
+  const parts = text.split(regex);
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark key={i} className="bg-green-400/40 dark:bg-green-500/50 text-green-900 dark:text-green-200 rounded px-0.5 font-bold">{part}</mark>
+        ) : (
+          <span key={i}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 // ─── Featured Carousel Card ──────────────────────────────────────────────────
 
 function FeaturedCard({ law, onClick, preview }: { law: LawMeta; onClick: () => void; preview?: string }) {
@@ -154,12 +177,14 @@ function ArticleRow({
   onCopy,
   onWhatsApp,
   copiedId,
+  highlightQuery,
 }: {
   article: LawArticle;
   lawMeta: LawMeta;
   onCopy: () => void;
   onWhatsApp: () => void;
   copiedId: string | null;
+  highlightQuery?: string;
 }) {
   const id = `${lawMeta.id}-${article.num}`;
 
@@ -217,7 +242,7 @@ function ArticleRow({
       </div>
       <div className="bg-gray-50/50 dark:bg-gray-900/30 p-3 sm:p-4 rounded-xl border border-gray-100/50 dark:border-gray-800/50">
         <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm sm:text-base whitespace-pre-line">
-          {article.text}
+          <HighlightedText text={article.text} query={highlightQuery || ''} />
         </p>
       </div>
     </motion.div>
@@ -391,9 +416,9 @@ function IndividualLawView({
       <div className="mb-6">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 text-sm font-bold text-gray-500 dark:text-gray-400 hover:text-[#1a3a5c] dark:hover:text-[#f0c040] transition-colors mb-4 group"
+          className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-base font-black text-gray-600 dark:text-gray-300 hover:text-[#1a3a5c] dark:hover:text-[#f0c040] transition-all mb-5 group shadow-sm"
         >
-          <span className="group-hover:translate-x-1 transition-transform">→</span>
+          <span className="text-xl group-hover:translate-x-1 transition-transform">→</span>
           <span>العودة إلى القوانين</span>
         </button>
 
@@ -463,6 +488,7 @@ function IndividualLawView({
                 onCopy={() => handleCopy(article)}
                 onWhatsApp={() => handleWhatsApp(article)}
                 copiedId={copiedId}
+                highlightQuery={debouncedLawQuery}
               />
             ))
           )}
@@ -733,11 +759,20 @@ export default function GlobalLawSearch() {
                   <div className="absolute top-0 right-0 w-1 h-full bg-[#1a3a5c] dark:bg-[#f0c040] opacity-0 group-hover:opacity-100 transition-opacity" />
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-4">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <div className="w-10 h-10 bg-gray-50 dark:bg-gray-900 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                      <div
+                        className="w-10 h-10 bg-gray-50 dark:bg-gray-900 rounded-xl flex items-center justify-center text-xl shadow-inner cursor-pointer hover:scale-110 transition-transform"
+                        style={{ backgroundColor: meta ? hexToRgba(meta.color, 0.15) : undefined }}
+                        onClick={() => meta && handleSelectLaw(meta)}
+                        title="فتح القانون"
+                      >
                         {meta?.icon || '⚖️'}
                       </div>
                       <div className="flex flex-col">
-                        <span className="font-black text-[#1a3a5c] dark:text-[#f0c040] text-sm sm:text-base">{meta?.name || article.law}</span>
+                        <span
+                          className="font-black text-[#1a3a5c] dark:text-[#f0c040] text-sm sm:text-base cursor-pointer hover:underline"
+                          onClick={() => meta && handleSelectLaw(meta)}
+                          title={`فتح ${meta?.name || article.law}`}
+                        >{meta?.name || article.law}</span>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">المادة {article.num}</span>
                       </div>
                     </div>
@@ -764,7 +799,7 @@ export default function GlobalLawSearch() {
                   </div>
                   <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100/50 dark:border-gray-800/50">
                     <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm sm:text-base whitespace-pre-line">
-                      {article.text}
+                      <HighlightedText text={article.text} query={debouncedQuery} />
                     </p>
                   </div>
                 </motion.div>

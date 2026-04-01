@@ -29,12 +29,23 @@ export default function InstallPrompt() {
     const alreadyStandalone = checkStandalone();
     const iosDevice = checkIOS();
 
-    // 3. الاستماع لحدث قبل التثبيت (للمتصفحات التي تدعم PWA مثل Chrome/Edge/Android)
+    if (alreadyStandalone) return;
+
+    // 3. الاستماع لحدث قبل التثبيت وتثبيت تلقائي
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
-      if (!alreadyStandalone) {
-        setShowInstallButton(true);
+      // تثبيت تلقائي بعد تأخير قصير
+      if (!alreadyStandalone && !iosDevice) {
+        setTimeout(() => {
+          e.prompt();
+          e.userChoice.then((choice: any) => {
+            if (choice.outcome === 'accepted') {
+              setShowInstallButton(false);
+            }
+            setDeferredPrompt(null);
+          }).catch(() => {});
+        }, 2000);
       }
     };
 
@@ -42,7 +53,6 @@ export default function InstallPrompt() {
 
     // 4. للمتصفحات التي لا تدعم beforeinstallprompt (مثل Safari على iOS)
     if (iosDevice && !alreadyStandalone) {
-      // نظهر رسالة تعليمية لمستخدمي آيفون
       setShowInstallButton(true);
     }
 
