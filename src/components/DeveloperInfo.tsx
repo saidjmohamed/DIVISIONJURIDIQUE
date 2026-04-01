@@ -60,7 +60,7 @@ export default function DeveloperInfo() {
 
               <div className="grid grid-cols-2 gap-3">
                 <a 
-                  href="https://wa.me/213661000000" // يرجى تحديث الرقم إذا كان متاحاً
+                  href="https://wa.me/213558357689"
                   target="_blank"
                   className="flex items-center justify-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 py-3 rounded-2xl text-xs font-bold hover:bg-green-100 transition-colors"
                 >
@@ -68,7 +68,7 @@ export default function DeveloperInfo() {
                   <span className="text-lg">📱</span>
                 </a>
                 <a 
-                  href="mailto:saidj.mohamed@example.com" // يرجى تحديث البريد إذا كان متاحاً
+                  href="mailto:SAIDJ.MOHAMED@GMAIL.COM"
                   className="flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 py-3 rounded-2xl text-xs font-bold hover:bg-blue-100 transition-colors"
                 >
                   <span>بريد إلكتروني</span>
