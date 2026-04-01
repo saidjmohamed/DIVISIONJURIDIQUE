@@ -361,12 +361,40 @@ function IndividualLawView({
   const filteredArticles = useMemo(() => {
     const q = debouncedLawQuery.trim().toLowerCase();
     if (!q) return articles;
+    
+    // استخراج الأرقام من الاستعلام
+    const queryNumbers = q.match(/\d+/g);
+    
+    // الكلمات النصية بدون أرقام
+    const textWords = q.replace(/\d+/g, ' ').trim().split(/\s+/).filter(w => w.length > 0);
+    
     return articles.filter((a) => {
       const textLower = a.text.toLowerCase();
-      const numStr = String(a.num);
-      if (textLower.includes(q) || numStr.includes(q)) return true;
-      const words = q.split(/\s+/);
-      return words.filter((w) => textLower.includes(w)).length > 0;
+      const artNum = String(a.num);
+      const artNumber = String(a.number || a.num);
+      
+      // مطابقة كاملة للاستعلام (النص الكامل يطابق)
+      if (textLower.includes(q) || artNum.includes(q)) return true;
+      
+      // مطابقة رقم المادة إذا وُجد رقم في الاستعلام
+      if (queryNumbers && queryNumbers.length > 0) {
+        const matchesNumber = queryNumbers.some(n => 
+          artNum === n || artNum.includes(n) || artNumber.includes(n)
+        );
+        if (matchesNumber && textWords.length === 0) return true;
+        if (matchesNumber && textWords.length > 0) {
+          // إذا كان هناك كلمات نصية أيضاً، تحقق أنها موجودة في النص
+          const allTextWordsMatch = textWords.every(w => textLower.includes(w));
+          if (allTextWordsMatch) return true;
+        }
+      }
+      
+      // مطابقة جميع الكلمات النصية في نص المادة
+      if (textWords.length > 0) {
+        return textWords.every(w => textLower.includes(w));
+      }
+      
+      return false;
     });
   }, [articles, debouncedLawQuery]);
 
@@ -610,18 +638,35 @@ export default function GlobalLawSearch() {
     const raf = requestAnimationFrame(() => {
       const scored: ScoredArticle[] = [];
       const queryLower = q.toLowerCase();
+      const queryNumbers = queryLower.match(/\d+/g);
+      const textWords = queryLower.replace(/\d+/g, ' ').trim().split(/\s+/).filter(w => w.length > 0);
 
       for (const article of allArticles) {
         const textLower = article.text.toLowerCase();
+        const artNum = String(article.num);
         let score = 0;
 
+        // مطابقة كاملة
         if (textLower === queryLower) score = 100;
         else if (textLower.startsWith(queryLower)) score = 80;
         else if (textLower.includes(queryLower)) score = 50;
         else {
-          const words = queryLower.split(/\s+/);
-          const matchCount = words.filter(w => textLower.includes(w)).length;
-          if (matchCount > 0) score = (matchCount / words.length) * 40;
+          // مطابقة رقم المادة
+          const numMatch = queryNumbers && queryNumbers.some(n =>
+            artNum === n || artNum.includes(n)
+          );
+
+          // مطابقة الكلمات النصية (كلها يجب أن تتطابق)
+          const allWordsMatch = textWords.length > 0
+            ? textWords.every(w => textLower.includes(w))
+            : false;
+
+          if (numMatch && textWords.length === 0) score = 70;
+          else if (numMatch && allWordsMatch) score = 65;
+          else if (allWordsMatch) {
+            const matchCount = textWords.length;
+            score = (matchCount / Math.max(queryLower.split(/\s+/).length, 1)) * 45;
+          }
         }
 
         if (score > 0) {
