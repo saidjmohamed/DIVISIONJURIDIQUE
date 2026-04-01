@@ -1,0 +1,17 @@
+{
+  "name": "jurisprudence-pdf-processor",
+  "version": "1.0.0",
+  "description": "استخراج النصوص من ملفات PDF وتحويلها لاجتهادات قضائية منظمة",
+  "type": "module",
+  "scripts": {
+    "extract": "node step1-extract-pdf.mjs",
+    "parse": "node step2-parse-ai.mjs",
+    "classify": "node step3-classify.mjs",
+    "merge": "node step4-merge.mjs",
+    "all": "node step1-extract-pdf.mjs && node step2-parse-ai.mjs && node step3-classify.mjs && node step4-merge.mjs"
+  },
+  "dependencies": {
+    "pdf-parse": "^1.1.1",
+    "pdfjs-dist": "^4.9.155"
+  }
+}
