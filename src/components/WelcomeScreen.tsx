@@ -178,21 +178,39 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
               }}
             />
           </div>
-          <h3 className="text-3xl font-black mb-2">الأستاذ سايج محمد</h3>
+          <h3 className="text-3xl font-black mb-2">الأستاذ سايج محمد <span className="text-sm font-bold text-amber-500">(أبو جواد)</span></h3>
           <p className="text-amber-500 font-bold uppercase tracking-widest mb-6">محامٍ لدى مجلس قضاء الجزائر</p>
           <p className="text-gray-400 leading-relaxed mb-10 font-medium italic">
             "تم تطوير هذه المنصة لتكون رفيقاً رقمياً للمحامي الجزائري، تهدف إلى تبسيط الإجراءات القانونية وضمان الوصول السريع للمعلومة التشريعية والقضائية."
           </p>
-          <div className="flex justify-center gap-6 text-sm font-bold">
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-gray-500 uppercase tracking-tighter">الهاتف</span>
-              <span className="text-white">0558357689</span>
-            </div>
-            <div className="w-px h-10 bg-white/10" />
-            <div className="flex flex-col items-center gap-2">
-              <span className="text-gray-500 uppercase tracking-tighter">البريد الإلكتروني</span>
-              <span className="text-white">SAIDJ.MOHAMED@GMAIL.COM</span>
-            </div>
+          
+          {/* Social Icons Only */}
+          <div className="flex justify-center gap-6">
+            <a 
+              href="https://wa.me/213558357689"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-12 h-12 bg-[#25D366] rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-black/10 text-white hover:scale-110 transition-transform"
+              title="واتساب"
+            >
+              📱
+            </a>
+            <a 
+              href="https://facebook.com/Mtr.saidj.mohamed"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-12 h-12 bg-[#1877F2] rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-black/10 text-white hover:scale-110 transition-transform"
+              title="فيسبوك"
+            >
+              📘
+            </a>
+            <a 
+              href="mailto:SAIDJ.MOHAMED@GMAIL.COM"
+              className="w-12 h-12 bg-[#EA4335] rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-black/10 text-white hover:scale-110 transition-transform"
+              title="بريد إلكتروني"
+            >
+              📧
+            </a>
           </div>
         </div>
       </div>
@@ -216,7 +234,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
 
       {/* Footer */}
       <footer className="py-10 border-t border-white/5 text-center text-gray-500 text-xs font-medium">
-        <p>© {new Date().getFullYear()} الشامل القانوني - جميع الحقوق محفوظة للأستاذ سايج محمد</p>
+        <p>© {new Date().getFullYear()} الشامل القانوني - جميع الحقوق محفوظة للأستاذ سايج محمد (أبو جواد)</p>
       </footer>
     </div>
   );

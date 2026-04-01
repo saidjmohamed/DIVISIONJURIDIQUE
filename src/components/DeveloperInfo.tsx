@@ -5,6 +5,27 @@ import { useState } from 'react';
 export default function DeveloperInfo() {
   const [isOpen, setIsOpen] = useState(false);
 
+  const socialLinks = [
+    {
+      name: 'واتساب',
+      icon: '📱',
+      url: 'https://wa.me/213558357689',
+      color: 'bg-[#25D366]'
+    },
+    {
+      name: 'فيسبوك',
+      icon: '📘',
+      url: 'https://facebook.com/Mtr.saidj.mohamed',
+      color: 'bg-[#1877F2]'
+    },
+    {
+      name: 'بريد إلكتروني',
+      icon: '📧',
+      url: 'mailto:SAIDJ.MOHAMED@GMAIL.COM',
+      color: 'bg-[#EA4335]'
+    }
+  ];
+
   return (
     <>
       {/* Floating Button */}
@@ -39,7 +60,7 @@ export default function DeveloperInfo() {
                   }}
                 />
               </div>
-              <h3 className="text-xl font-black text-white mb-1">الأستاذ سايج محمد</h3>
+              <h3 className="text-xl font-black text-white mb-1">الأستاذ سايج محمد <span className="text-xs font-bold text-amber-400">(أبو جواد)</span></h3>
               <p className="text-[#f0c040] text-xs font-bold uppercase tracking-widest">محامٍ لدى مجلس قضاء الجزائر</p>
             </div>
 
@@ -58,22 +79,20 @@ export default function DeveloperInfo() {
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <a 
-                  href="https://wa.me/213558357689"
-                  target="_blank"
-                  className="flex items-center justify-center gap-2 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 py-3 rounded-2xl text-xs font-bold hover:bg-green-100 transition-colors"
-                >
-                  <span>واتساب</span>
-                  <span className="text-lg">📱</span>
-                </a>
-                <a 
-                  href="mailto:SAIDJ.MOHAMED@GMAIL.COM"
-                  className="flex items-center justify-center gap-2 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 py-3 rounded-2xl text-xs font-bold hover:bg-blue-100 transition-colors"
-                >
-                  <span>بريد إلكتروني</span>
-                  <span className="text-lg">📧</span>
-                </a>
+              {/* Social Icons Only */}
+              <div className="flex justify-center gap-6 py-2">
+                {socialLinks.map((link) => (
+                  <a
+                    key={link.name}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`${link.color} w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-lg shadow-black/10 text-white hover:scale-110 transition-transform`}
+                    title={link.name}
+                  >
+                    {link.icon}
+                  </a>
+                ))}
               </div>
 
               <div className="text-center pt-4">
