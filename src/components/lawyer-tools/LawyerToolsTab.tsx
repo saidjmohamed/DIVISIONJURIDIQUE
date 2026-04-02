@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import SmartPetitionChecker from './SmartPetitionChecker';
+import FormalPetitionChecker from './FormalPetitionChecker';
 import PetitionChecker from './PetitionChecker';
 import ComplaintChecker from './ComplaintChecker';
 import DeadlineCalculatorTool from './DeadlineCalculatorTool';
@@ -16,6 +17,7 @@ import AiPromptsGuide from './AiPromptsGuide';
 import SubjectMatterJurisdiction from './SubjectMatterJurisdiction';
 
 const tools = [
+  { id: 'formal-petition', title: 'أداة الفحص الشكلي للعرائض القانونية', icon: '🔍', desc: 'فحص شكلي دقيق لـ 20 نوعاً من العرائض والشكاوى وفق القانون الجديد 25-14 (Word فقط)', color: '#1a3a5c' },
   { id: 'smart-petition', title: 'التحقق الشكلي الآلي من العرائض والشكاوى', icon: '📋', desc: 'رفع العريضة أو الشكوى (PDF/Word) والتحقق الآلي من الشروط الشكلية وفق ق.إ.م.إ وق.إ.ج', color: '#7c3aed' },
   { id: 'jurisdiction', title: 'تحديد الاختصاص النوعي', icon: '🏛️', desc: 'تحديد القسم المختص والتشكيل القانوني وفق قانون الإجراءات المدنية والإدارية', color: '#1a3a5c' },
   { id: 'judgment-analyzer', title: 'استخراج بيانات الأحكام', icon: '⚖️', desc: 'استخراج المعلومات الأساسية من الأحكام القضائية وعرض طرق الطعن المتاحة وفق ق.إ.م.إ', color: '#1a3a5c' },
@@ -38,6 +40,7 @@ export default function LawyerToolsTab() {
   if (activeTool === 'judgment-analyzer') return <JudgmentAnalyzer onBack={() => setActiveTool(null)} />;
   if (activeTool === 'contract-reviewer') return <ContractReviewer onBack={() => setActiveTool(null)} />;
   if (activeTool === 'memo-drafter') return <MemoDrafter onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'formal-petition') return <FormalPetitionChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'smart-petition') return <SmartPetitionChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'petition') return <PetitionChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'complaint') return <ComplaintChecker onBack={() => setActiveTool(null)} />;

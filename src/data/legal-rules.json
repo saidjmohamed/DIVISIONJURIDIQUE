@@ -1,0 +1,77 @@
+{
+  "version": "2.0",
+  "lastUpdated": "2025-08-03",
+  "categories": [
+    {
+      "id": "civil",
+      "label": "المحررات المدنية",
+      "types": [
+        { "id": "civil_opening", "label": "عريضة افتتاح دعوى مدنية", "ref": "المواد 13، 14، 15، 16، 17 ق.إ.م.إ" },
+        { "id": "civil_memo_reply", "label": "مذكرة جوابية مدنية", "ref": "المواد 25، 26، 27 ق.إ.م.إ" },
+        { "id": "civil_memo_followup", "label": "مذكرة تعقيبية مدنية", "ref": "المواد 25، 26، 27 ق.إ.م.إ" },
+        { "id": "civil_formal_plea", "label": "دفع شكلي مدني", "ref": "المواد 50، 51، 52، 53، 54 ق.إ.م.إ" },
+        { "id": "civil_incidental_request", "label": "طلب عارض مدني", "ref": "المواد 25، 28، 29، 30 ق.إ.م.إ" },
+        { "id": "civil_appeal", "label": "استئناف مدني", "ref": "المواد 10، 34، 325 إلى 340، 67، 68، 69 ق.إ.م.إ" },
+        { "id": "civil_cassation", "label": "طعن بالنقض مدني", "ref": "المواد 349 إلى 354 ق.إ.م.إ" }
+      ]
+    },
+    {
+      "id": "administrative",
+      "label": "المحررات الإدارية",
+      "types": [
+        { "id": "admin_opening", "label": "دعوى إدارية ابتدائية (أمام المحكمة الإدارية)", "ref": "المواد 800 إلى 804 ق.إ.م.إ" },
+        { "id": "admin_appeal", "label": "استئناف إداري (أمام مجلس الدولة)", "ref": "المواد 904 إلى 911 ق.إ.م.إ" }
+      ]
+    },
+    {
+      "id": "penal",
+      "label": "المحررات الجزائية",
+      "types": [
+        { "id": "penal_complaint_regular", "label": "شكوى عادية (أمام وكيل الجمهورية أو ضابط الشرطة القضائية)", "ref": "المادتان 17 و 26 من القانون رقم 25-14" },
+        { "id": "penal_complaint_civil", "label": "شكوى مصحوبة بادعاء مدني (أمام قاضي التحقيق)", "ref": "المواد 72 إلى 75 من القانون رقم 25-14" },
+        { "id": "penal_civil_claim", "label": "ادعاء مدني أمام جهة الحكم الجزائية", "ref": "المواد 2، 3، 4 من القانون رقم 25-14" },
+        { "id": "penal_memo_misdemeanor", "label": "مذكرة دفاع أمام محكمة الجنح", "ref": "المواد 340 إلى 383 من القانون رقم 25-14" },
+        { "id": "penal_memo_felony", "label": "مذكرة دفاع أمام محكمة الجنايات", "ref": "المواد 340 إلى 383 من القانون رقم 25-14" },
+        { "id": "penal_opposition", "label": "طعن بالمعارضة في مواد الجنح", "ref": "المواد 398 إلى 401 من القانون رقم 25-14" },
+        { "id": "penal_appeal", "label": "استئناف جزائي (أحكام جنح واتهام)", "ref": "المواد 414 إلى 419 من القانون رقم 25-14" },
+        { "id": "penal_cassation", "label": "طعن بالنقض جزائي", "ref": "المواد 495 إلى 500، 521 من القانون رقم 25-14" },
+        { "id": "penal_release_request", "label": "طلب إفراج مؤقت", "ref": "المواد 123 إلى 127 من القانون رقم 25-14" },
+        { "id": "penal_indictment_grievance", "label": "تظلم أمام غرفة الاتهام", "ref": "المواد 175 إلى 177 من القانون رقم 25-14" },
+        { "id": "penal_formal_plea", "label": "مذكرة عارضة / دفع شكلي جزائي", "ref": "المواد 344 إلى 348 من القانون رقم 25-14" }
+      ]
+    }
+  ],
+  "commonRules": [
+    { "id": "arabic_language", "label": "اللغة العربية", "keywords": ["محكمة", "مجلس", "قانون", "ضد", "لفائدة"], "critical": true, "article": "مخالفة شكلية جوهرية" },
+    { "id": "date", "label": "تاريخ التحرير", "keywords": ["حرر في", "بتاريخ", "يوم"], "critical": false, "article": "نقص شكلي" },
+    { "id": "title", "label": "عنوان/تسمية المحرر", "keywords": ["عريضة", "مذكرة", "شكوى", "طعن", "استئناف"], "critical": false, "article": "نقص شكلي" },
+    { "id": "court", "label": "تحديد الجهة القضائية", "keywords": ["محكمة", "المجلس القضائي", "مجلس قضاء", "المحكمة العليا", "مجلس الدولة"], "critical": true, "article": "رفض شكلي" },
+    { "id": "parties", "label": "هوية الأطراف (اسم، لقب، موطن)", "keywords": ["السيد", "السيدة", "الساكن بـ", "المقيم بـ", "ضد", "لفائدة"], "critical": true, "article": "رفض شكلي" },
+    { "id": "facts", "label": "عرض موجز للوقائع", "keywords": ["الوقائع", "حيث أن", "بناء على"], "critical": false, "article": "نقص شكلي" },
+    { "id": "requests", "label": "الطلبات أو أوجه الطعن", "keywords": ["يلتمس", "نلتمس", "الطلبات", "أوجه الطعن"], "critical": true, "article": "رفض شكلي" },
+    { "id": "lawyer", "label": "التوقيع وبيان اسم المحامي", "keywords": ["الأستاذ", "المحامي", "الدفاع"], "critical": false, "article": "نقص شكلي" }
+  ],
+  "specificRules": {
+    "civil_opening": [
+      { "id": "court_id", "label": "تحديد الجهة القضائية المختصة", "keywords": ["محكمة"], "critical": true, "article": "المادة 13 ق.إ.م.إ" },
+      { "id": "plaintiff", "label": "اسم ولقب وموطن المدعي", "keywords": ["المدعي", "لفائدة"], "critical": true, "article": "المادة 15/1 ق.إ.م.إ" },
+      { "id": "defendant", "label": "اسم ولقب وموطن المدعى عليه", "keywords": ["المدعى عليه", "ضد"], "critical": true, "article": "المادة 15/2 ق.إ.م.إ" },
+      { "id": "facts_requests", "label": "عرض موجز للوقائع والطلبات والوسائل", "keywords": ["الوقائع", "الطلبات", "الوسائل"], "critical": true, "article": "المادة 15/4 ق.إ.م.إ" }
+    ],
+    "civil_appeal": [
+      { "id": "appeal_court", "label": "تحديد الجهة القضائية الاستئنافية", "keywords": ["المجلس القضائي", "مجلس قضاء"], "critical": true, "article": "المواد 325-340 ق.إ.م.إ" },
+      { "id": "judgment_info", "label": "بيانات الحكم المستأنف (الجهة، الرقم، التاريخ)", "keywords": ["الحكم الصادر", "رقم", "بتاريخ"], "critical": true, "article": "المواد 325-340 ق.إ.م.إ" },
+      { "id": "lawyer_rep", "label": "التمثيل بمحامٍ", "keywords": ["الأستاذ", "المحامي"], "critical": true, "article": "المادة 10 ق.إ.م.إ" }
+    ],
+    "penal_complaint_regular": [
+      { "id": "prosecutor", "label": "تحديد الجهة (وكيل الجمهورية / ضابط الشرطة)", "keywords": ["وكيل الجمهورية", "الضبطية القضائية", "أمن"], "critical": true, "article": "المادة 26 ق.إ.ج" },
+      { "id": "complainant", "label": "الاسم واللقب والموطن الكامل للشاكي", "keywords": ["الشاكي", "لفائدة"], "critical": true, "article": "المادة 17 ق.إ.ج" },
+      { "id": "offense", "label": "تحديد طبيعة الجريمة المشتكى منها", "keywords": ["جريمة", "فعل", "وقائع"], "critical": true, "article": "المادة 26 ق.إ.ج" }
+    ],
+    "penal_complaint_civil": [
+      { "id": "investigating_judge", "label": "تحديد قاضي التحقيق المختص والمحكمة", "keywords": ["قاضي التحقيق"], "critical": true, "article": "المادة 72 ق.إ.ج" },
+      { "id": "direct_damage", "label": "بيان الضرر الشخصي المباشر", "keywords": ["ضرر", "تضرر"], "critical": true, "article": "المادة 72 ق.إ.ج" },
+      { "id": "bail_note", "label": "تنبيه الكفالة", "keywords": ["كفالة"], "critical": false, "article": "المادة 74 ق.إ.ج", "note": "فحص معلّق على إجراء خارجي" }
+    ]
+  }
+}
