@@ -232,7 +232,7 @@ async function callOpenRouter(
         "Authorization": `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
-        "X-Title": "الشامل القانوني - المساعد الذكي",
+        "X-Title": "Shamil DZ - AI Legal Assistant",
       },
       body: JSON.stringify(body),
       signal: controller.signal,

@@ -177,7 +177,7 @@ async function callModel(
         Authorization: `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
-        "X-Title": "الشامل القانوني - التحقق الشكلي",
+        "X-Title": "Shamil DZ - Formal Verification",
       },
       body: JSON.stringify({
         model: modelId,
