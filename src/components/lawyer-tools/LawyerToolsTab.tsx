@@ -16,7 +16,7 @@ import AiPromptsGuide from './AiPromptsGuide';
 import SubjectMatterJurisdiction from './SubjectMatterJurisdiction';
 
 const tools = [
-  { id: 'smart-petition', title: 'التحقق الشكلي الآلي من العرائض والشكاوى', icon: '📋', desc: 'رفع العريضة أو الشكوى (PDF/Word) والتحقق الآلي من الشروط الشكلية وفق ق.إ.م.إ وق.إ.ج', color: '#7c3aed' },
+  { id: 'smart-petition', title: 'الفحص الشكلي بالذكاء الاصطناعي', icon: '🤖', desc: '20 نوع محرر — فحص شكلي ذكي بالذكاء الاصطناعي وفق القانون 25-14 و ق.إ.م.إ 08-09', color: '#7c3aed' },
   { id: 'jurisdiction', title: 'تحديد الاختصاص النوعي', icon: '🏛️', desc: 'تحديد القسم المختص والتشكيل القانوني وفق قانون الإجراءات المدنية والإدارية', color: '#1a3a5c' },
   { id: 'judgment-analyzer', title: 'استخراج بيانات الأحكام', icon: '⚖️', desc: 'استخراج المعلومات الأساسية من الأحكام القضائية وعرض طرق الطعن المتاحة وفق ق.إ.م.إ', color: '#1a3a5c' },
   { id: 'contract-reviewer', title: 'فحص العقود', icon: '📑', desc: 'فحص البنود الأساسية للعقود للكشف عن الإشكاليات والمخاطر وفق القانون المدني الجزائري', color: '#059669' },

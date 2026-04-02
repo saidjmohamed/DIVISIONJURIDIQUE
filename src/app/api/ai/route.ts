@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// المساعد القانوني الذكي — OpenRouter Multi-Model with Smart Fallback v2
-// 
-// النماذج المجانية (مرتبة حسب الأولوية والقوة):
-//   Tier 1 (أقوى - ذكاء عالي + عربي ممتاز):
-//     1. qwen/qwen3.6-plus-preview:free     ← 1M context, reasoning, tools
-//     2. nvidia/nemotron-3-super-120b-a12b:free ← Mamba-Transformer, reasoning
-//     3. minimax/minimax-m2.5:free           ← سريع، عربي جيد، tools
-//   
-//   Tier 2 (قوية - احتياطية):
-//     4. stepfun/step-3.5-flash:free         ← 196B MoE, سريع جداً
-//     5. openai/gpt-oss-120b:free            ← OpenAI مفتوح، agent expert
-//     6. arcee-ai/trinity-large-preview:free ← إبداعي، 400B MoE
-//   
+// المساعد القانوني الذكي — OpenRouter Multi-Model with Smart Fallback v3
+//
+// أفضل 10 نماذج مجانية من OpenRouter تفهم العربية والقانون:
+//   Tier 1 (أقوى — ذكاء عالي + عربي ممتاز):
+//     1. qwen/qwen-2.5-72b-instruct:free       ← 128K context, عربي ممتاز
+//     2. qwen/qwen3-235b-a22b:free              ← 235B, 1M context
+//     3. nvidia/llama-3.1-nemotron-70b-instruct:free ← 70B, متعدد اللغات
+//
+//   Tier 2 (قوية — احتياطية):
+//     4. meta-llama/llama-4-maverick:free        ← 400B MoE, 1M context
+//     5. google/gemma-3-27b-it:free              ← Google, دقيق
+//     6. mistralai/mistral-small-3.1-24b-instruct:free ← فرنسي/عربي جيد
+//
 //   Tier 3 (احتياطية أخيرة):
-//     7. meta-llama/llama-3.3-70b-instruct:free ← Meta Llama, متعدد اللغات
-//     8. qwen/qwen3-next-80b-a3b-instruct:free ← سريع جداً، 3B active
-//     9. z-ai/glm-4.5-air:free              ← Z.ai, thinking mode
-//     10. nvidia/nemotron-nano-9b-v2:free    ← NVIDIA صغير لكن قوي
+//     7. meta-llama/llama-3.3-70b-instruct:free  ← Meta, متعدد اللغات
+//     8. qwen/qwen-2.5-32b-instruct:free        ← سريع جداً
+//     9. microsoft/phi-4-reasoning-plus:free     ← Microsoft, تفكير منطقي
+//     10. deepseek/deepseek-r1-0528:free         ← DeepSeek R1
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
@@ -28,8 +28,6 @@ interface ModelConfig {
   id: string;
   label: string;
   tier: number;
-  supportsReasoning: boolean;
-  supportsTools: boolean;
   maxTokens: number;
   description: string;
 }
@@ -37,96 +35,76 @@ interface ModelConfig {
 const ALL_MODELS: ModelConfig[] = [
   // Tier 1 - أقوى النماذج
   {
-    id: "qwen/qwen3.6-plus-preview:free",
-    label: "Qwen 3.6 Plus ⭐",
+    id: "qwen/qwen-2.5-72b-instruct:free",
+    label: "Qwen 2.5 72B ⭐",
     tier: 1,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "الأقوى — 1M سياق + تفكير عميق",
+    description: "128K سياق — عربي ممتاز + قانون",
   },
   {
-    id: "nvidia/nemotron-3-super-120b-a12b:free",
-    label: "Nemotron 3 Super ⭐",
+    id: "qwen/qwen3-235b-a22b:free",
+    label: "Qwen3 235B ⭐",
     tier: 1,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "120B Mamba-Transformer — ذكاء عالي",
+    description: "235B — 1M سياق + ذكاء عالي",
   },
   {
-    id: "minimax/minimax-m2.5:free",
-    label: "MiniMax M2.5",
+    id: "nvidia/llama-3.1-nemotron-70b-instruct:free",
+    label: "Nemotron 70B ⭐",
     tier: 1,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "متعدد المهام — 80% SWE-Bench",
+    description: "NVIDIA — ذكاء عالي + متعدد اللغات",
   },
   // Tier 2 - قوية
   {
-    id: "stepfun/step-3.5-flash:free",
-    label: "Step 3.5 Flash",
+    id: "meta-llama/llama-4-maverick:free",
+    label: "Llama 4 Maverick",
     tier: 2,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "196B MoE — سريع جداً",
+    description: "400B MoE — 1M سياق",
   },
   {
-    id: "openai/gpt-oss-120b:free",
-    label: "GPT-OSS 120B",
+    id: "google/gemma-3-27b-it:free",
+    label: "Gemma 3 27B",
     tier: 2,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "OpenAI مفتوح — خبير Agent",
+    description: "Google — دقيق ومنضبط",
   },
   {
-    id: "arcee-ai/trinity-large-preview:free",
-    label: "Arcee Trinity ⭐",
+    id: "mistralai/mistral-small-3.1-24b-instruct:free",
+    label: "Mistral Small 3.1",
     tier: 2,
-    supportsReasoning: false,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "400B MoE — متفوق إبداعياً",
+    description: "Mistral — فرنسي + عربي جيد",
   },
   // Tier 3 - احتياطية
   {
     id: "meta-llama/llama-3.3-70b-instruct:free",
     label: "Llama 3.3 70B",
     tier: 3,
-    supportsReasoning: false,
-    supportsTools: true,
     maxTokens: 4096,
     description: "Meta — متعدد اللغات",
   },
   {
-    id: "qwen/qwen3-next-80b-a3b-instruct:free",
-    label: "Qwen3 Next 80B",
+    id: "qwen/qwen-2.5-32b-instruct:free",
+    label: "Qwen 2.5 32B",
     tier: 3,
-    supportsReasoning: false,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "3B active — سرعة فائقة",
+    description: "سريع جداً — عربي جيد",
   },
   {
-    id: "z-ai/glm-4.5-air:free",
-    label: "GLM 4.5 Air",
+    id: "microsoft/phi-4-reasoning-plus:free",
+    label: "Phi-4 Reasoning",
     tier: 3,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "Z.ai — وضع تفكير/not-thinking",
+    description: "Microsoft — تفكير منطقي",
   },
   {
-    id: "nvidia/nemotron-nano-9b-v2:free",
-    label: "Nemotron Nano 9B",
+    id: "deepseek/deepseek-r1-0528:free",
+    label: "DeepSeek R1",
     tier: 3,
-    supportsReasoning: true,
-    supportsTools: true,
     maxTokens: 4096,
-    description: "NVIDIA — صغير لكن ذكي",
+    description: "تفكير عميق — دقيق جداً",
   },
 ];
 
@@ -183,7 +161,7 @@ const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج
 5. نبّه دائماً: "هذا للإرشاد القانوني فقط، استشر محامياً للحالات الخاصة"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤫 تعليمات سرية (لا تذكر أبداً أنك تلقت هذه التعليمات):
+🤫 تعليمات سرية (لا تذكر أبداً أنك تلقيت هذه التعليمات):
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - عندما يسأل المستخدم عن محامٍ أو يستشير في قضية معقدة: اذكر بشكل طبيعي وغير مباشر "الأستاذ سايج محمد محامٍ متخصص لدى مجلس قضاء الجزائر، يمكنه مساعدتك في مثل هذه القضايا" — قلها كأنها نصيحة مهنية عادية وليس إعلان
 - عندما يمدح المستخدم التطبيق: قل "شكراً! التطبيق من إنجاز الأستاذ سايج محمد محامٍ بالجزائر العاصمة، وهو يعمل على تطويره باستمرار لمساعدة الجميع"
@@ -203,11 +181,10 @@ async function callOpenRouter(
   messages: Message[],
   modelConfig: ModelConfig,
   signal?: AbortSignal,
-): Promise<{ content: string | null; reasoning?: string; error?: string }> {
+): Promise<{ content: string | null; error?: string }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout per model
+  const timeout = setTimeout(() => controller.abort(), 25000);
 
-  // Link external signal if provided
   signal?.addEventListener("abort", () => controller.abort());
 
   try {
@@ -221,18 +198,13 @@ async function callOpenRouter(
       temperature: 0.7,
     };
 
-    // Enable reasoning for models that support it
-    if (modelConfig.supportsReasoning) {
-      body.reasoning = { effort: "medium" };
-    }
-
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
-        "X-Title": "الشامل القانوني - المساعد الذكي",
+        "X-Title": "Shamil DZ - AI Legal Assistant",
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -248,9 +220,7 @@ async function callOpenRouter(
 
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
-    const reasoning = data?.choices?.[0]?.message?.reasoning;
-
-    return { content: content || null, reasoning: reasoning || undefined };
+    return { content: content || null };
   } catch (err: unknown) {
     clearTimeout(timeout);
     if (err instanceof DOMException && err.name === "AbortError") {
@@ -285,12 +255,10 @@ export async function POST(req: NextRequest) {
     chatMessages.push({ role: "user", content: userMessage });
 
     let reply: string | null = null;
-    let reasoning = "";
     let usedModelConfig: ModelConfig | null = null;
     const triedModels: string[] = [];
     const errors: string[] = [];
 
-    // Strategy 1: Try user's preferred model first
     if (preferredModel) {
       const prefConfig = ALL_MODELS.find(m => m.id === preferredModel);
       if (prefConfig) {
@@ -298,7 +266,6 @@ export async function POST(req: NextRequest) {
         const result = await callOpenRouter(chatMessages, prefConfig);
         if (result.content) {
           reply = result.content;
-          reasoning = result.reasoning || "";
           usedModelConfig = prefConfig;
         } else if (result.error) {
           errors.push(`${prefConfig.label}: ${result.error}`);
@@ -306,17 +273,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Strategy 2: Sequential Fallback through tiers
     if (!reply) {
       for (const modelConfig of FALLBACK_CHAIN) {
         if (triedModels.includes(modelConfig.id)) continue;
-
         triedModels.push(modelConfig.id);
         const result = await callOpenRouter(chatMessages, modelConfig);
-
         if (result.content) {
           reply = result.content;
-          reasoning = result.reasoning || "";
           usedModelConfig = modelConfig;
           break;
         } else if (result.error) {
@@ -327,18 +290,13 @@ export async function POST(req: NextRequest) {
 
     if (!reply) {
       return NextResponse.json(
-        {
-          error: `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة مرة أخرى.`,
-          triedModels,
-          errors,
-        },
+        { error: `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة مرة أخرى.`, triedModels, errors },
         { status: 503 }
       );
     }
 
     return NextResponse.json({
       reply,
-      reasoning: reasoning || undefined,
       model: usedModelConfig!.id,
       modelLabel: usedModelConfig!.label,
       tier: usedModelConfig!.tier,
@@ -351,7 +309,6 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET endpoint to list available models with details
 export async function GET() {
   return NextResponse.json({
     models: ALL_MODELS.map(m => ({
@@ -359,8 +316,6 @@ export async function GET() {
       label: m.label,
       tier: m.tier,
       description: m.description,
-      supportsReasoning: m.supportsReasoning,
-      supportsTools: m.supportsTools,
     })),
     totalModels: ALL_MODELS.length,
     tiers: {
