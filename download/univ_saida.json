@@ -1,0 +1,18 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "html": "<html style=\"height: 100%;\"><head><meta name=\"viewport\" content=\"width=device-width, minimum-scale=0.1\"><title>unknown.gif</title></head><body style=\"margin: 0px; height: 100%; background-color: rgb(14, 14, 14);\"><p>A 48x52 small image, likely a logo, icon or avatar</p></body></html>",
+    "title": "unknown.gif",
+    "url": "https://adminbupfe.univ-saida.dz/opac_css/doc_num.php",
+    "usage": {
+      "tokens": 89
+    }
+  },
+  "meta": {
+    "usage": {
+      "tokens": 89
+    }
+  },
+  "status": 20000
+}

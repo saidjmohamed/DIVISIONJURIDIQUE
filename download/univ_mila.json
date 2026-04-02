@@ -1,0 +1,21 @@
+{
+  "code": 200,
+  "data": {
+    "description": "",
+    "external": {},
+    "html": "<html><head>\n<title>503 Service Unavailable</title>\n</head><body>\n<h1>Service Unavailable</h1>\n<p>The server is temporarily unable to service your\nrequest due to maintenance downtime or capacity\nproblems. Please try again later.</p>\n\n</body></html>",
+    "metadata": {},
+    "title": "503 Service Unavailable",
+    "url": "https://opac.univ-mila.dz/z/M2-340-05.pdf",
+    "usage": {
+      "tokens": 60
+    },
+    "warning": "Target URL returned error 503: Service Unavailable"
+  },
+  "meta": {
+    "usage": {
+      "tokens": 60
+    }
+  },
+  "status": 20000
+}
