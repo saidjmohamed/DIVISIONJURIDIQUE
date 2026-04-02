@@ -585,10 +585,10 @@ function scoreColor(score: number): string {
 const PROGRESS_STEPS = [
   'جاري قراءة الملف...',
   'استخراج النص من المستند...',
-  'فحص البيانات الإلزامية...',
-  'التحقق من الشروط الشكلية...',
+  'إرسال النص لنموذج الذكاء الاصطناعي...',
+  'تحليل الشروط الشكلية بالذكاء الاصطناعي...',
   'مراجعة المواد القانونية...',
-  'إعداد التقرير...',
+  'إعداد التقرير النهائي...',
 ];
 
 /* ─────────────────────── Component ─────────────────────── */
@@ -603,6 +603,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [filterStatus, setFilterStatus] = useState<CheckResult['status'] | 'all'>('all');
   const [copied, setCopied] = useState(false);
+  const [aiPowered, setAiPowered] = useState<boolean | null>(null);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -648,6 +649,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     setLoading(true);
     setError(null);
     setAnalysis(null);
+    setAiPowered(null);
     startProgress();
 
     try {
@@ -655,9 +657,44 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       if (!text.trim()) {
         throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
       }
-      // Client-side programmatic check — no API call
-      const result = runChecks(text, petitionType);
+
+      // ─── Strategy: Try AI first, fallback to local ───
+      let result: AnalysisResult;
+      let usedAI = false;
+
+      try {
+        const res = await fetch('/api/petition-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text.slice(0, 8000), petitionType }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.result && data.checks && data.score !== undefined) {
+            result = {
+              result: data.result,
+              score: data.score,
+              checks: data.checks,
+              summary: data.summary || '',
+              recommendations: data.recommendations || [],
+            };
+            usedAI = !!data.aiPowered;
+          } else {
+            throw new Error('Invalid AI response');
+          }
+        } else {
+          throw new Error(`API error ${res.status}`);
+        }
+      } catch {
+        // AI failed — fallback to local keyword-based check
+        console.warn('AI analysis failed, falling back to local check');
+        result = runChecks(text, petitionType);
+        usedAI = false;
+      }
+
       setAnalysis(result);
+      setAiPowered(usedAI);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
     } finally {
@@ -708,6 +745,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     setAnalysis(null);
     setError(null);
     setFilterStatus('all');
+    setAiPowered(null);
   }
 
   const filteredChecks = analysis
@@ -734,10 +772,10 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         قم برفع العريضة أو الشكوى (PDF أو Word) وسيتم التحقق الآلي من استيفاء الشروط الشكلية وفقاً لـق.إ.م.إ وق.إ.ج.
       </p>
 
-      <div className="flex items-start gap-2 bg-green-50 dark:bg-green-900/15 border border-green-200 dark:border-green-800 rounded-xl p-3 mb-4">
-        <span className="text-sm flex-shrink-0 mt-0.5">✅</span>
-        <p className="text-[11px] text-green-700 dark:text-green-400 leading-relaxed">
-          التحليل يتم محلياً على جهازك — لا يتم إرسال أي بيانات لأي خادم
+      <div className="flex items-start gap-2 bg-blue-50 dark:bg-blue-900/15 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4">
+        <span className="text-sm flex-shrink-0 mt-0.5">🤖</span>
+        <p className="text-[11px] text-blue-700 dark:text-blue-400 leading-relaxed">
+          يتم استخدام الذكاء الاصطناعي لتحليل الوثيقة بدقة — مع الاحتفاظ بالتحليل المحلي كبديل تلقائي في حال تعذر الاتصال
         </p>
       </div>
 
@@ -841,7 +879,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full border-2 border-[#7c3aed] border-t-transparent animate-spin" />
             <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري التحقق الآلي...</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري التحقق الشكلي بالذكاء الاصطناعي...</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{PROGRESS_STEPS[progressStep]}</p>
             </div>
           </div>
@@ -997,10 +1035,29 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
             </div>
           )}
 
+          {/* AI badge */}
+          {aiPowered !== null && (
+            <div className={`flex items-center gap-2 rounded-xl p-3 border ${aiPowered
+              ? 'bg-purple-50 dark:bg-purple-900/15 border-purple-200 dark:border-purple-800'
+              : 'bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
+            }`}>
+              <span className="text-sm flex-shrink-0">{aiPowered ? '🤖' : '🔧'}</span>
+              <p className={`text-[11px] leading-relaxed ${aiPowered
+                ? 'text-purple-700 dark:text-purple-400'
+                : 'text-gray-600 dark:text-gray-400'
+              }`}>
+                {aiPowered
+                  ? 'تم التحليل باستخدام الذكاء الاصطناعي — نتائج أدق وأكثر شمولية'
+                  : 'تم التحليل محلياً بالكلمات المفتاحية (لم يتوفر الاتصال بالذكاء الاصطناعي)'
+                }
+              </p>
+            </div>
+          )}
+
           {/* Disclaimer */}
           <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-xl p-3">
             <p className="text-[10px] text-yellow-700 dark:text-yellow-400 leading-relaxed">
-              ⚠️ تنبيه: هذا التحقق الشكلي الآلي للإرشاد فقط ويعتمد على تحليل النصوص بالكلمات المفتاحية. لا يغني عن المراجعة القانونية المتخصصة.
+              ⚠️ تنبيه: هذا التحقق الشكلي للإرشاد فقط {aiPowered ? 'ويستعين بالذكاء الاصطناعي' : 'ويعتمد على تحليل النصوص بالكلمات المفتاحية'}. لا يغني عن المراجعة القانونية المتخصصة.
             </p>
           </div>
 
