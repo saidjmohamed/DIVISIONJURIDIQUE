@@ -85,6 +85,7 @@ export default function JurisprudenceTab() {
     async function loadData() {
       try {
         const indexRes = await fetch('/jurisprudence/index.json');
+        if (!indexRes.ok) throw new Error(`Failed to load index: HTTP ${indexRes.status}`);
         const idx: IndexData = await indexRes.json();
         setIndexData(idx);
 
@@ -95,6 +96,7 @@ export default function JurisprudenceTab() {
           chamberIds.map(async (cid) => {
             try {
               const res = await fetch(`/jurisprudence/${cid}.json`);
+              if (!res.ok) return; // Skip chambers with missing/broken files
               const items: JurisprudenceItem[] = await res.json();
               allData.push(...items);
             } catch {

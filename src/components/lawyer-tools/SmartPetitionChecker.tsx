@@ -3,7 +3,6 @@
 import { extractTextFromFile } from '@/lib/extract-text';
 import { useState, useCallback, useRef } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { OPENING_PETITION_RULES, CRIMINAL_COMPLAINT_RULES, checkPetitionText } from '@/lib/legal-rules';
 
 /* ─────────────────────── Types ─────────────────────── */
 

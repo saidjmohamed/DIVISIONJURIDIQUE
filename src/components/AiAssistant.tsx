@@ -57,7 +57,7 @@ export default function AiAssistant() {
   // Fetch available models on mount
   useEffect(() => {
     fetch("/api/ai")
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => {
         if (data.models && data.models.length > 0) {
           setModels(data.models);
@@ -92,9 +92,30 @@ export default function AiAssistant() {
         }),
       });
 
-      const data = await res.json();
+      if (!res.ok) {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: `❌ خطأ في الخادم (HTTP ${res.status}). يرجى المحاولة لاحقاً.`,
+          timestamp: new Date(),
+          error: true,
+        }]);
+        return;
+      }
 
-      if (!res.ok || data.error) {
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "❌ خطأ في قراءة استجابة الخادم. يرجى المحاولة لاحقاً.",
+          timestamp: new Date(),
+          error: true,
+        }]);
+        return;
+      }
+
+      if (data.error) {
         setMessages(prev => [...prev, {
           role: "assistant",
           content: `❌ خطأ: ${data.error ?? "خطأ غير معروف"}`,
