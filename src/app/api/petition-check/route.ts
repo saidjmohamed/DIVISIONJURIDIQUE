@@ -3,28 +3,58 @@ import { NextRequest, NextResponse } from "next/server";
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// النماذج مرتبة حسب السرعة (الأسرع أولاً)
-const MODELS = [
-  // ⚡ أسرع النماذج — ترد في 1-6 ثوانٍ
-  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron Nano 30B ⚡",  tier: 1 },  // ~1.5s
-  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B ⚡",       tier: 1 },  // ~4s
-  { id: "arcee-ai/trinity-mini:free",             label: "Trinity Mini ⚡",       tier: 1 },  // ~5s
-  { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash ⚡",     tier: 1 },  // ~5.5s
-  // 💪 أقوى النماذج — أبطأ لكن أدق (fallback)
-  { id: "qwen/qwen3.6-plus:free",                label: "Qwen 3.6 Plus",         tier: 2 },
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2 },
-  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder",           tier: 2 },
-  // 🔵 احتياطية
-  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 3 },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",         tier: 3 },
-  { id: "minimax/minimax-m2.5:free",              label: "MiniMax M2.5",          tier: 3 },
+// النماذج مرتبة: Qwen3.6 Plus أولاً (الأقوى للعربية والقانون) ثم fallback حسب السرعة والأداء
+interface PetitionModel { id: string; label: string; tier: number; maxTokens: number; }
+const MODELS: PetitionModel[] = [
+  // ⭐ النموذج الرئيسي — أقوى نموذج للعربية والقانون الجزائري
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus ⭐",       tier: 0,  maxTokens: 4096 },  // 1M سياق — عربي ممتاز
+  // ⚡ Fallback — أسرع النماذج
+  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron Nano 30B ⚡",  tier: 1,  maxTokens: 2048 },  // ~1.5s
+  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B ⚡",       tier: 1,  maxTokens: 2048 },  // ~4s
+  { id: "arcee-ai/trinity-mini:free",             label: "Trinity Mini ⚡",       tier: 1,  maxTokens: 2048 },  // ~5s
+  { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash ⚡",     tier: 1,  maxTokens: 2048 },  // ~5.5s
+  // 💪 أقوى النماذج البديلة (fallback أدق)
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2,  maxTokens: 3072 },
+  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder",           tier: 2,  maxTokens: 3072 },
+  // 🔵 احتياطية أخيرة
+  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 3,  maxTokens: 2048 },
+  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",         tier: 3,  maxTokens: 2048 },
+  { id: "minimax/minimax-m2.5:free",              label: "MiniMax M2.5",          tier: 3,  maxTokens: 2048 },
 ];
 
-const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية وفق ق.إ.ج 25-14 وق.إ.م.إ 08-09.
-فحصك شكلي فقط، لا تحلل الموضوع ولا تقدّر فرص النجاح. اذكر المادة القانونية.
-الشروط: لغة عربية، تاريخ، عنوان المحرر، الجهة القضائية، هوية الأطراف الكاملة، صفة الشخص المعنوي، عرض الوقائع، الطلبات، المرفقات، التوقيع، التمثيل بمحامٍ.
+const SYSTEM_PROMPT = `أنت فاحص شكلي متخصص للعرائض والمحررات القانونية الجزائرية، تعمل وفق:
+- القانون رقم 25-14 المؤرخ في 3 غشت 2025 المتضمن قانون الإجراءات الجزائية (ق.إ.ج الجديد)
+- الأمر رقم 08-09 المؤرخ في 25 فبراير 2008 المتضمن قانون الإجراءات المدنية والإدارية (ق.إ.م.إ) وتعديلاته
+
+📝 قواعد الفحص الصارمة (لا تحيد عنها أبداً):
+1. فحصك شكلي فقط — لا تحلل الموضوع ولا تقدّر فرص النجاح ولا ترجّح صدق الوقائع
+2. لا تصف الدفوع بأنها قوية أو ضعيفة
+3. لا تنشئ وقائع غير موجودة في الملف ولا تفترض مرفقات غير مذكورة
+4. إذا كان عنصر شكلي غير ظاهر في النص ← قل: "غير ظاهر من الملف"
+5. إذا تعذّر التحقق من أجل أو تبليغ أو رسم ← صنّفه "فحص معلّق على التحقق من المرفقات"
+6. اذكر رقم المادة القانونية مع كل ملاحظة
+7. استخدم لغة قانونية مهنية واضحة وموجزة
+
+📋 الشروط الشكلية المشتركة لفحص جميع الوثائق:
+- اللغة العربية (مخالفة شكلية جوهرية عند الغياب)
+- تاريخ التحرير (نقص شكلي)
+- عنوان/تسمية المحرر (نقص شكلي)
+- تحديد الجهة القضائية (رفض شكلي)
+- هوية الأطراف الكاملة: اسم، لقب، موطن (رفض شكلي)
+- صفة الشخص المعنوي ومقره وممثله عند الاقتضاء (رفض شكلي)
+- عرض موجز للوقائع (نقص شكلي)
+- الطلبات أو أوجه الطعن (رفض شكلي)
+- الإشارة للمرفقات إن ذُكرت (نقص قابل للتدارك)
+- التوقيع وبيان اسم المحامي (نقص شكلي)
+- التمثيل بمحامٍ حيث يكون وجوبياً (رفض شكلي)
+
+🎯 ثلاثة مستويات للنتيجة:
+- ✅ مقبول شكلاً: تتوفر جميع البيانات الشكلية الجوهرية
+- ⚠️ ناقص شكلاً: نقص قابل للتدارك أو غامض
+- ❌ مرفوض شكلاً: نقص جوهري صريح تحت طائلة عدم القبول
+
 أجب فقط بـ JSON بدون أي نص أو markdown إضافي:
-{"result":"accepted"|"rejected"|"needs_review","score":0-100,"documentType":"نوع","court":"الجهة","date":"التاريخ","summary":"ملخص مختصر","passedChecks":[{"label":"الشرط","article":"المادة"}],"failedChecks":[{"label":"الشرط","article":"المادة","critical":true,"details":"التفاصيل"}],"suggestions":[{"label":"العنصر","suggestion":"الاقتراح"}]}`;
+{"result":"accepted"|"rejected"|"needs_review","score":0-100,"documentType":"نوع المحرر المحدد","court":"الجهة القضائية المستخرجة أو غير ظاهرة","date":"التاريخ المستخرج أو غير مذكور","summary":"ملخص مختصر للحالة الشكلية","passedChecks":[{"label":"اسم الشرط المستوفى","article":"المادة القانونية"}],"failedChecks":[{"label":"اسم الشرط الناقص","article":"المادة القانونية","critical":true أو false,"details":"شرح التفاصيل والأثر"}],"pendingChecks":[{"label":"العنصر المعلّق","reason":"سبب التعليق"}],"suggestions":[{"label":"العنصر المقترح","suggestion":"الاقتراح دون المساس بالمضمون"}]}`;
 
 const TYPE_LABELS: Record<string, string> = {
   civil_opening: "عريضة افتتاح دعوى مدنية (المواد 13-17 ق.إ.م.إ)",
@@ -97,6 +127,8 @@ function makeReport(d: Record<string, unknown>): string {
   return s;
 }
 
+export const maxDuration = 60; // Vercel function timeout — يدعم Qwen3.6 Plus بـ 20s
+
 export async function POST(req: NextRequest) {
   if (!OPENROUTER_KEY) {
     return NextResponse.json({ error: "مفتاح OpenRouter غير مضبوط" }, { status: 500 });
@@ -115,13 +147,14 @@ export async function POST(req: NextRequest) {
     let usedModel = MODELS[0];
     const tried: string[] = [];
 
-    // Sequential fallback — fast models first (all respond in <8s)
+    // Sequential fallback — Qwen3.6 Plus أولاً (Tier 0) ثم الأسرع (Tier 1-3)
     for (const m of MODELS) {
       tried.push(m.id);
-      const timeout = m.tier === 1 ? 8000 : m.tier === 2 ? 6000 : 4000;
+      const timeout = m.tier === 0 ? 20000 : m.tier === 1 ? 8000 : m.tier === 2 ? 10000 : 6000;
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);
+        const maxTok = m.maxTokens;
         const res = await fetch(API_URL, {
           method: "POST",
           headers: {
@@ -136,7 +169,7 @@ export async function POST(req: NextRequest) {
               { role: "system", content: SYSTEM_PROMPT },
               { role: "user", content: userMsg },
             ],
-            max_tokens: 2048,
+            max_tokens: maxTok,
             temperature: 0.3,
           }),
           signal: controller.signal,
