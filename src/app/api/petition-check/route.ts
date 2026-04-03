@@ -23,7 +23,8 @@ import { NextRequest, NextResponse } from "next/server";
 //     10. arcee-ai/trinity-mini:free
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const maxDuration = 60; // Pro plan: 60s. Hobby plan uses 10s regardless.
+// Edge runtime: 30s timeout on hobby plan (vs 10s for Node.js serverless)
+export const runtime = 'edge';
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
