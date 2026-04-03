@@ -54,3 +54,4 @@ upload/
 
 db/
 .env.local
+.dyad/
