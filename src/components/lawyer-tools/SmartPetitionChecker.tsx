@@ -268,17 +268,32 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       <div className="flex items-center gap-3 mb-4">
         <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg hover:opacity-70 transition-opacity">→</button>
         <div>
-          <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">📋 الفحص الشكلي للعرائض القانونية بالذكاء الاصطناعي</h2>
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">يدعم 20 نوعاً من المحررات — وفق القانون 25-14 و ق.إ.م.إ 08-09</p>
+          <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">🤖 الفحص الشكلي للعرائض بالذكاء الاصطناعي</h2>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">تحليل ذكي لـ 20 نوعاً من المحررات القانونية — وفق القانون 25-14 و ق.إ.م.إ 08-09</p>
+        </div>
+      </div>
+
+      {/* Privacy Notice */}
+      <div className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 mb-4">
+        <div className="flex items-start gap-2">
+          <span className="text-base flex-shrink-0">🔒</span>
+          <div>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 leading-relaxed font-bold">
+              خصوصية تامة — بياناتك في أمان
+            </p>
+            <p className="text-[10px] text-emerald-600 dark:text-emerald-500 leading-relaxed mt-1">
+              النظام والسيرفر <strong>لا يحتفظان بأي معلومات</strong> من العرائض المرفوعة. يتم حذف الملف ومحتواه من الذاكرة <strong>فوراً</strong> بعد إظهار نتيجة الفحص. لا يتم تخزين أو تسجيل أو مراجعة أي محتوى قانوني.
+            </p>
+          </div>
         </div>
       </div>
 
       {/* AI Info Banner */}
       <div className="flex items-start gap-2 bg-gradient-to-l from-purple-50 to-blue-50 dark:from-purple-900/15 dark:to-blue-900/15 border border-purple-200 dark:border-purple-800 rounded-xl p-3 mb-4">
-        <span className="text-lg flex-shrink-0">🤖</span>
+        <span className="text-lg flex-shrink-0">🧠</span>
         <div>
           <p className="text-[11px] text-purple-700 dark:text-purple-400 leading-relaxed font-medium">
-            متصل بالذكاء الاصطناعي — 10 نماذج مجانية مع نظام Fallback ذكي
+            مدعوم بالذكاء الاصطناعي وفق القانون الجزائري — نموذج Qwen 3.6 Plus (رئيسي) مع 10 نماذج احتياطية
           </p>
           <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
             يقبل ملفات Word فقط (.docx / .doc) — الفحص شكلي فقط بدون تحليل موضوعي
