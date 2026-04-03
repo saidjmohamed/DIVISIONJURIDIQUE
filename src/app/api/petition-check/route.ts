@@ -1,25 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// أداة الفحص الشكلي للعرائض القانونية — OpenRouter Multi-Model Fallback
+// أداة الفحص الشكلي للعرائض القانونية — OpenRouter Parallel Fallback v2
 //
 // أفضل 10 نماذج مجانية من OpenRouter تفهم العربية والقانون (محدّث 03/04/2026):
-//   Tier 1 (أقوى — ذكاء عالي + عربي ممتاز + سياق طويل):
-//     1. qwen/qwen3.6-plus:free                  ← 1M context, عربي ممتاز ⭐
-//     2. openai/gpt-oss-120b:free                 ← 131K context, تفكير منطقي عالي
-//     3. qwen/qwen3-coder:free                    ← 262K context, عربي جيد
+//   يتم تجربة النماذج بالتوازي داخل كل مستوى (Tier) لضمان سرعة الاستجابة
+//
+//   Tier 1 (أقوى):
+//     1. qwen/qwen3.6-plus:free     ← 1M ctx, عربي ممتاز ⭐
+//     2. openai/gpt-oss-120b:free    ← 131K ctx, تفكير منطقي
+//     3. qwen/qwen3-coder:free       ← 262K ctx, عربي جيد
 //   
-//   Tier 2 (قوية — احتياطية):
-//     4. google/gemma-3-27b-it:free               ← 131K context, دقيق ومنضبط
-//     5. meta-llama/llama-3.3-70b-instruct:free   ← 65K context, متعدد اللغات
-//     6. stepfun/step-3.5-flash:free              ← 256K context, سريع
+//   Tier 2 (قوية):
+//     4. google/gemma-3-27b-it:free  ← 131K ctx, دقيق
+//     5. meta-llama/llama-3.3-70b-instruct:free ← 65K ctx
+//     6. stepfun/step-3.5-flash:free ← 256K ctx, سريع
 //   
-//   Tier 3 (احتياطية أخيرة):
-//     7. nvidia/nemotron-3-nano-30b-a3b:free      ← 256K context, جيد
-//     8. minimax/minimax-m2.5:free                ← 196K context
-//     9. openai/gpt-oss-20b:free                  ← 131K context, أصغر لكن موثوق
-//     10. arcee-ai/trinity-mini:free               ← 131K context
+//   Tier 3 (احتياطية):
+//     7. nvidia/nemotron-3-nano-30b-a3b:free
+//     8. minimax/minimax-m2.5:free
+//     9. openai/gpt-oss-20b:free
+//     10. arcee-ai/trinity-mini:free
 // ═══════════════════════════════════════════════════════════════════════════
+
+export const maxDuration = 60; // Pro plan: 60s. Hobby plan uses 10s regardless.
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -29,270 +33,188 @@ interface ModelConfig {
   label: string;
   tier: number;
   maxTokens: number;
-  description: string;
 }
 
+// أسرع النماذج أولاً — نبدأ بالأسرع استجابة للتوافق مع حدود Vercel
 const ALL_MODELS: ModelConfig[] = [
-  // Tier 1 - أقوى النماذج للعربية والقانون (محدّثة 03/04/2026)
-  {
-    id: "qwen/qwen3.6-plus:free",
-    label: "Qwen 3.6 Plus ⭐",
-    tier: 1,
-    maxTokens: 8192,
-    description: "1M سياق — عربي ممتاز + قانون",
-  },
-  {
-    id: "openai/gpt-oss-120b:free",
-    label: "GPT OSS 120B ⭐",
-    tier: 1,
-    maxTokens: 8192,
-    description: "131K سياق — تفكير منطقي عالي",
-  },
-  {
-    id: "qwen/qwen3-coder:free",
-    label: "Qwen3 Coder ⭐",
-    tier: 1,
-    maxTokens: 8192,
-    description: "262K سياق — عربي جيد + دقيق",
-  },
+  // Tier 1 - أقوى النماذج (محدّثة 03/04/2026)
+  { id: "qwen/qwen3.6-plus:free",                label: "Qwen 3.6 Plus ⭐",       tier: 1, maxTokens: 4096 },
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B ⭐",        tier: 1, maxTokens: 4096 },
+  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder ⭐",         tier: 1, maxTokens: 4096 },
   // Tier 2 - قوية
-  {
-    id: "google/gemma-3-27b-it:free",
-    label: "Gemma 3 27B",
-    tier: 2,
-    maxTokens: 8192,
-    description: "Google — دقيق ومنضبط",
-  },
-  {
-    id: "meta-llama/llama-3.3-70b-instruct:free",
-    label: "Llama 3.3 70B",
-    tier: 2,
-    maxTokens: 8192,
-    description: "Meta — متعدد اللغات",
-  },
-  {
-    id: "stepfun/step-3.5-flash:free",
-    label: "Step 3.5 Flash",
-    tier: 2,
-    maxTokens: 8192,
-    description: "256K سياق — سريع جداً",
-  },
-  // Tier 3 - احتياطية أخيرة
-  {
-    id: "nvidia/nemotron-3-nano-30b-a3b:free",
-    label: "Nemotron Nano 30B",
-    tier: 3,
-    maxTokens: 8192,
-    description: "256K سياق — جيد ومتعدد اللغات",
-  },
-  {
-    id: "minimax/minimax-m2.5:free",
-    label: "MiniMax M2.5",
-    tier: 3,
-    maxTokens: 8192,
-    description: "196K سياق — متعدد اللغات",
-  },
-  {
-    id: "openai/gpt-oss-20b:free",
-    label: "GPT OSS 20B",
-    tier: 3,
-    maxTokens: 8192,
-    description: "131K سياق — أصغر لكن موثوق",
-  },
-  {
-    id: "arcee-ai/trinity-mini:free",
-    label: "Trinity Mini",
-    tier: 3,
-    maxTokens: 8192,
-    description: "131K سياق — احتياطية أخيرة",
-  },
+  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",            tier: 2, maxTokens: 4096 },
+  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",          tier: 2, maxTokens: 4096 },
+  { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash",         tier: 2, maxTokens: 4096 },
+  // Tier 3 - احتياطية
+  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron Nano 30B",      tier: 3, maxTokens: 4096 },
+  { id: "minimax/minimax-m2.5:free",              label: "MiniMax M2.5",           tier: 3, maxTokens: 4096 },
+  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",            tier: 3, maxTokens: 4096 },
+  { id: "arcee-ai/trinity-mini:free",             label: "Trinity Mini",           tier: 3, maxTokens: 4096 },
 ];
 
-const FALLBACK_CHAIN = ALL_MODELS.sort((a, b) => a.tier - b.tier);
+// Group models by tier for parallel execution
+const TIER_1 = ALL_MODELS.filter(m => m.tier === 1);
+const TIER_2 = ALL_MODELS.filter(m => m.tier === 2);
+const TIER_3 = ALL_MODELS.filter(m => m.tier === 3);
+const ALL_TIERS = [TIER_1, TIER_2, TIER_3];
 
-// ─────────── البروميبت القانوني الشامل ───────────
-const LEGAL_SYSTEM_PROMPT = `أنت وكيل برمجي متخصص مهمتك **فحص العرائض والمحررات القانونية فحصاً شكلياً فقط** وفق القانون الجزائري.
+// ─────────── البروميبت القانوني (مختصر للسرعة) ───────────
+const LEGAL_SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية. فحصك شكلي فقط.
 
-المرجع القانوني الأساسي للجانب الجزائي هو:
-**القانون رقم 25-14 المؤرخ في 3 غشت سنة 2025** (مطابق للجريدة الرسمية عدد 54 المنشورة في 03/08/2025) المتضمن قانون الإجراءات الجزائية الجزائري — النص الساري المفعول.
+المراجع: القانون 25-14 (ق.إ.ج) + الأمر 08-09 (ق.إ.م.إ)
 
-والمرجع القانوني للجانب المدني والإداري هو:
-**الأمر رقم 08-09 المؤرخ في 25 فبراير 2008** المتضمن قانون الإجراءات المدنية والإدارية وتعديلاته.
+الشروط الشكلية: لغة عربية، تاريخ، عنوان المحرر، الجهة القضائية، هوية الأطراف، صفة الشخص المعنوي عند الاقتضاء، عرض الوقائع، الطلبات، المرفقات إن ذُكرت، التوقيع واسم المحامي، التمثيل بمحامٍ حيث وجوبي.
 
-## الهدف الوظيفي:
-تفحص الوثيقة **شكلاً فقط** وتُخرج نتيجة:
-- ✅ **مقبول شكلاً**
-- ⚠️ **ناقص شكلاً ويحتاج استكمال**
-- ❌ **مرفوض شكلاً**
+قواعد: لا تحلل الموضوع، لا تقدّر فرص النجاح، لا تنشئ وقائع، اذكر المادة القانونية.
 
-مع ذكر المادة القانونية والعلة لكل ملاحظة، دون أي تحليل موضوعي.
-
-## الشروط الشكلية المشتركة لجميع الوثائق:
-1. اللغة العربية — مخالفة شكلية جوهرية
-2. تاريخ التحرير — نقص شكلي
-3. عنوان/تسمية المحرر — نقص شكلي
-4. تحديد الجهة القضائية — رفض شكلي
-5. هوية الأطراف (اسم، لقب، موطن) — رفض شكلي
-6. صفة الشخص المعنوي ومقره وممثله — رفض شكلي عند الاقتضاء
-7. عرض موجز للوقائع — نقص شكلي
-8. الطلبات أو أوجه الطعن — رفض شكلي
-9. الإشارة للمرفقات إن ذُكرت — نقص قابل للتدارك
-10. التوقيع وبيان اسم المحامي — نقص شكلي
-11. التمثيل بمحامٍ حيث يكون وجوبياً — رفض شكلي
-
-## القواعد الصارمة (لا تخرج عنها أبداً):
-1. **لا تحلل الموضوع** — الفحص شكلي فقط.
-2. **لا تقدّر فرص النجاح** — ممنوع منعاً باتاً.
-3. **لا ترجّح صدق الوقائع** — فحص شكلي فقط.
-4. **لا تصف الدفوع بأنها قوية أو ضعيفة.**
-5. **لا تنشئ وقائع غير موجودة في الملف.**
-6. **لا تفترض مرفقات غير مذكورة.**
-7. إذا كان عنصر شكلي **غير ظاهر في النص** → قل: "غير ظاهر من الملف".
-8. إذا تعذّر التحقق من أجل أو تبليغ أو رسم → صنّفه "فحص معلّق على التحقق من المرفقات".
-9. **استخدم لغة قانونية مهنية واضحة وموجزة.**
-10. **اذكر رقم المادة القانونية** مع كل ملاحظة.
-
-## هيكل تقرير النتيجة المطلوب:
-أجب **حصرياً** بصيغة JSON التالية (بدون أي نص إضافي قبلها أو بعدها):
-{
-  "result": "accepted" | "rejected" | "needs_review",
-  "score": <0-100>,
-  "documentType": "<نوع المحرر>",
-  "court": "<الجهة القضائية أو غير ظاهرة>",
-  "date": "<التاريخ أو غير مذكور>",
-  "summary": "<ملخص مختصر بالعربية>",
-  "passedChecks": [
-    { "label": "<الشرط>", "article": "<المادة>" }
-  ],
-  "failedChecks": [
-    { "label": "<الشرط الناقص>", "article": "<المادة>", "critical": true/false, "details": "<التفاصيل>" }
-  ],
-  "pendingChecks": [
-    { "label": "<العنصر>", "reason": "<سبب التعليق>" }
-  ],
-  "suggestions": [
-    { "label": "<العنصر>", "suggestion": "<الصياغة المقترحة>" }
-  ],
-  "report": "<التقرير الكامل بصيغة النص المنسق التالية>"
-}
-
-التقرير الكامل (حقل report) يجب أن يكون بالصيغة التالية:
-══════════════════════════════════════
-        تقرير الفحص الشكلي
-══════════════════════════════════════
-📄 نوع الوثيقة         : [نوع المحرر]
-⚖️  الجهة القضائية      : [المستخرجة أو "غير ظاهرة"]
-📅 تاريخ التحرير       : [المستخرج أو "غير مذكور"]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🎯 النتيجة الشكلية النهائية: [ ✅ مقبول | ⚠️ ناقص | ❌ مرفوض ]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-✅ الشروط المستوفاة:
-   • [الشرط] — [المادة]
-
-❌ الشروط غير المستوفاة:
-   • [الشرط] — [المادة] — [جوهري / قابل للتدارك]
-
-⚠️ نقائص قابلة للتدارك:
-   • ...
-
-🔍 فحوص معلّقة:
-   • [العنصر] — [سبب التعليق]
-
-✏️ اقتراحات التنقيح الشكلي:
-   • [العنصر] → [الصياغة المقترحة]
-
-══════════════════════════════════════
-⚠️ تنبيه قانوني وإخلاء مسؤولية:
-هذه الأداة مخصصة للفحص الشكلي الأولي للعرائض والمذكرات،
-ولا تغني بأي حال عن مراجعة المحامي أو المستشار القانوني المختص.
-
-🔒 الخصوصية: هذه الأداة لا تحتفظ بأي ملفات أو معلومات
-خاصة بكم بعد انتهاء الفحص. يُحذف الملف ومحتواه من
-الذاكرة فور إظهار النتيجة.
-══════════════════════════════════════
-
-مهم جداً: أجب بـ JSON فقط بدون أي markdown أو نص إضافي.`;
+أجب فقط بـ JSON (بدون markdown أو نص إضافي):
+{"result":"accepted"|"rejected"|"needs_review","score":0-100,"documentType":"...","court":"...","date":"...","summary":"...","passedChecks":[{"label":"...","article":"..."}],"failedChecks":[{"label":"...","article":"...","critical":true|false,"details":"..."}],"pendingChecks":[{"label":"...","reason":"..."}],"suggestions":[{"label":"...","suggestion":"..."}]}`;
 
 // ─────────── OpenRouter Call ───────────
-async function callOpenRouter(
-  messages: { role: string; content: string }[],
+async function callModel(
+  systemPrompt: string,
+  userMessage: string,
   modelConfig: ModelConfig,
-): Promise<{ content: string | null; error?: string }> {
+  timeoutMs: number,
+): Promise<{ model: ModelConfig; content: string | null; error?: string }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000); // 20s per model
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const body: Record<string, unknown> = {
-      model: modelConfig.id,
-      messages: [
-        { role: "system", content: LEGAL_SYSTEM_PROMPT },
-        ...messages,
-      ],
-      max_tokens: modelConfig.maxTokens,
-      temperature: 0.3, // Low temperature for consistent legal analysis
-    };
-
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${OPENROUTER_KEY}`,
         "Content-Type": "application/json",
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
-        "X-Title": "Shamil DZ - Legal Document Checker",
+        "X-Title": "Shamil DZ - Legal Checker",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: modelConfig.id,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: modelConfig.maxTokens,
+        temperature: 0.2,
+      }),
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
+    clearTimeout(timer);
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({}));
-      const errMsg = errBody?.error?.message || `HTTP ${res.status}`;
-      return { content: null, error: errMsg };
+      return { model: modelConfig, content: null, error: errBody?.error?.message || `HTTP ${res.status}` };
     }
 
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
-    return { content: content || null };
+    return { model: modelConfig, content: content || null };
   } catch (err: unknown) {
-    clearTimeout(timeout);
+    clearTimeout(timer);
     if (err instanceof DOMException && err.name === "AbortError") {
-      return { content: null, error: "timeout" };
+      return { model: modelConfig, content: null, error: "timeout" };
     }
-    return { content: null, error: String(err) };
+    return { model: modelConfig, content: null, error: String(err) };
   }
 }
 
-function parseAIResponse(content: string): Record<string, unknown> | null {
+// ─────────── Parallel Tier Execution ───────────
+async function tryTierParallel(
+  systemPrompt: string,
+  userMessage: string,
+  models: ModelConfig[],
+  timeoutMs: number,
+): Promise<{ model: ModelConfig; content: string } | null> {
+  const promises = models.map(m => callModel(systemPrompt, userMessage, m, timeoutMs));
+
+  // Use Promise.any to get the first successful response
   try {
-    // Try to parse directly
-    return JSON.parse(content);
-  } catch {
-    // Try to extract JSON from markdown code blocks
-    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[1].trim());
-      } catch {
-        // continue
+    const results = await Promise.allSettled(promises);
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value.content) {
+        return { model: r.value.model, content: r.value.content };
       }
     }
-    // Try to find JSON object in the text
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────── JSON Parser ───────────
+function parseAIResponse(content: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(content);
+  } catch {
+    // Try markdown code block
+    const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (jsonMatch) {
+      try { return JSON.parse(jsonMatch[1].trim()); } catch { /* continue */ }
+    }
+    // Try first JSON object
     const braceMatch = content.match(/\{[\s\S]*\}/);
     if (braceMatch) {
-      try {
-        return JSON.parse(braceMatch[0]);
-      } catch {
-        // continue
-      }
+      try { return JSON.parse(braceMatch[0]); } catch { /* continue */ }
     }
     return null;
   }
 }
 
-export const maxDuration = 60; // Extend Vercel function timeout to 60s
+// ─────────── Generate Report from Structured Data ───────────
+function generateReport(data: Record<string, unknown>): string {
+  const result = data.result === 'accepted' ? '✅ مقبول شكلاً' :
+                data.result === 'rejected' ? '❌ مرفوض شكلاً' : '⚠️ ناقص شكلاً ويحتاج استكمال';
 
+  const passed = (data.passedChecks as Array<{label: string; article: string}>) || [];
+  const failed = (data.failedChecks as Array<{label: string; article: string; critical: boolean; details: string}>) || [];
+  const pending = (data.pendingChecks as Array<{label: string; reason: string}>) || [];
+  const suggestions = (data.suggestions as Array<{label: string; suggestion: string}>) || [];
+
+  let report = `══════════════════════════════════════\n        تقرير الفحص الشكلي\n══════════════════════════════════════\n`;
+  report += `📄 نوع الوثيقة         : ${data.documentType || 'غير محدد'}\n`;
+  report += `⚖️  الجهة القضائية      : ${data.court || 'غير ظاهرة'}\n`;
+  report += `📅 تاريخ التحرير       : ${data.date || 'غير مذكور'}\n`;
+  report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+  report += `🎯 النتيجة الشكلية النهائية: ${result}\n`;
+  report += `📊 الدرجة: ${data.score || '?'}/100\n`;
+  report += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+
+  if (passed.length > 0) {
+    report += `✅ الشروط المستوفاة:\n`;
+    passed.forEach(c => { report += `   • ${c.label} — ${c.article}\n`; });
+  }
+
+  if (failed.length > 0) {
+    report += `\n❌ الشروط غير المستوفاة:\n`;
+    failed.forEach(c => {
+      report += `   • ${c.label} — ${c.article} — ${c.critical ? 'جوهري' : 'قابل للتدارك'}\n`;
+      if (c.details) report += `     ${c.details}\n`;
+    });
+  }
+
+  if (pending.length > 0) {
+    report += `\n🔍 فحوص معلّقة:\n`;
+    pending.forEach(c => { report += `   • ${c.label} — ${c.reason}\n`; });
+  }
+
+  if (suggestions.length > 0) {
+    report += `\n✏️ اقتراحات التنقيح الشكلي:\n`;
+    suggestions.forEach(s => { report += `   • ${s.label} → ${s.suggestion}\n`; });
+  }
+
+  report += `\n══════════════════════════════════════\n`;
+  report += `⚠️ تنبيه قانوني وإخلاء مسؤولية:\n`;
+  report += `هذه الأداة مخصصة للفحص الشكلي الأولي للعرائض والمذكرات،\n`;
+  report += `ولا تغني بأي حال عن مراجعة المحامي أو المستشار القانوني المختص.\n`;
+  report += `\n🔒 الخصوصية: لا تحتفظ الأداة بأي ملفات أو معلومات خاصة.\n`;
+  report += `══════════════════════════════════════`;
+
+  return report;
+}
+
+// ─────────── POST Handler ───────────
 export async function POST(req: NextRequest) {
   if (!OPENROUTER_KEY) {
     return NextResponse.json(
@@ -307,14 +229,11 @@ export async function POST(req: NextRequest) {
     if (!text?.trim()) {
       return NextResponse.json({ error: "النص فارغ" }, { status: 400 });
     }
-
     if (!documentType) {
       return NextResponse.json({ error: "يجب اختيار نوع الوثيقة" }, { status: 400 });
     }
 
-    // Build the user message with document type context
     const typeLabels: Record<string, string> = {
-      // المحررات المدنية
       "civil_opening": "عريضة افتتاح دعوى مدنية (المواد 13-17 ق.إ.م.إ)",
       "civil_response": "مذكرة جوابية مدنية (المواد 25-27 ق.إ.م.إ)",
       "civil_rejoinder": "مذكرة تعقيبية مدنية (المواد 25-27 ق.إ.م.إ)",
@@ -322,16 +241,14 @@ export async function POST(req: NextRequest) {
       "civil_incidental": "طلب عارض مدني (المواد 25, 28-30 ق.إ.م.إ)",
       "civil_appeal": "استئناف مدني (المواد 10, 34, 325-340 ق.إ.م.إ)",
       "civil_cassation": "طعن بالنقض مدني (المواد 349-354 ق.إ.م.إ)",
-      // المحررات الإدارية
-      "admin_initial": "دعوى إدارية ابتدائية أمام المحكمة الإدارية (المواد 800-804 ق.إ.م.إ)",
+      "admin_initial": "دعوى إدارية ابتدائية (المواد 800-804 ق.إ.م.إ)",
       "admin_appeal": "استئناف إداري أمام مجلس الدولة (المواد 904-911 ق.إ.م.إ)",
-      // المحررات الجزائية
       "crim_complaint": "شكوى عادية أمام وكيل الجمهورية (المواد 17, 26 ق.إ.ج 25-14)",
-      "crim_civil_claim": "شكوى مصحوبة بادعاء مدني أمام قاضي التحقيق (المواد 72-75 ق.إ.ج 25-14)",
+      "crim_civil_claim": "شكوى مصحوبة بادعاء مدني (المواد 72-75 ق.إ.ج 25-14)",
       "crim_direct_claim": "ادعاء مدني أمام جهة الحكم الجزائية (المواد 2-4 ق.إ.ج 25-14)",
       "crim_misdemeanor_defense": "مذكرة دفاع أمام محكمة الجنح (المواد 340-383 ق.إ.ج 25-14)",
       "crim_felony_defense": "مذكرة دفاع أمام محكمة الجنايات (المواد 340-383 ق.إ.ج 25-14)",
-      "crim_opposition": "طعن بالمعارضة في مواد الجنح (المواد 398-401 ق.إ.ج 25-14)",
+      "crim_opposition": "طعن بالمعارضة (المواد 398-401 ق.إ.ج 25-14)",
       "crim_appeal": "استئناف جزائي (المواد 414-419 ق.إ.ج 25-14)",
       "crim_cassation": "طعن بالنقض جزائي (المواد 495-500, 521 ق.إ.ج 25-14)",
       "crim_bail": "طلب إفراج مؤقت (المواد 123-127 ق.إ.ج 25-14)",
@@ -340,42 +257,28 @@ export async function POST(req: NextRequest) {
     };
 
     const docLabel = typeLabels[documentType] || documentType;
-    const categoryLabels: Record<string, string> = {
-      civil: "المحررات المدنية",
-      admin: "المحررات الإدارية",
-      criminal: "المحررات الجزائية",
-    };
-    const catLabel = categoryLabels[documentCategory] || "";
+    const catLabel = { civil: "مدني", admin: "إداري", criminal: "جزائي" }[documentCategory] || "";
 
-    const userMessage = `قم بفحص الوثيقة التالية شكلياً فقط:
-
-**نوع الوثيقة:** ${docLabel}
-**التصنيف:** ${catLabel}
-
-**نص الوثيقة:**
-${text}
-
-أجب بصيغة JSON فقط كما هو مطلوب في التعليمات.`;
+    const userMessage = `فحص شكلي:\nالنوع: ${docLabel}\nالتصنيف: ${catLabel}\n\nنص الوثيقة:\n${text.slice(0, 8000)}`;
 
     let reply: string | null = null;
-    let usedModelConfig: ModelConfig | null = null;
+    let usedModel: ModelConfig | null = null;
     const triedModels: string[] = [];
-    const errors: string[] = [];
 
-    // Sequential Fallback through tiers
-    for (const modelConfig of FALLBACK_CHAIN) {
-      triedModels.push(modelConfig.id);
-      const result = await callOpenRouter(
-        [{ role: "user", content: userMessage }],
-        modelConfig,
-      );
+    // Parallel Fallback: try all models in a tier simultaneously
+    // Tier 1: 3 models in parallel (8s timeout each)
+    // If all fail, try Tier 2: 3 models in parallel (6s timeout each)
+    // If all fail, try Tier 3: 4 models in parallel (5s timeout each)
+    const timeouts = [8000, 6000, 5000];
 
-      if (result.content) {
+    for (let i = 0; i < ALL_TIERS.length && !reply; i++) {
+      const tierModels = ALL_TIERS[i];
+      tierModels.forEach(m => { if (!triedModels.includes(m.id)) triedModels.push(m.id); });
+
+      const result = await tryTierParallel(LEGAL_SYSTEM_PROMPT, userMessage, tierModels, timeouts[i]);
+      if (result) {
         reply = result.content;
-        usedModelConfig = modelConfig;
-        break;
-      } else if (result.error) {
-        errors.push(`${modelConfig.label}: ${result.error}`);
+        usedModel = result.model;
       }
     }
 
@@ -384,7 +287,6 @@ ${text}
         {
           error: `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة مرة أخرى.`,
           triedModels,
-          errors,
         },
         { status: 503 }
       );
@@ -393,27 +295,30 @@ ${text}
     // Parse the AI response
     const parsed = parseAIResponse(reply);
     if (parsed && parsed.result && parsed.score !== undefined) {
+      // Generate the report from structured data (server-side)
+      const report = generateReport(parsed);
       return NextResponse.json({
         ...parsed,
+        report,
+        rawReport: report,
         aiPowered: true,
-        model: usedModelConfig!.id,
-        modelLabel: usedModelConfig!.label,
-        tier: usedModelConfig!.tier,
+        model: usedModel!.id,
+        modelLabel: usedModel!.label,
+        tier: usedModel!.tier,
         triedModels,
-        rawReport: parsed.report || "",
       });
     }
 
-    // If parsing fails, return raw content as report
+    // If parsing fails, return raw content
     return NextResponse.json({
       result: "needs_review",
       score: 50,
-      summary: "تم تحليل الوثيقة لكن تعذّر تنسيق النتائج تلقائياً",
+      summary: "تم تحليل الوثيقة لكن تعذّر تنسيق النتائج",
       report: reply,
       aiPowered: true,
-      model: usedModelConfig!.id,
-      modelLabel: usedModelConfig!.label,
-      tier: usedModelConfig!.tier,
+      model: usedModel!.id,
+      modelLabel: usedModel!.label,
+      tier: usedModel!.tier,
       triedModels,
       passedChecks: [],
       failedChecks: [],
