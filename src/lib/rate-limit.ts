@@ -1,7 +1,7 @@
 /**
  * نظام حماية معدل الطلبات باستخدام Upstash Redis
  * Rate Limiter — protects API routes from abuse
- * 
+ *
  * Usage:
  *   import { rateLimit } from '@/lib/rate-limit';
  *   const limited = await rateLimit({ key: 'ai-chat', limit: 20, window: 60 });
@@ -10,10 +10,20 @@
 
 import { Redis } from "@upstash/redis";
 
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+/**
+ * Lazy-initialized Redis client — only created on first use.
+ * This prevents build-time crashes when env vars are missing.
+ */
+let _redis: Redis | null = null;
+function getRedis(): Redis | null {
+  if (_redis) return _redis;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (url && token) {
+    _redis = new Redis({ url, token });
+  }
+  return _redis;
+}
 
 interface RateLimitOptions {
   /** Unique identifier for the rate limit category (e.g., 'ai-chat', 'petition-check') */
@@ -37,20 +47,27 @@ interface RateLimitResult {
 
 export async function rateLimit(options: RateLimitOptions): Promise<RateLimitResult> {
   const { key, identifier = 'anonymous', limit, window } = options;
+  const redis = getRedis();
+
+  // If Redis is not configured, allow all requests (fail-open)
+  if (!redis) {
+    return { limited: false, remaining: limit, resetIn: window };
+  }
+
   const redisKey = `ratelimit:${key}:${identifier}`;
-  
+
   try {
     // Use Redis INCR + EXPIRE for atomic rate limiting
     const current = await redis.incr(redisKey);
-    
+
     if (current === 1) {
       // First request — set expiration
       await redis.expire(redisKey, window);
     }
-    
+
     const ttl = await redis.ttl(redisKey);
     const remaining = Math.max(0, limit - current);
-    
+
     return {
       limited: current > limit,
       remaining,
