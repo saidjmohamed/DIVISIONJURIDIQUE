@@ -11,14 +11,13 @@ interface Message {
   reasoning?: string;
   modelLabel?: string;
   tier?: number;
+  executionTime?: number;
 }
 
 interface AvailableModel {
   id: string;
   label: string;
   tier: number;
-  description: string;
-  supportsReasoning: boolean;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -43,17 +42,21 @@ const TIER_LABELS: Record<number, string> = {
 };
 
 export default function AiAssistant() {
-  const [messages, setMessages]         = useState<Message[]>([]);
-  const [input, setInput]               = useState("");
-  const [isLoading, setIsLoading]       = useState(false);
-  const [copiedIdx, setCopiedIdx]       = useState<number | null>(null);
-  const [models, setModels]             = useState<AvailableModel[]>([]);
-  const [selectedModel, setSelectedModel] = useState("auto");
-  const [showReasoning, setShowReasoning] = useState<number | null>(null);
-  const [isExpanded, setIsExpanded]     = useState(false);
-  const messagesEndRef                 = useRef<HTMLDivElement>(null);
-  const inputRef                       = useRef<HTMLTextAreaElement>(null);
-  const chatContainerRef               = useRef<HTMLDivElement>(null);
+  const [messages, setMessages]             = useState<Message[]>([]);
+  const [input, setInput]                   = useState("");
+  const [isLoading, setIsLoading]           = useState(false);
+  const [copiedIdx, setCopiedIdx]           = useState<number | null>(null);
+  const [models, setModels]                 = useState<AvailableModel[]>([]);
+  const [selectedModel, setSelectedModel]   = useState("auto");
+  const [showReasoning, setShowReasoning]   = useState<number | null>(null);
+  const [isExpanded, setIsExpanded]         = useState(false);
+  const [statusMessage, setStatusMessage]   = useState("");
+  const [elapsed, setElapsed]               = useState(0);
+  const messagesEndRef                     = useRef<HTMLDivElement>(null);
+  const inputRef                           = useRef<HTMLTextAreaElement>(null);
+  const chatContainerRef                   = useRef<HTMLDivElement>(null);
+  const abortRef                           = useRef<AbortController | null>(null);
+  const timerRef                           = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Fetch available models on mount
   useEffect(() => {
@@ -73,6 +76,28 @@ export default function AiAssistant() {
 
   useEffect(() => { scrollToBottom() }, [messages, scrollToBottom]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  const startTimer = useCallback(() => {
+    setElapsed(0);
+    timerRef.current = setInterval(() => {
+      setElapsed(prev => prev + 1);
+    }, 1000);
+  }, []);
+
+  const stopTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
   const sendMessage = useCallback(async (text?: string) => {
     const msg = (text ?? input).trim();
     if (!msg || isLoading) return;
@@ -81,6 +106,25 @@ export default function AiAssistant() {
     setMessages(prev => [...prev, userMsg]);
     setInput("");
     setIsLoading(true);
+    setStatusMessage("جاري الاتصال...");
+    startTimer();
+
+    const clientController = new AbortController();
+    abortRef.current = clientController;
+
+    // Client-side timeout: 25s
+    const clientTimeout = setTimeout(() => {
+      clientController.abort();
+      stopTimer();
+      setIsLoading(false);
+      setStatusMessage("");
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: "⏱️ تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى.",
+        timestamp: new Date(),
+        error: true,
+      }]);
+    }, 25_000);
 
     try {
       const res = await fetch("/api/ai", {
@@ -91,60 +135,133 @@ export default function AiAssistant() {
           messages: messages.slice(-10),
           model: selectedModel === "auto" ? null : selectedModel,
         }),
+        signal: clientController.signal,
       });
 
+      clearTimeout(clientTimeout);
+
       if (!res.ok) {
+        stopTimer();
         setMessages(prev => [...prev, {
           role: "assistant",
           content: `❌ خطأ في الخادم (HTTP ${res.status}). يرجى المحاولة لاحقاً.`,
           timestamp: new Date(),
           error: true,
         }]);
+        setIsLoading(false);
+        setStatusMessage("");
         return;
       }
 
-      let data: any;
-      try {
-        data = await res.json();
-      } catch {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "❌ خطأ في قراءة استجابة الخادم. يرجى المحاولة لاحقاً.",
-          timestamp: new Date(),
-          error: true,
-        }]);
-        return;
+      // ─── Read SSE stream ───
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events
+        const lines = buffer.split("\n");
+        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+
+        let currentEvent = "";
+        let currentData = "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            currentEvent = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            currentData = line.slice(6).trim();
+          } else if (line === "" && currentEvent && currentData) {
+            // Process complete event
+            try {
+              const data = JSON.parse(currentData);
+
+              if (currentEvent === "status") {
+                setStatusMessage(data.message || "");
+              } else if (currentEvent === "complete") {
+                stopTimer();
+                setMessages(prev => [...prev, {
+                  role: "assistant",
+                  content: data.reply,
+                  timestamp: new Date(),
+                  modelLabel: data.modelLabel,
+                  tier: data.tier,
+                  executionTime: data.executionTime,
+                }]);
+                setIsLoading(false);
+                setStatusMessage("");
+              } else if (currentEvent === "timeout") {
+                stopTimer();
+                setMessages(prev => [...prev, {
+                  role: "assistant",
+                  content: `⏱️ ${data.error || "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."}`,
+                  timestamp: new Date(),
+                  error: true,
+                }]);
+                setIsLoading(false);
+                setStatusMessage("");
+              } else if (currentEvent === "error") {
+                stopTimer();
+                setMessages(prev => [...prev, {
+                  role: "assistant",
+                  content: `❌ ${data.error || "حدث خطأ غير معروف"}`,
+                  timestamp: new Date(),
+                  error: true,
+                }]);
+                setIsLoading(false);
+                setStatusMessage("");
+              }
+            } catch {
+              // Ignore malformed JSON
+            }
+
+            currentEvent = "";
+            currentData = "";
+          }
+        }
       }
 
-      if (data.error) {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: `❌ خطأ: ${data.error ?? "خطأ غير معروف"}`,
-          timestamp: new Date(),
-          error: true,
-        }]);
+      // If stream ended without a complete event
+      stopTimer();
+      if (isLoading) {
+        setIsLoading(false);
+        setStatusMessage("");
+      }
+    } catch (err) {
+      clearTimeout(clientTimeout);
+      stopTimer();
+
+      if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled or client timeout — error already handled
       } else {
         setMessages(prev => [...prev, {
           role: "assistant",
-          content: data.reply,
+          content: "❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت.",
           timestamp: new Date(),
-          reasoning: data.reasoning,
-          modelLabel: data.modelLabel,
-          tier: data.tier,
+          error: true,
         }]);
       }
-    } catch {
-      setMessages(prev => [...prev, {
-        role: "assistant",
-        content: "❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت.",
-        timestamp: new Date(),
-        error: true,
-      }]);
-    } finally {
       setIsLoading(false);
+      setStatusMessage("");
+    } finally {
+      abortRef.current = null;
       inputRef.current?.focus();
     }
-  }, [input, isLoading, messages, selectedModel]);
+  }, [input, isLoading, messages, selectedModel, startTimer, stopTimer]);
+
+  const cancelRequest = useCallback(() => {
+    abortRef.current?.abort();
+    stopTimer();
+    setIsLoading(false);
+    setStatusMessage("");
+  }, [stopTimer]);
 
   const copyMessage = useCallback((text: string, idx: number) => {
     navigator.clipboard.writeText(text);
@@ -410,6 +527,7 @@ export default function AiAssistant() {
                 <div className={`flex items-center gap-1.5 mt-0.5 ${msg.role === "user" ? "text-left" : "text-right"}`}>
                   <p className="text-[9px]" style={{ color: "#c0c0c0" }}>
                     {msg.timestamp.toLocaleTimeString("ar-DZ", { hour: "2-digit", minute: "2-digit" })}
+                    {msg.executionTime != null && ` • ${msg.executionTime}ms`}
                   </p>
                   {msg.role === "assistant" && !msg.error && msg.tier && (
                     <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
@@ -426,6 +544,7 @@ export default function AiAssistant() {
             </div>
           ))}
 
+          {/* Loading indicator with real-time status */}
           {isLoading && (
             <div className="flex justify-start mb-3">
               <div className="flex items-end gap-1.5">
@@ -435,12 +554,22 @@ export default function AiAssistant() {
                      style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: "14px 14px 14px 4px" }}>
                   <div className="flex gap-1 items-center">
                     <span className="text-[10px] mr-1.5" style={{ color: "#94a3b8" }}>
-                      {selectedModel === "auto" ? "🔄 يجرب أفضل نموذج..." : "يفكر..."}
+                      {statusMessage || "🔄 يجرب أفضل نموذج..."}
                     </span>
                     {[0, 1, 2].map(i => (
                       <div key={i} className="w-1.5 h-1.5 rounded-full animate-bounce"
                            style={{ background: "#1a3a5c", animationDelay: `${i * 0.15}s` }} />
                     ))}
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[9px]" style={{ color: "#c0c0c0" }}>⏱️ {elapsed}s</span>
+                    <button
+                      onClick={cancelRequest}
+                      className="text-[9px] px-1.5 py-0.5 rounded-full transition-colors"
+                      style={{ background: "#fef2f2", color: "#991b1b", border: "1px solid #fecaca" }}
+                    >
+                      ✕ إلغاء
+                    </button>
                   </div>
                 </div>
               </div>
