@@ -168,10 +168,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
   }
 
-  // Global timeout controller
-  const globalController = new AbortController();
-  const globalTimer = setTimeout(() => globalController.abort(), GLOBAL_TIMEOUT_MS);
-
   try {
     const { messages, userMessage, model: preferredModel } = await req.json();
 
@@ -179,11 +175,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "الرسالة فارغة" }, { status: 400 });
     }
 
+    // Input length limit to prevent abuse
+    if (userMessage.length > 30_000) {
+      return NextResponse.json({ error: "الرسالة طويلة جداً. الحد الأقصى 30,000 حرف." }, { status: 400 });
+    }
+
+    // Global timeout controller (created after input validation)
+    const globalController = new AbortController();
+    const globalTimer = setTimeout(() => globalController.abort(), GLOBAL_TIMEOUT_MS);
+
+    // Validate and sanitize message history — only allow user/assistant roles
     const chatMessages: Message[] = [];
     if (messages && Array.isArray(messages)) {
       const recent = messages.slice(-10);
       for (const msg of recent) {
-        chatMessages.push({ role: msg.role, content: msg.content });
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          chatMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 5000) });
+        }
       }
     }
     chatMessages.push({ role: "user", content: userMessage });
@@ -228,8 +236,8 @@ export async function POST(req: NextRequest) {
 
     clearTimeout(globalTimer);
 
+    const isTimeout = globalController.signal.aborted;
     if (!reply) {
-      const isTimeout = globalController.signal.aborted;
       return NextResponse.json(
         {
           error: isTimeout
@@ -251,7 +259,7 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
-    clearTimeout(globalTimer);
+    // If timer exists, clear it — but don't crash if it doesn't
     console.error("AI API Error:", err instanceof Error ? err.message : "Unknown error");
     return NextResponse.json({ error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." }, { status: 500 });
   }

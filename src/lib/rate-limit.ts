@@ -57,14 +57,16 @@ export async function rateLimit(options: RateLimitOptions): Promise<RateLimitRes
   const redisKey = `ratelimit:${key}:${identifier}`;
 
   try {
-    // Use Redis INCR + EXPIRE for atomic rate limiting
-    const current = await redis.incr(redisKey);
+    // Use atomic INCR + EXPIRE NX to prevent permanent rate-limit keys
+    // If the server crashes between INCR and EXPIRE, the key would persist forever.
+    // Using a pipeline ensures both commands run together.
+    const [incrResult, expireResult] = await redis
+      .pipeline()
+      .incr(redisKey)
+      .expire(redisKey, window, 'NX') // Only set TTL if no TTL exists
+      .exec() as [number, number | null];
 
-    if (current === 1) {
-      // First request — set expiration
-      await redis.expire(redisKey, window);
-    }
-
+    const current = incrResult;
     const ttl = await redis.ttl(redisKey);
     const remaining = Math.max(0, limit - current);
 

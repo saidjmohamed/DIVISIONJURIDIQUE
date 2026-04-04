@@ -11,6 +11,7 @@
 
 const ILOVEPDF_AUTH_URL = "https://api.ilovepdf.com/v1/auth";
 const ILOVEPDF_API_BASE = "https://api.ilovepdf.com/v1";
+const ILOVEPDF_TIMEOUT_MS = 30_000; // 30s per step
 
 export type IlovePdfTool =
   | "compress"
@@ -58,18 +59,27 @@ interface ProcessResponse {
 
 // Step 1: Authenticate
 export async function getAuthToken(publicKey: string, secretKey: string): Promise<string> {
-  const response = await fetch(ILOVEPDF_AUTH_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ public_key: publicKey, secret_key: secretKey }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`ILOVEPDF auth failed (${response.status}): ${errText}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ILOVEPDF_TIMEOUT_MS);
+  try {
+    const response = await fetch(ILOVEPDF_AUTH_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ public_key: publicKey, secret_key: secretKey }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`ILOVEPDF auth failed (${response.status}): ${errText}`);
+    }
+    const data = await response.json();
+    return data.token;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof Error && err.name === 'AbortError') throw new Error('ILOVEPDF auth timed out');
+    throw err;
   }
-  const data = await response.json();
-  return data.token;
 }
 
 // Step 2: Start a task - returns dynamic server URL + task ID
@@ -77,20 +87,29 @@ export async function startTask(
   token: string,
   tool: IlovePdfTool
 ): Promise<{ taskId: string; server: string }> {
-  const response = await fetch(`${ILOVEPDF_API_BASE}/start/${tool}`, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`ILOVEPDF start failed (${response.status}): ${errText}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ILOVEPDF_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${ILOVEPDF_API_BASE}/start/${tool}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`ILOVEPDF start failed (${response.status}): ${errText}`);
+    }
+    const data: StartResponse = await response.json();
+    return { taskId: data.task, server: data.server };
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof Error && err.name === 'AbortError') throw new Error('ILOVEPDF start timed out');
+    throw err;
   }
-  const data: StartResponse = await response.json();
-  return { taskId: data.task, server: data.server };
 }
 
 // Step 3: Upload file to the dynamic server
@@ -101,22 +120,36 @@ export async function uploadFile(
   file: File | Blob,
   fileName?: string
 ): Promise<string> {
+  // SSRF protection: validate server URL is from ilovepdf.com
+  if (!server.endsWith('.ilovepdf.com')) {
+    throw new Error(`Invalid server URL from ILOVEPDF API: ${server}`);
+  }
+
   const formData = new FormData();
   formData.append("task", taskId);
   formData.append("file", file, fileName || "file.pdf");
 
-  const response = await fetch(`https://${server}/v1/upload`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}` },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`ILOVEPDF upload failed (${response.status}): ${errText}`);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ILOVEPDF_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${server}/v1/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`ILOVEPDF upload failed (${response.status}): ${errText}`);
+    }
+    const data: UploadResponse = await response.json();
+    return data.server_filename;
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof Error && err.name === 'AbortError') throw new Error('ILOVEPDF upload timed out');
+    throw err;
   }
-  const data: UploadResponse = await response.json();
-  return data.server_filename;
 }
 
 // Step 4: Process the task
@@ -128,25 +161,38 @@ export async function processTask(
   files: Array<{ server_filename: string; filename: string }>,
   options?: Record<string, unknown>
 ): Promise<ProcessResponse> {
-  const response = await fetch(`https://${server}/v1/process`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      task: taskId,
-      tool: tool,
-      files: files,
-      ...(options || {}),
-    }),
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`ILOVEPDF process failed (${response.status}): ${errText}`);
+  if (!server.endsWith('.ilovepdf.com')) {
+    throw new Error(`Invalid server URL from ILOVEPDF API: ${server}`);
   }
-  return response.json();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ILOVEPDF_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${server}/v1/process`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        task: taskId,
+        tool: tool,
+        files: files,
+        ...(options || {}),
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`ILOVEPDF process failed (${response.status}): ${errText}`);
+    }
+    return response.json();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof Error && err.name === 'AbortError') throw new Error('ILOVEPDF process timed out');
+    throw err;
+  }
 }
 
 // Step 5: Download the result
@@ -155,16 +201,29 @@ export async function downloadResult(
   server: string,
   taskId: string
 ): Promise<ArrayBuffer> {
-  const response = await fetch(`https://${server}/v1/download/${taskId}`, {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!response.ok) {
-    const errText = await response.text().catch(() => '');
-    throw new Error(`ILOVEPDF download failed (${response.status}): ${errText}`);
+  if (!server.endsWith('.ilovepdf.com')) {
+    throw new Error(`Invalid server URL from ILOVEPDF API: ${server}`);
   }
-  return response.arrayBuffer();
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ILOVEPDF_TIMEOUT_MS);
+  try {
+    const response = await fetch(`https://${server}/v1/download/${taskId}`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      const errText = await response.text().catch(() => '');
+      throw new Error(`ILOVEPDF download failed (${response.status}): ${errText}`);
+    }
+    return response.arrayBuffer();
+  } catch (err) {
+    clearTimeout(timer);
+    if (err instanceof Error && err.name === 'AbortError') throw new Error('ILOVEPDF download timed out');
+    throw err;
+  }
 }
 
 // Complete workflow helper: auth + start + upload + process + download

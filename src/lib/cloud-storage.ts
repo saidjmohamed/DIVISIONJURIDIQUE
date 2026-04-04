@@ -6,11 +6,16 @@
 
 import { Redis } from "@upstash/redis";
 
-// إنشاء اتصال Redis
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+// Lazy Redis init — prevents crash on missing env vars at build time
+let _redis: Redis | null = null;
+function getRedis(): Redis | null {
+  if (_redis) return _redis;
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  _redis = new Redis({ url, token });
+  return _redis;
+}
 
 // مفتاح تخزين الملفات
 const KEY = "shamil:cloud-files";
@@ -21,12 +26,12 @@ export interface CloudFile {
   fileName: string;
   fileSize: number;
   category: string;
-  
+
   // الملف الأصلي (للتحميل)
   originalFileId: string;
   originalMessageId: number;
   mimeType: string;
-  
+
   description?: string;
   uploadedAt: string;
   contributor?: {
@@ -37,7 +42,7 @@ export interface CloudFile {
     phone?: string;
     email?: string;
   };
-  
+
   // للتوافق مع النسخ القديمة
   telegramFileId?: string;
   telegramMessageId?: number;
@@ -46,6 +51,8 @@ export interface CloudFile {
 // قراءة الفهرس من Redis
 export async function readIndex(): Promise<CloudFile[]> {
   try {
+    const redis = getRedis();
+    if (!redis) return [];
     const data = await redis.get<CloudFile[]>(KEY);
     return data || [];
   } catch (error) {
@@ -57,6 +64,8 @@ export async function readIndex(): Promise<CloudFile[]> {
 // كتابة الفهرس إلى Redis
 export async function writeIndex(files: CloudFile[]): Promise<boolean> {
   try {
+    const redis = getRedis();
+    if (!redis) return false;
     await redis.set(KEY, files);
     return true;
   } catch (error) {
@@ -68,9 +77,9 @@ export async function writeIndex(files: CloudFile[]): Promise<boolean> {
 // إضافة ملف للفهرس
 export async function addFile(file: CloudFile): Promise<boolean> {
   const files = await readIndex();
-  
+
   // التحقق من عدم التكرار باستخدام originalMessageId
-  const exists = files.some(f => 
+  const exists = files.some(f =>
     f.originalMessageId === file.originalMessageId ||
     f.telegramMessageId === file.originalMessageId ||
     f.originalMessageId === file.telegramMessageId
@@ -78,7 +87,7 @@ export async function addFile(file: CloudFile): Promise<boolean> {
   if (exists) {
     return false;
   }
-  
+
   files.unshift(file); // إضافة في البداية
   return writeIndex(files);
 }
@@ -112,25 +121,25 @@ export async function getFiles(options?: {
   offset?: number;
 }): Promise<{ files: CloudFile[]; total: number }> {
   let files = await readIndex();
-  
+
   // تصفية حسب التصنيف
   if (options?.category && options.category !== 'الكل') {
     files = files.filter(f => f.category === options.category);
   }
-  
+
   // تصفية حسب البحث
   if (options?.search) {
     const search = options.search.toLowerCase();
-    files = files.filter(f => 
+    files = files.filter(f =>
       f.fileName.toLowerCase().includes(search) ||
       f.description?.toLowerCase().includes(search) ||
       f.contributor?.name?.toLowerCase().includes(search) ||
       f.contributor?.profession?.toLowerCase().includes(search)
     );
   }
-  
+
   const total = files.length;
-  
+
   // التصفح
   if (options?.offset) {
     files = files.slice(options.offset);
@@ -138,7 +147,7 @@ export async function getFiles(options?: {
   if (options?.limit) {
     files = files.slice(0, options.limit);
   }
-  
+
   return { files, total };
 }
 
@@ -146,9 +155,9 @@ export async function getFiles(options?: {
 export async function updateFile(id: string, updates: Partial<CloudFile>): Promise<boolean> {
   const files = await readIndex();
   const index = files.findIndex(f => f.id === id);
-  
+
   if (index === -1) return false;
-  
+
   files[index] = { ...files[index], ...updates };
   return writeIndex(files);
 }
@@ -161,20 +170,21 @@ export function generateId(): string {
 // استيراد ملفات متعددة دفعة واحدة
 export async function importFiles(newFiles: CloudFile[]): Promise<{ added: number; skipped: number }> {
   const files = await readIndex();
-  const existingIds = new Set(files.map(f => f.telegramMessageId));
-  
+  // Fix: filter out undefined values to avoid false positives
+  const existingIds = new Set(files.map(f => f.telegramMessageId).filter((id): id is number => id != null));
+
   let added = 0;
   let skipped = 0;
-  
+
   for (const file of newFiles) {
-    if (existingIds.has(file.telegramMessageId)) {
+    if (file.telegramMessageId != null && existingIds.has(file.telegramMessageId)) {
       skipped++;
       continue;
     }
     files.push(file);
     added++;
   }
-  
+
   await writeIndex(files);
   return { added, skipped };
 }
@@ -186,12 +196,12 @@ export async function getStats(): Promise<{
   lastUpdated: string | null;
 }> {
   const files = await readIndex();
-  
+
   const categories: Record<string, number> = {};
   for (const f of files) {
     categories[f.category] = (categories[f.category] || 0) + 1;
   }
-  
+
   return {
     total: files.length,
     categories,

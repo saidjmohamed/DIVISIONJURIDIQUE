@@ -505,6 +505,11 @@ ${JSON_FORMAT_EXAMPLE}
         controller.close();
       }
     },
+    cancel() {
+      // Clean up resources when client disconnects mid-stream
+      clearTimeout(globalTimer);
+      globalController.abort();
+    },
   });
 
   return new Response(stream, {

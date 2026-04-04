@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 
 /* ─────────────────────── Types ─────────────────────── */
 
@@ -498,7 +498,11 @@ function promptMatches(p: Prompt, query: string): boolean {
 }
 
 function getCategoryMeta(key: PromptCategory) {
-  return CATEGORIES.find((c) => c.key === key)!;
+  return CATEGORIES.find((c) => c.key === key) ?? {
+    key, label: key, icon: '📌', color: '#6366f1',
+    bg: 'bg-gray-100 dark:bg-gray-800',
+    border: 'border-gray-200 dark:border-gray-700',
+  };
 }
 
 /* ─────────────────────── Sub-components ─────────────────────── */
@@ -672,6 +676,13 @@ export default function AiPromptsGuide({ onBack }: { onBack: () => void }) {
   const [selectedCategory, setSelectedCategory] = useState<PromptCategory | null>(null);
   const [toastVisible, setToastVisible] = useState(false);
   const [toastTimer, setToastTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  // Cleanup toast timer on unmount
+  useEffect(() => {
+    return () => {
+      if (toastTimer) clearTimeout(toastTimer);
+    };
+  }, [toastTimer]);
 
   const handleCopy = useCallback(
     (text: string) => {

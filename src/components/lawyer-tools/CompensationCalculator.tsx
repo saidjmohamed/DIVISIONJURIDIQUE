@@ -142,7 +142,7 @@ export default function CompensationCalculator({ onBack }: { onBack: () => void 
     navigator.clipboard.writeText(text).then(() => {
       setPhysCopied(true);
       setTimeout(() => setPhysCopied(false), 2000);
-    });
+    }).catch(() => {});
   }
 
   /* ── Interest calculation ── */
@@ -171,7 +171,7 @@ export default function CompensationCalculator({ onBack }: { onBack: () => void 
     navigator.clipboard.writeText(text).then(() => {
       setIntCopied(true);
       setTimeout(() => setIntCopied(false), 2000);
-    });
+    }).catch(() => {});
   }
 
   const physValid =

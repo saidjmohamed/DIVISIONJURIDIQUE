@@ -101,17 +101,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "الرسالة فارغة" }, { status: 400 });
     }
 
+    // Input length limit
+    if (userMessage.length > 30_000) {
+      return NextResponse.json({ error: "الرسالة طويلة جداً. الحد الأقصى 30,000 حرف." }, { status: 400 });
+    }
+
     // بناء سجل المحادثة لـ Gemini
     const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
-    // إضافة السياق السابق (آخر 10 رسائل)
+    // إضافة السياق السابق (آخر 10 رسائل) — validate roles
     if (messages && Array.isArray(messages)) {
       const recent = messages.slice(-10);
       for (const msg of recent) {
-        contents.push({
-          role: msg.role === "assistant" ? "model" : "user",
-          parts: [{ text: msg.content }],
-        });
+        if (msg.role === 'user' || msg.role === 'assistant') {
+          contents.push({
+            role: msg.role === "assistant" ? "model" : "user",
+            parts: [{ text: String(msg.content || '').slice(0, 5000) }],
+          });
+        }
       }
     }
 

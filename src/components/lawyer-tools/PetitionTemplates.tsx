@@ -268,9 +268,10 @@ export default function PetitionTemplates({ onBack }: { onBack: () => void }) {
 
   const copyTemplate = () => {
     if (template) {
-      navigator.clipboard.writeText(template.content);
-      setCopyFeedback(true);
-      setTimeout(() => setCopyFeedback(false), 2000);
+      navigator.clipboard.writeText(template.content).then(() => {
+        setCopyFeedback(true);
+        setTimeout(() => setCopyFeedback(false), 2000);
+      }).catch(() => {});
     }
   };
 

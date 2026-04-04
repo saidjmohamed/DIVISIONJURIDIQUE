@@ -188,7 +188,7 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
     navigator.clipboard.writeText(memo).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => {});
   }
 
   function reset() {

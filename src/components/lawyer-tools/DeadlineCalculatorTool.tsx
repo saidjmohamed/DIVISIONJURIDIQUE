@@ -54,6 +54,7 @@ export default function DeadlineCalculatorTool({ onBack }: { onBack: () => void 
     const dl = deadlines.find(d => d.id === selectedDeadline);
     if (!dl) return null;
     const start = new Date(startDate);
+    if (isNaN(start.getTime())) return null;
     const end = addDays(start, dl.days);
     const remaining = daysUntil(end);
     return { deadline: dl, start, end, remaining };

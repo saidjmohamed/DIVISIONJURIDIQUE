@@ -15,8 +15,13 @@ export type CalculationResult = {
 
 // هل اليوم عطلة رسمية؟
 export function isHoliday(date: Date): boolean {
-  const dateStr = date.toISOString().split('T')[0]
-  return ALGERIA_HOLIDAYS_2025_2026.includes(dateStr)
+  // Use local date parts instead of toISOString() which converts to UTC
+  // Algeria is UTC+1, so toISOString() gives wrong date for first 23 hours of the day
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  const dateStr = `${y}-${m}-${d}`;
+  return ALGERIA_HOLIDAYS_2025_2026.includes(dateStr);
 }
 
 // هل اليوم نهاية أسبوع (جمعة أو سبت)؟
@@ -53,7 +58,10 @@ export function formatDate(date: Date): string {
 
 // تنسيق التاريخ المختصر
 export function formatDateShort(date: Date): string {
-  return date.toISOString().split('T')[0]
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
 }
 
 // الدالة الرئيسية لحساب الأجل

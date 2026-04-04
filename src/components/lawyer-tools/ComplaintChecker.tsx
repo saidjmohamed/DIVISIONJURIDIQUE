@@ -71,7 +71,7 @@ export default function ComplaintChecker({ onBack }: { onBack: () => void }) {
       `${currentChecked.has(i) ? '✅' : '❌'} ${item.label} (${item.article})`
     );
     const text = `التحقق من الشكوى: ${complaintTypes[activeType].title}\nالنتيجة: ${progress}%\n${'─'.repeat(40)}\n${lines.join('\n')}`;
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch(() => {});
   };
 
   return (
