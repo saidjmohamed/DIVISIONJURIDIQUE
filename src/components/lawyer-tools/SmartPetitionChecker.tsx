@@ -43,6 +43,7 @@ interface AnalysisResult {
   modelLabel?: string;
   tier?: number;
   triedModels?: string[];
+  parseFailed?: boolean;
 }
 
 type DocumentCategory = 'civil' | 'admin' | 'criminal';
@@ -106,25 +107,19 @@ function formatFileSize(bytes: number): string {
 function verdictInfo(result: AnalysisResult['result']): { label: string; color: string; bg: string; icon: string } {
   switch (result) {
     case 'accepted':
-      return { label: 'مقبول شكلاً', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700', icon: '✅' };
+      return { label: 'مقبول شكلاً', color: 'text-green-700 dark:text-green-300', bg: 'bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700', icon: '✅' };
     case 'rejected':
-      return { label: 'مرفوض شكلاً', color: 'text-red-700 dark:text-red-300', bg: 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700', icon: '❌' };
+      return { label: 'مرفوض شكلاً', color: 'text-red-700 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700', icon: '❌' };
     case 'needs_review':
-      return { label: 'ناقص شكلاً ويحتاج استكمال', color: 'text-yellow-700 dark:text-yellow-300', bg: 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700', icon: '⚠️' };
+      return { label: 'ناقص شكلاً ويحتاج استكمال', color: 'text-yellow-700 dark:text-yellow-300', bg: 'bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700', icon: '⚠️' };
   }
-}
-
-function scoreColor(score: number): string {
-  if (score >= 80) return 'bg-green-500';
-  if (score >= 50) return 'bg-yellow-500';
-  return 'bg-red-500';
 }
 
 const PROGRESS_STEPS = [
   'جاري قراءة الملف...',
   'استخراج النص من المستند...',
-  'الاتصال بأفضل نموذج ذكاء اصطناعي...',
-  'تحليل الشروط الشكلية بالذكاء الاصطناعي...',
+  'الاتصال بنموذج الذكاء الاصطناعي...',
+  'تحليل الشروط الشكلية...',
   'مراجعة المواد القانونية...',
   'إعداد التقرير النهائي...',
 ];
@@ -141,7 +136,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [copied, setCopied] = useState(false);
   const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
-  const [filterTab, setFilterTab] = useState<'all' | 'passed' | 'failed' | 'pending' | 'suggestions'>('all');
+  const [activeTab, setActiveTab] = useState<'checks' | 'report'>('checks');
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setError(null);
@@ -149,10 +144,10 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     const f = acceptedFiles[0];
     if (!f) return;
 
-    // Accept Word files only (.docx / .doc)
     const isWord = f.name.endsWith('.docx') || f.name.endsWith('.doc');
-    if (!isWord) {
-      setError('هذه الأداة تقبل ملفات Word فقط (.docx / .doc)');
+    const isPdf = f.name.endsWith('.pdf');
+    if (!isWord && !isPdf) {
+      setError('هذه الأداة تقبل ملفات Word (.docx / .doc) أو PDF فقط');
       return;
     }
 
@@ -168,6 +163,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     accept: {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
       'application/msword': ['.doc'],
+      'application/pdf': ['.pdf'],
     },
     maxFiles: 1,
     multiple: false,
@@ -198,6 +194,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     setLoading(true);
     setError(null);
     setAnalysis(null);
+    setActiveTab('checks');
     startProgress();
 
     try {
@@ -206,12 +203,11 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص قابل للقراءة.');
       }
 
-      // Call the AI API
       const res = await fetch('/api/petition-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: text.slice(0, 12000), // Send more text for thorough analysis
+          text: text.slice(0, 15000),
           documentType: docType,
           documentCategory: category,
         }),
@@ -240,6 +236,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         modelLabel: data.modelLabel,
         tier: data.tier,
         triedModels: data.triedModels,
+        parseFailed: !!data.parseFailed,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
@@ -262,9 +259,12 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     setFile(null);
     setAnalysis(null);
     setError(null);
-    setFilterTab('all');
+    setActiveTab('checks');
     setCopied(false);
   }
+
+  // Count all check items for the overview
+  const totalChecks = analysis ? analysis.passedChecks.length + analysis.failedChecks.length + analysis.pendingChecks.length : 0;
 
   return (
     <div className="max-w-2xl mx-auto" dir="rtl">
@@ -272,43 +272,42 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       <div className="flex items-center gap-3 mb-4">
         <button onClick={onBack} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg hover:opacity-70 transition-opacity">→</button>
         <div>
-          <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">🤖 الفحص الشكلي للعرائض بالذكاء الاصطناعي</h2>
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">تحليل ذكي لـ 20 نوعاً من المحررات القانونية — وفق القانون 25-14 و ق.إ.م.إ 08-09</p>
+          <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">🤖 فحص العرائض بالذكاء الاصطناعي</h2>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">تحليل ذكي لـ 20 نوعاً من المحررات — وفق القانون 25-14 و ق.إ.م.إ 08-09</p>
         </div>
       </div>
 
-      {/* Privacy Notice */}
-      <div className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3 mb-4">
-        <div className="flex items-start gap-2">
-          <span className="text-base flex-shrink-0">🔒</span>
-          <div>
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 leading-relaxed font-bold">
-              خصوصية تامة — بياناتك في أمان
-            </p>
-            <p className="text-[10px] text-emerald-600 dark:text-emerald-500 leading-relaxed mt-1">
-              النظام والسيرفر <strong>لا يحتفظان بأي معلومات</strong> من العرائض المرفوعة. يتم حذف الملف ومحتواه من الذاكرة <strong>فوراً</strong> بعد إظهار نتيجة الفحص. لا يتم تخزين أو تسجيل أو مراجعة أي محتوى قانوني.
-            </p>
+      {/* Privacy + AI Info */}
+      {!analysis && (
+        <div className="space-y-3 mb-4">
+          <div className="bg-emerald-50 dark:bg-emerald-900/15 border border-emerald-200 dark:border-emerald-800 rounded-xl p-3">
+            <div className="flex items-start gap-2">
+              <span className="text-base flex-shrink-0">🔒</span>
+              <div>
+                <p className="text-[11px] text-emerald-700 dark:text-emerald-400 leading-relaxed font-bold">خصوصية تامة — بياناتك في أمان</p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-500 leading-relaxed mt-1">
+                  لا يحتفظ النظام بأي معلومات. يتم حذف الملف ومحتواه من الذاكرة فوراً بعد إظهار النتيجة.
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 bg-gradient-to-l from-purple-50 to-blue-50 dark:from-purple-900/15 dark:to-blue-900/15 border border-purple-200 dark:border-purple-800 rounded-xl p-3">
+            <span className="text-lg flex-shrink-0">🧠</span>
+            <div>
+              <p className="text-[11px] text-purple-700 dark:text-purple-400 leading-relaxed font-medium">
+                مدعوم بالذكاء الاصطناعي — Qwen 3.6 Plus (رئيسي) مع 10 نماذج احتياطية
+              </p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
+                يقبل ملفات Word (.docx / .doc) و PDF — الفحص شكلي فقط
+              </p>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* AI Info Banner */}
-      <div className="flex items-start gap-2 bg-gradient-to-l from-purple-50 to-blue-50 dark:from-purple-900/15 dark:to-blue-900/15 border border-purple-200 dark:border-purple-800 rounded-xl p-3 mb-4">
-        <span className="text-lg flex-shrink-0">🧠</span>
-        <div>
-          <p className="text-[11px] text-purple-700 dark:text-purple-400 leading-relaxed font-medium">
-            مدعوم بالذكاء الاصطناعي وفق القانون الجزائري — نموذج Qwen 3.6 Plus (رئيسي) مع 10 نماذج احتياطية
-          </p>
-          <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
-            يقبل ملفات Word فقط (.docx / .doc) — الفحص شكلي فقط بدون تحليل موضوعي
-          </p>
-        </div>
-      </div>
+      )}
 
       {/* Document Type Selector */}
       {!analysis && (
         <div className="space-y-3 mb-4">
-          {/* Category Tabs */}
           <div className="flex gap-1.5">
             {CATEGORIES.map(cat => (
               <button
@@ -327,8 +326,6 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
               </button>
             ))}
           </div>
-
-          {/* Document Type Buttons */}
           <div className="flex gap-1.5 flex-wrap">
             {DOCUMENT_TYPES[category].map(dt => (
               <button
@@ -372,16 +369,15 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
               <div>
                 <div className="text-4xl mb-3 opacity-60">📎</div>
                 <p className="text-sm text-gray-600 dark:text-gray-300 font-medium">
-                  {isDragActive ? 'أفلت الملف هنا...' : 'اسحب ملف Word هنا أو اضغط للاختيار'}
+                  {isDragActive ? 'أفلت الملف هنا...' : 'اسحب ملف Word أو PDF هنا أو اضغط للاختيار'}
                 </p>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-2">
-                  .docx أو .doc فقط — الحد الأقصى 10 ميغابايت
+                  .docx / .doc / .pdf فقط — الحد الأقصى 10 ميغابايت
                 </p>
               </div>
             )}
           </div>
 
-          {/* Error Display */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4">
               <p className="text-sm text-red-700 dark:text-red-300 font-medium">❌ {error}</p>
@@ -391,14 +387,13 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
             </div>
           )}
 
-          {/* Analyze Button */}
           {file && !error && (
             <button
               onClick={analyze}
               className="w-full py-3.5 bg-gradient-to-l from-[#7c3aed] to-[#6d28d9] hover:from-[#6d28d9] hover:to-[#5b21b6] text-white rounded-xl text-sm font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-purple-200 dark:shadow-purple-900/30"
             >
               <span>🔍</span>
-              <span>بدء الفحص الشكلي بالذكاء الاصطناعي</span>
+              <span>بدء الفحص الشكلي</span>
             </button>
           )}
         </>
@@ -410,7 +405,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full border-2 border-[#7c3aed] border-t-transparent animate-spin" />
             <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري الفحص الشكلي بالذكاء الاصطناعي...</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري الفحص الشكلي...</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{PROGRESS_STEPS[progressStep]}</p>
             </div>
           </div>
@@ -432,16 +427,40 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         </div>
       )}
 
-      {/* Results */}
+      {/* ═══════════════════ RESULTS ═══════════════════ */}
       {analysis && (
         <div className="space-y-4">
-          {/* Verdict Card */}
+
+          {/* ── Parse Failed Warning ── */}
+          {analysis.parseFailed && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+              <div className="flex items-start gap-2">
+                <span className="text-xl flex-shrink-0">⚡</span>
+                <div>
+                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">لم يتم الحصول على تقرير منظم</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-500 mt-1">
+                    تم الاتصال بالذكاء الاصطناعي لكن الرد لم يكن بصيغة صحيحة. يرجى المحاولة مرة أخرى — غالباً ما تنجح المحاولة الثانية.
+                  </p>
+                  {analysis.triedModels && (
+                    <p className="text-[10px] text-gray-500 mt-2">
+                      النماذج التي جُرّبت: {analysis.triedModels.length}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Verdict Card ── */}
           {(() => {
             const v = verdictInfo(analysis.result);
+            const scoreColor = analysis.score >= 80 ? 'text-green-600 dark:text-green-400' : analysis.score >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400';
+            const barColor = analysis.score >= 80 ? 'bg-green-500' : analysis.score >= 50 ? 'bg-yellow-500' : 'bg-red-500';
+
             return (
-              <div className={`rounded-xl p-4 border ${v.bg}`}>
+              <div className={`rounded-xl p-4 ${v.bg}`}>
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <span className="text-3xl">{v.icon}</span>
                     <div>
                       <h3 className={`text-base font-bold ${v.color}`}>{v.label}</h3>
@@ -451,159 +470,257 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
                     </div>
                   </div>
                   <div className="text-center">
-                    <div className={`text-2xl font-bold ${analysis.score >= 80 ? 'text-green-600 dark:text-green-400' : analysis.score >= 50 ? 'text-yellow-600 dark:text-yellow-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {analysis.score}
-                    </div>
+                    <div className={`text-2xl font-bold ${scoreColor}`}>{analysis.score}</div>
                     <div className="text-[10px] text-gray-500 dark:text-gray-400">/ 100</div>
                   </div>
                 </div>
                 <div className="w-full bg-white/50 dark:bg-gray-900/30 rounded-full h-2">
-                  <div className={`h-2 rounded-full transition-all duration-700 ${scoreColor(analysis.score)}`} style={{ width: `${analysis.score}%` }} />
+                  <div className={`h-2 rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${analysis.score}%` }} />
                 </div>
-                {/* AI Model Info */}
                 {analysis.aiPowered && analysis.modelLabel && (
                   <div className="mt-2 flex items-center gap-1.5 text-[9px] text-gray-500">
                     <span>🤖</span>
-                    <span>التحليل بواسطة: {analysis.modelLabel} {analysis.tier === 1 ? '⭐' : analysis.tier === 2 ? '⚡' : '🔵'}</span>
-                    {analysis.triedModels && (
-                      <span className="text-gray-400">({analysis.triedModels.length} نموذج جُرّبت)</span>
-                    )}
+                    <span>{analysis.modelLabel}</span>
+                    {analysis.triedModels && <span className="text-gray-400">({analysis.triedModels.length} نموذج)</span>}
                   </div>
                 )}
               </div>
             );
           })()}
 
-          {/* Summary */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-            <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-2">📝 الملخص</h4>
-            <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{analysis.summary}</p>
+          {/* ── Document Info Bar ── */}
+          <div className="grid grid-cols-3 gap-2">
+            {(analysis.documentType || analysis.court || analysis.date) ? (
+              <>
+                {analysis.documentType && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 text-center">
+                    <p className="text-[9px] text-gray-400 mb-0.5">نوع الوثيقة</p>
+                    <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{analysis.documentType}</p>
+                  </div>
+                )}
+                {analysis.court && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 text-center">
+                    <p className="text-[9px] text-gray-400 mb-0.5">الجهة القضائية</p>
+                    <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{analysis.court}</p>
+                  </div>
+                )}
+                {analysis.date && (
+                  <div className="bg-white dark:bg-gray-800 rounded-lg p-2.5 border border-gray-200 dark:border-gray-700 text-center">
+                    <p className="text-[9px] text-gray-400 mb-0.5">التاريخ</p>
+                    <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{analysis.date}</p>
+                  </div>
+                )}
+              </>
+            ) : null}
           </div>
 
-          {/* Filter Tabs */}
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
-            {[
-              { key: 'all' as const, label: 'الكل', count: 0 },
-              { key: 'passed' as const, label: `✅ مستوفى (${analysis.passedChecks.length})`, count: analysis.passedChecks.length },
-              { key: 'failed' as const, label: `❌ غير مستوفى (${analysis.failedChecks.length})`, count: analysis.failedChecks.length },
-              { key: 'pending' as const, label: `🔍 معلّق (${analysis.pendingChecks.length})`, count: analysis.pendingChecks.length },
-              { key: 'suggestions' as const, label: `✏️ اقتراحات (${analysis.suggestions.length})`, count: analysis.suggestions.length },
-            ].map(tab => (
+          {/* ── Summary ── */}
+          {analysis.summary && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
+              <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040] mb-2 flex items-center gap-2">
+                <span>📝</span> الملخص
+              </h4>
+              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{analysis.summary}</p>
+            </div>
+          )}
+
+          {/* ── Stats Overview ── */}
+          {!analysis.parseFailed && totalChecks > 0 && (
+            <div className="grid grid-cols-4 gap-2">
+              <div className="bg-green-50 dark:bg-green-900/15 rounded-lg p-2.5 text-center border border-green-200 dark:border-green-800">
+                <div className="text-lg font-bold text-green-600 dark:text-green-400">{analysis.passedChecks.length}</div>
+                <div className="text-[9px] text-green-700 dark:text-green-500 font-medium">مستوفى</div>
+              </div>
+              <div className="bg-red-50 dark:bg-red-900/15 rounded-lg p-2.5 text-center border border-red-200 dark:border-red-800">
+                <div className="text-lg font-bold text-red-600 dark:text-red-400">{analysis.failedChecks.length}</div>
+                <div className="text-[9px] text-red-700 dark:text-red-500 font-medium">غير مستوفى</div>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/15 rounded-lg p-2.5 text-center border border-blue-200 dark:border-blue-800">
+                <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{analysis.pendingChecks.length}</div>
+                <div className="text-[9px] text-blue-700 dark:text-blue-500 font-medium">معلّق</div>
+              </div>
+              <div className="bg-purple-50 dark:bg-purple-900/15 rounded-lg p-2.5 text-center border border-purple-200 dark:border-purple-800">
+                <div className="text-lg font-bold text-purple-600 dark:text-purple-400">{analysis.suggestions.length}</div>
+                <div className="text-[9px] text-purple-700 dark:text-purple-500 font-medium">اقتراح</div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Tab Switcher ── */}
+          {!analysis.parseFailed && (
+            <div className="flex gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
               <button
-                key={tab.key}
-                onClick={() => setFilterTab(tab.key)}
-                className={`text-[10px] px-3 py-1.5 rounded-full transition-all font-medium whitespace-nowrap ${
-                  filterTab === tab.key
-                    ? 'bg-[#7c3aed] text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                onClick={() => setActiveTab('checks')}
+                className={`flex-1 text-xs py-2.5 rounded-lg transition-all font-medium ${
+                  activeTab === 'checks' ? 'bg-white dark:bg-gray-700 text-[#1a3a5c] dark:text-[#f0c040] shadow-sm' : 'text-gray-500'
                 }`}
               >
-                {tab.label}
+                🔍 التفاصيل
               </button>
-            ))}
-          </div>
-
-          {/* Passed Checks */}
-          {(filterTab === 'all' || filterTab === 'passed') && analysis.passedChecks.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-bold text-green-700 dark:text-green-400 mb-3">✅ الشروط الشكلية المستوفاة ({analysis.passedChecks.length})</h4>
-              <div className="space-y-2">
-                {analysis.passedChecks.map((check, i) => (
-                  <div key={i} className="flex items-center gap-2 text-sm">
-                    <span className="text-green-500 flex-shrink-0">✅</span>
-                    <span className="text-gray-700 dark:text-gray-300">{check.label}</span>
-                    <span className="text-[10px] text-gray-400 mr-auto flex-shrink-0">({check.article})</span>
-                  </div>
-                ))}
-              </div>
+              <button
+                onClick={() => setActiveTab('report')}
+                className={`flex-1 text-xs py-2.5 rounded-lg transition-all font-medium ${
+                  activeTab === 'report' ? 'bg-white dark:bg-gray-700 text-[#1a3a5c] dark:text-[#f0c040] shadow-sm' : 'text-gray-500'
+                }`}
+              >
+                📄 التقرير الكامل
+              </button>
             </div>
           )}
 
-          {/* Failed Checks */}
-          {(filterTab === 'all' || filterTab === 'failed') && analysis.failedChecks.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-bold text-red-700 dark:text-red-400 mb-3">❌ الشروط الشكلية غير المستوفاة ({analysis.failedChecks.length})</h4>
-              <div className="space-y-2">
-                {analysis.failedChecks.map((check, i) => (
-                  <div key={i} className={`rounded-lg p-3 border ${check.critical ? 'border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/15' : 'border-yellow-200 dark:border-yellow-800 bg-yellow-50 dark:bg-yellow-900/15'}`}>
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="flex-shrink-0">{check.critical ? '❌' : '⚠️'}</span>
-                      <span className="font-medium text-gray-800 dark:text-gray-200">{check.label}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold flex-shrink-0" style={{
-                        background: check.critical ? '#fef2f2' : '#fffbeb',
-                        color: check.critical ? '#991b1b' : '#92400e',
-                        border: `1px solid ${check.critical ? '#fecaca' : '#fde68a'}`
-                      }}>
-                        {check.critical ? 'جوهري' : 'قابل للتدارك'}
+          {/* ══ TAB: Detailed Checks ══ */}
+          {activeTab === 'checks' && (
+            <div className="space-y-3">
+              {/* Failed Checks — MOST IMPORTANT, shown first */}
+              {analysis.failedChecks.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-red-50 dark:bg-red-900/20 px-4 py-2.5 border-b border-red-100 dark:border-red-900/30">
+                    <h4 className="text-sm font-bold text-red-700 dark:text-red-400 flex items-center gap-2">
+                      <span>❌</span> الشروط غير المستوفاة
+                      <span className="text-[10px] bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-1.5 py-0.5 rounded-full font-bold">
+                        {analysis.failedChecks.length}
                       </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 mr-6">{check.details}</p>
-                    <p className="text-[10px] text-gray-400 mt-1 mr-6">المادة: {check.article}</p>
+                    </h4>
                   </div>
-                ))}
-              </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {analysis.failedChecks.map((check, i) => (
+                      <div key={i} className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-shrink-0 text-sm">{check.critical ? '🔴' : '🟡'}</span>
+                          <span className="font-medium text-gray-800 dark:text-gray-200 text-sm flex-1">{check.label}</span>
+                          <span className="text-[9px] px-2 py-0.5 rounded-full font-bold" style={{
+                            background: check.critical ? '#fef2f2' : '#fffbeb',
+                            color: check.critical ? '#991b1b' : '#92400e',
+                            border: `1px solid ${check.critical ? '#fecaca' : '#fde68a'}`
+                          }}>
+                            {check.critical ? 'جوهري' : 'قابل للتدارك'}
+                          </span>
+                        </div>
+                        {check.details && (
+                          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1.5 mr-6 leading-relaxed">{check.details}</p>
+                        )}
+                        <p className="text-[10px] text-gray-400 mt-1 mr-6">📜 {check.article}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Pending Checks */}
+              {analysis.pendingChecks.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 px-4 py-2.5 border-b border-blue-100 dark:border-blue-900/30">
+                    <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400 flex items-center gap-2">
+                      <span>🔍</span> فحوص معلّقة
+                      <span className="text-[10px] bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded-full font-bold">
+                        {analysis.pendingChecks.length}
+                      </span>
+                    </h4>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {analysis.pendingChecks.map((check, i) => (
+                      <div key={i} className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-shrink-0 text-sm">🔍</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300 text-sm">{check.label}</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 mr-6 leading-relaxed">💡 {check.reason}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Passed Checks */}
+              {analysis.passedChecks.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-green-50 dark:bg-green-900/20 px-4 py-2.5 border-b border-green-100 dark:border-green-900/30">
+                    <h4 className="text-sm font-bold text-green-700 dark:text-green-400 flex items-center gap-2">
+                      <span>✅</span> الشروط المستوفاة
+                      <span className="text-[10px] bg-green-100 dark:bg-green-900/40 text-green-600 dark:text-green-400 px-1.5 py-0.5 rounded-full font-bold">
+                        {analysis.passedChecks.length}
+                      </span>
+                    </h4>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {analysis.passedChecks.map((check, i) => (
+                      <div key={i} className="p-3 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-500 flex-shrink-0 text-sm">✅</span>
+                          <span className="text-gray-700 dark:text-gray-300 text-sm">{check.label}</span>
+                        </div>
+                        <span className="text-[10px] text-gray-400 flex-shrink-0">📜 {check.article}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Suggestions */}
+              {analysis.suggestions.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+                  <div className="bg-purple-50 dark:bg-purple-900/20 px-4 py-2.5 border-b border-purple-100 dark:border-purple-900/30">
+                    <h4 className="text-sm font-bold text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                      <span>✏️</span> اقتراحات التنقيح
+                      <span className="text-[10px] bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-400 px-1.5 py-0.5 rounded-full font-bold">
+                        {analysis.suggestions.length}
+                      </span>
+                    </h4>
+                  </div>
+                  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {analysis.suggestions.map((s, i) => (
+                      <div key={i} className="p-3">
+                        <div className="flex items-center gap-2">
+                          <span className="flex-shrink-0 text-sm">✏️</span>
+                          <span className="font-medium text-gray-700 dark:text-gray-300 text-sm">{s.label}</span>
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1.5 mr-6 leading-relaxed">💡 {s.suggestion}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State — no checks at all */}
+              {!analysis.parseFailed && totalChecks === 0 && (
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 text-center border border-gray-200 dark:border-gray-700">
+                  <div className="text-3xl mb-2">📭</div>
+                  <p className="text-sm text-gray-500">لم يتم العثور على نتائج تحليل منظمة</p>
+                  <p className="text-xs text-gray-400 mt-1">يرجى المحاولة مرة أخرى</p>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Pending Checks */}
-          {(filterTab === 'all' || filterTab === 'pending') && analysis.pendingChecks.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-bold text-blue-700 dark:text-blue-400 mb-3">🔍 فحوص معلّقة على التحقق من المرفقات ({analysis.pendingChecks.length})</h4>
-              <div className="space-y-2">
-                {analysis.pendingChecks.map((check, i) => (
-                  <div key={i} className="flex items-start gap-2 text-sm bg-blue-50 dark:bg-blue-900/15 rounded-lg p-2.5 border border-blue-200 dark:border-blue-800">
-                    <span className="text-blue-500 flex-shrink-0 mt-0.5">🔍</span>
-                    <div>
-                      <span className="text-gray-700 dark:text-gray-300 font-medium">{check.label}</span>
-                      <p className="text-[10px] text-gray-500 mt-0.5">السبب: {check.reason}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Suggestions */}
-          {(filterTab === 'all' || filterTab === 'suggestions') && analysis.suggestions.length > 0 && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <h4 className="text-sm font-bold text-purple-700 dark:text-purple-400 mb-3">✏️ اقتراحات التنقيح الشكلي ({analysis.suggestions.length})</h4>
-              <div className="space-y-2">
-                {analysis.suggestions.map((s, i) => (
-                  <div key={i} className="bg-purple-50 dark:bg-purple-900/15 rounded-lg p-2.5 border border-purple-200 dark:border-purple-800">
-                    <div className="flex items-center gap-2 text-sm">
-                      <span className="flex-shrink-0">✏️</span>
-                      <span className="font-medium text-gray-700 dark:text-gray-300">{s.label}</span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 mr-6">{s.suggestion}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Full Report */}
-          {analysis.report && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-3">
+          {/* ══ TAB: Full Report ══ */}
+          {activeTab === 'report' && (
+            <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-gray-700">
                 <h4 className="text-sm font-bold text-[#1a3a5c] dark:text-[#f0c040]">📄 التقرير الكامل</h4>
                 <button onClick={exportResults} className="text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
-                  {copied ? '✅ نُسخ' : '📋 نسخ التقرير'}
+                  {copied ? '✅ نُسخ' : '📋 نسخ'}
                 </button>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-4 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-gray-700 dark:text-gray-300 overflow-x-auto max-h-[500px] overflow-y-auto">
-                {analysis.report}
-              </div>
+              {analysis.report ? (
+                <div className="p-4 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-gray-700 dark:text-gray-300 overflow-x-auto max-h-[600px] overflow-y-auto bg-gray-50 dark:bg-gray-900/50">
+                  {analysis.report}
+                </div>
+              ) : (
+                <div className="p-6 text-center">
+                  <p className="text-sm text-gray-400">لا يوجد تقرير متاح</p>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Disclaimer */}
+          {/* ── Disclaimer ── */}
           <div className="bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
             <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
-              ⚠️ <strong>تنبيه قانوني وإخلاء مسؤولية:</strong> هذه الأداة مخصصة للفحص الشكلي الأولي للعرائض والمذكرات، ولا تغني بأي حال عن مراجعة المحامي أو المستشار القانوني المختص. يُحذف الملف ومحتواه من الذاكرة فور إظهار النتيجة.
+              ⚠️ <strong>تنبيه قانوني:</strong> هذه الأداة مخصصة للفحص الشكلي الأولي، ولا تغني عن مراجعة المحامي المختص. يُحذف الملف ومحتواه من الذاكرة فور النتيجة.
             </p>
           </div>
 
-          {/* Action Buttons */}
+          {/* ── Action Buttons ── */}
           <div className="flex gap-2">
             <button onClick={exportResults} className="flex-1 py-3 bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] rounded-xl text-sm font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2">
               📋 نسخ التقرير
