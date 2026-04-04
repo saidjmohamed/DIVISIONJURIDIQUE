@@ -238,7 +238,7 @@ function DeadlineItem({
   isExpanded: boolean
   onToggle: () => void
   lawColor: "blue" | "green"
-  getLawBadge: (law: string) => JSX.Element
+  getLawBadge: (law: string) => React.JSX.Element
   compact?: boolean
 }) {
   const primaryColor = lawColor === "green" ? "bg-green-600" : "bg-[#1a3a5c]"

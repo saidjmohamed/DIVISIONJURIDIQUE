@@ -1,7 +1,7 @@
 'use client';
 
 import { extractTextFromFile } from '@/lib/extract-text';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 
 /* ─────────────────────── Types ─────────────────────── */
@@ -247,6 +247,10 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     }
   }
 
+  useEffect(() => {
+    return () => { stopProgress(); };
+  }, []);
+
   async function analyze() {
     if (!file) return;
     setLoading(true);
@@ -294,7 +298,7 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => {});
   }
 
   return (

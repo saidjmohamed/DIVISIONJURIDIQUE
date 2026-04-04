@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // المساعد القانوني الذكي — OpenRouter Multi-Model with Smart Fallback v4
@@ -228,7 +229,7 @@ async function callOpenRouter(
     if (err instanceof DOMException && err.name === "AbortError") {
       return { content: null, error: "timeout" };
     }
-    return { content: null, error: String(err) };
+    return { content: null, error: "حدث خطأ داخلي" };
   }
 }
 
@@ -240,6 +241,13 @@ export async function POST(req: NextRequest) {
       { error: "مفتاح OpenRouter غير مضبوط." },
       { status: 500 }
     );
+  }
+
+  // Rate limiting: 20 requests per minute per IP
+  const ip = getClientIp(req);
+  const { limited, remaining } = await rateLimit({ key: 'ai-chat', identifier: ip, limit: 20, window: 60 });
+  if (limited) {
+    return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
   }
 
   try {
@@ -316,8 +324,8 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error("AI API Error:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("AI API Error:", err instanceof Error ? err.message : "Unknown error");
+    return NextResponse.json({ error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." }, { status: 500 });
   }
 }
 

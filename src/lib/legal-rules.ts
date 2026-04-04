@@ -96,7 +96,7 @@ export const CRIMINAL_COMPLAINT_RULES: LegalRule[] = [
 // منطق تحديد الاختصاص النوعي (Subject Matter Jurisdiction)
 export interface JurisdictionResult {
   section: string;
-  formation: 'فردي' | 'جماعي';
+  formation: 'فردي' | 'جماعي' | string;
   legalBasis: string;
   description: string;
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
@@ -134,10 +135,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "مفتاح OpenRouter غير مضبوط" }, { status: 500 });
   }
 
+  // Rate limiting: 10 requests per minute per IP (heavier API usage)
+  const ip = getClientIp(req);
+  const { limited } = await rateLimit({ key: 'petition-check', identifier: ip, limit: 10, window: 60 });
+  if (limited) {
+    return NextResponse.json({ error: "تجاوزت الحد المسموح من الفحوص. انتظر دقيقة ثم حاول مرة أخرى." }, { status: 429 });
+  }
+
   try {
     const { text, documentType, documentCategory } = await req.json();
     if (!text?.trim()) return NextResponse.json({ error: "النص فارغ" }, { status: 400 });
     if (!documentType) return NextResponse.json({ error: "اختر نوع الوثيقة" }, { status: 400 });
+
+    // Validate input size — prevent large payload abuse
+    if (text.length > 15000) {
+      return NextResponse.json({ error: "النص طويل جداً. الحد الأقصى 15000 حرف." }, { status: 400 });
+    }
 
     const docLabel = TYPE_LABELS[documentType] || documentType;
     const cat = { civil: "مدني", admin: "إداري", criminal: "جزائي" }[documentCategory] || "";
@@ -220,6 +233,7 @@ export async function POST(req: NextRequest) {
       passedChecks: [], failedChecks: [], pendingChecks: [], suggestions: [],
     });
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("Petition Check Error:", err instanceof Error ? err.message : "Unknown error");
+    return NextResponse.json({ error: "حدث خطأ في تحليل الوثيقة. يرجى المحاولة مرة أخرى." }, { status: 500 });
   }
 }

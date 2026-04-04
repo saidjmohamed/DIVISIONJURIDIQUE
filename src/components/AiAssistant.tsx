@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -162,16 +163,65 @@ export default function AiAssistant() {
     }
   }, [sendMessage]);
 
-  const formatText = (text: string) => {
-    return text
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\*(.*?)\*/g,     "<em>$1</em>")
-      .replace(/^### (.*)/gm,    '<h3 class="text-base font-bold mt-3 mb-1" style="color:#1a3a5c">$1</h3>')
-      .replace(/^## (.*)/gm,     '<h2 class="text-lg font-bold mt-4 mb-2" style="color:#1a3a5c">$1</h2>')
-      .replace(/^(\d+)\. (.*)/gm,'<li class="mr-4 list-decimal">$2</li>')
-      .replace(/^- (.*)/gm,      '<li class="mr-4 list-disc">$1</li>')
-      .replace(/\n\n/g,           '</p><p class="mt-2">')
-      .replace(/\n/g,             "<br/>");
+  const markdownComponents = {
+    h1: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: React.ReactNode }) => (
+      <h1 className="text-xl font-bold mt-4 mb-2" style={{ color: "#1a3a5c" }} {...props}>{children}</h1>
+    ),
+    h2: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: React.ReactNode }) => (
+      <h2 className="text-lg font-bold mt-4 mb-2" style={{ color: "#1a3a5c" }} {...props}>{children}</h2>
+    ),
+    h3: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: React.ReactNode }) => (
+      <h3 className="text-base font-bold mt-3 mb-1" style={{ color: "#1a3a5c" }} {...props}>{children}</h3>
+    ),
+    h4: ({ children, ...props }: React.HTMLAttributes<HTMLHeadingElement> & { children?: React.ReactNode }) => (
+      <h4 className="text-sm font-bold mt-2 mb-1" style={{ color: "#1a3a5c" }} {...props}>{children}</h4>
+    ),
+    p: ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement> & { children?: React.ReactNode }) => (
+      <p className="mt-2" {...props}>{children}</p>
+    ),
+    ul: ({ children, ...props }: React.HTMLAttributes<HTMLUListElement> & { children?: React.ReactNode }) => (
+      <ul className="mr-4 list-disc space-y-1" {...props}>{children}</ul>
+    ),
+    ol: ({ children, ...props }: React.HTMLAttributes<HTMLOListElement> & { children?: React.ReactNode }) => (
+      <ol className="mr-4 list-decimal space-y-1" {...props}>{children}</ol>
+    ),
+    li: ({ children, ...props }: React.HTMLAttributes<HTMLLIElement> & { children?: React.ReactNode }) => (
+      <li className="mr-4" {...props}>{children}</li>
+    ),
+    strong: ({ children, ...props }: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) => (
+      <strong {...props}>{children}</strong>
+    ),
+    em: ({ children, ...props }: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) => (
+      <em {...props}>{children}</em>
+    ),
+    code: ({ className, children, ...props }: React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }) => {
+      const isBlock = className?.includes("language-");
+      if (isBlock) {
+        return (
+          <pre className="mt-2 mb-2 p-2.5 rounded-lg overflow-x-auto text-[12px] leading-relaxed"
+               style={{ background: "#f1f5f9", border: "1px solid #e2e8f0" }}>
+            <code className={className} {...props}>{children}</code>
+          </pre>
+        );
+      }
+      return (
+        <code className="px-1 py-0.5 rounded text-[12px]"
+              style={{ background: "#f1f5f9", color: "#1e293b" }} {...props}>{children}</code>
+      );
+    },
+    pre: ({ children, ...props }: React.HTMLAttributes<HTMLPreElement> & { children?: React.ReactNode }) => (
+      <pre className="mt-2 mb-2 p-2.5 rounded-lg overflow-x-auto text-[12px] leading-relaxed"
+           style={{ background: "#f1f5f9", border: "1px solid #e2e8f0" }} {...props}>{children}</pre>
+    ),
+    blockquote: ({ children, ...props }: React.HTMLAttributes<HTMLQuoteElement> & { children?: React.ReactNode }) => (
+      <blockquote className="mr-3 pr-3 mt-2 mb-2 border-r-2 italic text-[12px]"
+                  style={{ borderColor: "#c9a84c", color: "#64748b" }} {...props}>{children}</blockquote>
+    ),
+    a: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { children?: React.ReactNode }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer"
+         style={{ color: "#1a3a5c" }} {...props}>{children}</a>
+    ),
+    hr: () => <hr className="my-3" style={{ borderColor: "#e2e8f0" }} />,
   };
 
   const lastAssistantMsg = [...messages].reverse().find(m => m.role === "assistant" && !m.error);
@@ -313,9 +363,11 @@ export default function AiAssistant() {
                            : "none",
                        }}>
                     {msg.role === "assistant" && !msg.error ? (
-                      <div className="text-[13px] leading-relaxed"
-                           dir="rtl"
-                           dangerouslySetInnerHTML={{ __html: formatText(msg.content) }} />
+                      <div className="text-[13px] leading-relaxed" dir="rtl">
+                        <ReactMarkdown components={markdownComponents}>
+                          {msg.content}
+                        </ReactMarkdown>
+                      </div>
                     ) : (
                       <p className="text-[13px] leading-relaxed" dir="rtl">{msg.content}</p>
                     )}

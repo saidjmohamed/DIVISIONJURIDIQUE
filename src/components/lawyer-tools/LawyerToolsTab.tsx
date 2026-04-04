@@ -31,7 +31,7 @@ const tools = [
   { id: 'templates', title: 'نماذج العرائض', icon: '📄', desc: 'نماذج جاهزة للعرائض والشكاوى يمكن نسخها وتعديلها', color: '#d97706' },
 ];
 
-export default function LawyerToolsTab() {
+export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
   if (activeTool === 'jurisdiction') return <SubjectMatterJurisdiction onBack={() => setActiveTool(null)} />;

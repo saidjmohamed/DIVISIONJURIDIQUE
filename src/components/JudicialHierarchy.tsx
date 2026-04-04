@@ -337,7 +337,7 @@ export default function JudicialHierarchy() {
                       {relatedMunis.map((m, i) => (
                         <button key={i} onClick={() => {
                           const found = searchIndex.find(x => x.municipality === m && x.court === selected.court);
-                          if (found) select(found);
+                          if (found) select({ ...found, score: 1 });
                         }}
                           className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors ${m === selected.municipality ? 'bg-blue-600 text-white dark:bg-amber-500 dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>
                           {m}

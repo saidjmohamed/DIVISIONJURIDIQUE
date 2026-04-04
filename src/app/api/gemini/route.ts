@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const MODEL   = "models/gemini-2.5-flash";
-const API_URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+const API_URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent`;
 
 const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج في تطبيق "شامل" — المنصة القانونية الذكية في الجزائر.
 
@@ -84,6 +85,13 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Rate limiting: 15 requests per minute per IP
+  const ip = getClientIp(req);
+  const { limited } = await rateLimit({ key: 'gemini-chat', identifier: ip, limit: 15, window: 60 });
+  if (limited) {
+    return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
+  }
+
   try {
     const { messages, userMessage } = await req.json();
 
@@ -92,7 +100,7 @@ export async function POST(req: NextRequest) {
     }
 
     // بناء سجل المحادثة لـ Gemini
-    const contents = [];
+    const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
     // إضافة السياق السابق (آخر 10 رسائل)
     if (messages && Array.isArray(messages)) {
@@ -132,7 +140,10 @@ export async function POST(req: NextRequest) {
 
     const response = await fetch(API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_API_KEY!,
+      },
       body: JSON.stringify(body),
     });
 
@@ -155,7 +166,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: text });
 
   } catch (err) {
-    console.error("Server Error:", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    console.error("Gemini API Error:", err instanceof Error ? err.message : "Unknown error");
+    return NextResponse.json({ error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." }, { status: 500 });
   }
 }

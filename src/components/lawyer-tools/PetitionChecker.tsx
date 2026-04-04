@@ -1,5 +1,5 @@
 'use client';
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
 
 interface CheckItem { label: string; article: string; critical?: boolean; }
 
@@ -89,7 +89,7 @@ export default function PetitionChecker({ onBack }: { onBack: () => void }) {
       `${currentChecked.has(i) ? '✅' : '❌'} ${item.label} (${item.article})`
     );
     const text = `التحقق الشكلي: ${petitionTypes[activeType].title}\nالنتيجة: ${progress}%\n${'─'.repeat(40)}\n${lines.join('\n')}`;
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(text).catch(() => {});
   };
 
   return (

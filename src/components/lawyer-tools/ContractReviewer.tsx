@@ -1,7 +1,7 @@
 'use client';
 
 import { extractTextFromFile } from '@/lib/extract-text';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useDropzone } from 'react-dropzone';
 
 /* ─────────────────────── Types ─────────────────────── */
@@ -364,6 +364,10 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     }
   }
 
+  useEffect(() => {
+    return () => { stopProgress(); };
+  }, []);
+
   async function doReview() {
     if (!file) return;
     setLoading(true);
@@ -416,7 +420,7 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => {});
   }
 
   function reset() {
@@ -426,16 +430,21 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     setFilterStatus('all');
   }
 
-  const filteredChecks = analysis
-    ? filterStatus === 'all' ? analysis.checks : analysis.checks.filter(c => c.status === filterStatus)
-    : [];
+  const filteredChecks = useMemo(() =>
+    analysis
+      ? filterStatus === 'all' ? analysis.checks : analysis.checks.filter(c => c.status === filterStatus)
+      : [],
+    [analysis, filterStatus]
+  );
 
-  const statusCounts = analysis ? {
+  const statusCounts = useMemo(() => analysis ? {
     all: analysis.checks.length,
     pass: analysis.checks.filter(c => c.status === 'pass').length,
     fail: analysis.checks.filter(c => c.status === 'fail').length,
     warning: analysis.checks.filter(c => c.status === 'warning').length,
-  } : null;
+  } : null,
+    [analysis]
+  );
 
   return (
     <div className="max-w-2xl mx-auto" dir="rtl">
