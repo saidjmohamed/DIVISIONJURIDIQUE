@@ -44,6 +44,8 @@ interface AnalysisResult {
   tier?: number;
   triedModels?: string[];
   parseFailed?: boolean;
+  executionTime?: number;
+  timedOut?: boolean;
 }
 
 type DocumentCategory = 'civil' | 'admin' | 'criminal';
@@ -115,15 +117,6 @@ function verdictInfo(result: AnalysisResult['result']): { label: string; color: 
   }
 }
 
-const PROGRESS_STEPS = [
-  'جاري قراءة الملف...',
-  'استخراج النص من المستند...',
-  'الاتصال بنموذج الذكاء الاصطناعي...',
-  'تحليل الشروط الشكلية...',
-  'مراجعة المواد القانونية...',
-  'إعداد التقرير النهائي...',
-];
-
 /* ─────────────────────── Component ─────────────────────── */
 
 export default function SmartPetitionChecker({ onBack }: { onBack: () => void }) {
@@ -131,12 +124,20 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
   const [docType, setDocType] = useState<string>('civil_opening');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [progressStep, setProgressStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [copied, setCopied] = useState(false);
-  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
   const [activeTab, setActiveTab] = useState<'checks' | 'report'>('checks');
+
+  // Real-time status from SSE
+  const [statusMessage, setStatusMessage] = useState<string>('');
+  const [currentModel, setCurrentModel] = useState<string>('');
+  const [attemptCount, setAttemptCount] = useState(0);
+  const [elapsedMs, setElapsedMs] = useState(0);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const elapsedInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const startTimeRef = useRef<number>(0);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     setError(null);
@@ -169,25 +170,35 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     multiple: false,
   });
 
-  function startProgress() {
-    setProgressStep(0);
-    let step = 0;
-    progressInterval.current = setInterval(() => {
-      step++;
-      if (step < PROGRESS_STEPS.length) setProgressStep(step);
-    }, 800);
+  function startElapsedTimer() {
+    startTimeRef.current = Date.now();
+    setElapsedMs(0);
+    elapsedInterval.current = setInterval(() => {
+      setElapsedMs(Date.now() - startTimeRef.current);
+    }, 100);
   }
 
-  function stopProgress() {
-    if (progressInterval.current) {
-      clearInterval(progressInterval.current);
-      progressInterval.current = null;
+  function stopElapsedTimer() {
+    if (elapsedInterval.current) {
+      clearInterval(elapsedInterval.current);
+      elapsedInterval.current = null;
     }
   }
 
   useEffect(() => {
-    return () => { stopProgress(); };
+    return () => {
+      stopElapsedTimer();
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
   }, []);
+
+  function formatElapsed(ms: number): string {
+    const sec = Math.floor(ms / 1000);
+    const dec = Math.floor((ms % 1000) / 100);
+    return `${sec}.${dec}s`;
+  }
 
   async function analyze() {
     if (!file) return;
@@ -195,14 +206,30 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     setError(null);
     setAnalysis(null);
     setActiveTab('checks');
-    startProgress();
+    setStatusMessage('جاري استخراج النص من المستند...');
+    setCurrentModel('');
+    setAttemptCount(0);
 
     try {
+      // Extract text from file
       const text = await extractTextFromFile(file);
       if (!text.trim()) {
         throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص قابل للقراءة.');
       }
 
+      // Start elapsed timer
+      startElapsedTimer();
+
+      // Create abort controller with client-side timeout
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      const CLIENT_TIMEOUT = 20_000;
+      const clientTimer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT);
+
+      setStatusMessage('جاري الاتصال بنموذج الذكاء الاصطناعي...');
+
+      // POST request to trigger SSE stream
       const res = await fetch('/api/petition-check', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -211,38 +238,134 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
           documentType: docType,
           documentCategory: category,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(clientTimer);
 
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData?.error || `خطأ في الخادم (HTTP ${res.status})`);
       }
 
-      const data = await res.json();
-      setAnalysis({
-        result: data.result || 'needs_review',
-        score: data.score ?? 50,
-        documentType: data.documentType,
-        court: data.court,
-        date: data.date,
-        summary: data.summary || '',
-        passedChecks: data.passedChecks || [],
-        failedChecks: data.failedChecks || [],
-        pendingChecks: data.pendingChecks || [],
-        suggestions: data.suggestions || [],
-        report: data.report || data.rawReport || '',
-        aiPowered: !!data.aiPowered,
-        model: data.model,
-        modelLabel: data.modelLabel,
-        tier: data.tier,
-        triedModels: data.triedModels,
-        parseFailed: !!data.parseFailed,
-      });
+      if (!res.body) {
+        throw new Error('لم يتم تلقي استجابة من الخادم');
+      }
+
+      // Parse SSE stream
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let settled = false;
+
+      while (!settled) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Parse SSE events
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+        let eventType = '';
+        let eventData = '';
+
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith('data: ')) {
+            eventData = line.slice(6);
+          } else if (line === '' && eventType && eventData) {
+            // Process complete event
+            try {
+              const data = JSON.parse(eventData);
+
+              switch (eventType) {
+                case 'status':
+                  setStatusMessage(data.message || 'جاري التحليل...');
+                  if (data.model) setCurrentModel(data.model);
+                  if (data.attempt) setAttemptCount(data.attempt);
+                  break;
+
+                case 'complete':
+                  stopElapsedTimer();
+                  settled = true;
+                  setAnalysis({
+                    result: data.result || 'needs_review',
+                    score: data.score ?? 50,
+                    documentType: data.documentType,
+                    court: data.court,
+                    date: data.date,
+                    summary: data.summary || '',
+                    passedChecks: data.passedChecks || [],
+                    failedChecks: data.failedChecks || [],
+                    pendingChecks: data.pendingChecks || [],
+                    suggestions: data.suggestions || [],
+                    report: data.report || data.rawReport || '',
+                    aiPowered: !!data.aiPowered,
+                    model: data.model,
+                    modelLabel: data.modelLabel,
+                    tier: data.tier,
+                    triedModels: data.triedModels,
+                    parseFailed: !!data.parseFailed,
+                    executionTime: data.executionTime,
+                    timedOut: data.timedOut,
+                  });
+                  break;
+
+                case 'timeout':
+                  stopElapsedTimer();
+                  settled = true;
+                  setAnalysis({
+                    result: 'needs_review',
+                    score: 50,
+                    summary: 'استغرق التحليل وقتاً أطول من المتوقع. يرجى تقصير النص والمحاولة مرة أخرى.',
+                    passedChecks: [],
+                    failedChecks: [],
+                    pendingChecks: [],
+                    suggestions: [],
+                    report: '⚠️ تجاوز وقت التحليل. يرجى تقصير نص المستند والمحاولة مرة أخرى.',
+                    aiPowered: false,
+                    triedModels: data.triedModels,
+                    parseFailed: true,
+                    executionTime: data.executionTime,
+                    timedOut: true,
+                  });
+                  break;
+
+                case 'error':
+                  stopElapsedTimer();
+                  settled = true;
+                  setError(data.error || 'حدث خطأ غير متوقع');
+                  break;
+              }
+            } catch (parseErr) {
+              // Ignore JSON parse errors for partial events
+            }
+
+            eventType = '';
+            eventData = '';
+          }
+        }
+      }
+
+      stopElapsedTimer();
+
+      // If we exited the loop without settling
+      if (!settled && !error) {
+        setError('انقطع الاتصال بالخادم. يرجى المحاولة مرة أخرى.');
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+      stopElapsedTimer();
+      if (err instanceof Error && err.name === 'AbortError') {
+        setError('تجاوز وقت الانتظار. يرجى تقصير نص المستند والمحاولة مرة أخرى.');
+      } else {
+        setError(err instanceof Error ? err.message : 'حدث خطأ غير متوقع');
+      }
     } finally {
-      stopProgress();
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }
 
@@ -261,6 +384,10 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
     setError(null);
     setActiveTab('checks');
     setCopied(false);
+    setStatusMessage('');
+    setCurrentModel('');
+    setAttemptCount(0);
+    setElapsedMs(0);
   }
 
   // Count all check items for the overview
@@ -295,7 +422,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
             <span className="text-lg flex-shrink-0">🧠</span>
             <div>
               <p className="text-[11px] text-purple-700 dark:text-purple-400 leading-relaxed font-medium">
-                مدعوم بالذكاء الاصطناعي — Qwen 3.6 Plus (رئيسي) مع 10 نماذج احتياطية
+                مدعوم بالذكاء الاصطناعي — استجابة سريعة مع 3 نماذج احتياطية
               </p>
               <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-1">
                 يقبل ملفات Word (.docx / .doc) و PDF — الفحص شكلي فقط
@@ -399,31 +526,54 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
         </>
       )}
 
-      {/* Loading State */}
+      {/* Loading State — Real-time SSE progress */}
       {loading && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 mb-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 border border-gray-200 dark:border-gray-700 mb-4">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-8 h-8 rounded-full border-2 border-[#7c3aed] border-t-transparent animate-spin" />
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">جاري الفحص الشكلي...</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{PROGRESS_STEPS[progressStep]}</p>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{statusMessage || 'جاري الفحص الشكلي...'}</p>
+              <div className="flex items-center gap-3 mt-1">
+                {currentModel && (
+                  <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium">🤖 {currentModel}</p>
+                )}
+                {attemptCount > 0 && (
+                  <p className="text-[10px] text-gray-400">محاولة {attemptCount}</p>
+                )}
+                <p className="text-[10px] text-gray-400 mr-auto">⏱ {formatElapsed(elapsedMs)}</p>
+              </div>
             </div>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-            <div className="h-full bg-[#7c3aed] rounded-full transition-all duration-500 ease-out" style={{ width: `${Math.min(((progressStep + 1) / PROGRESS_STEPS.length) * 95, 95)}%` }} />
+
+          {/* Progress bar — animated */}
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2 overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-l from-[#7c3aed] to-[#a78bfa] rounded-full transition-all duration-300"
+              style={{
+                width: elapsedMs < 2000 ? '10%' :
+                       elapsedMs < 5000 ? '30%' :
+                       elapsedMs < 8000 ? '60%' :
+                       elapsedMs < 12000 ? '80%' : '90%',
+                animation: elapsedMs > 5000 ? 'pulse 1.5s ease-in-out infinite' : 'none',
+              }}
+            />
           </div>
-          <div className="mt-4 space-y-1.5">
-            {PROGRESS_STEPS.map((step, i) => (
-              <div key={i} className={`flex items-center gap-2 text-xs transition-all duration-300 ${
-                i < progressStep ? 'text-green-600 dark:text-green-400' :
-                i === progressStep ? 'text-[#7c3aed] dark:text-purple-400 font-medium' :
-                'text-gray-300 dark:text-gray-600'
-              }`}>
-                <span className="flex-shrink-0">{i < progressStep ? '✅' : i === progressStep ? '⏳' : '○'}</span>
-                <span>{step}</span>
-              </div>
-            ))}
-          </div>
+
+          {/* Cancel button */}
+          <button
+            onClick={() => {
+              if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+              }
+              setLoading(false);
+              stopElapsedTimer();
+              setError('تم إلغاء الفحص.');
+            }}
+            className="mt-3 text-xs text-gray-500 hover:text-red-500 transition-colors"
+          >
+            ✕ إلغاء
+          </button>
         </div>
       )}
 
@@ -431,8 +581,26 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       {analysis && (
         <div className="space-y-4">
 
+          {/* ── Timeout Warning ── */}
+          {analysis.timedOut && (
+            <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
+              <div className="flex items-start gap-2">
+                <span className="text-xl flex-shrink-0">⏱</span>
+                <div>
+                  <p className="text-sm font-bold text-orange-700 dark:text-orange-400">تجاوز وقت التحليل</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-500 mt-1">
+                    استغرق التحليل وقتاً أطول من المتوقع. جرّب تقصير نص المستند أو حاول مرة أخرى.
+                  </p>
+                  {analysis.executionTime && (
+                    <p className="text-[10px] text-gray-500 mt-2">⏱ الوقت: {(analysis.executionTime / 1000).toFixed(1)} ثانية</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ── Parse Failed Warning ── */}
-          {analysis.parseFailed && (
+          {analysis.parseFailed && !analysis.timedOut && (
             <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4">
               <div className="flex items-start gap-2">
                 <span className="text-xl flex-shrink-0">⚡</span>
@@ -477,13 +645,17 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
                 <div className="w-full bg-white/50 dark:bg-gray-900/30 rounded-full h-2">
                   <div className={`h-2 rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${analysis.score}%` }} />
                 </div>
-                {analysis.aiPowered && analysis.modelLabel && (
-                  <div className="mt-2 flex items-center gap-1.5 text-[9px] text-gray-500">
-                    <span>🤖</span>
-                    <span>{analysis.modelLabel}</span>
-                    {analysis.triedModels && <span className="text-gray-400">({analysis.triedModels.length} نموذج)</span>}
-                  </div>
-                )}
+                <div className="mt-2 flex items-center gap-3 text-[9px] text-gray-500">
+                  {analysis.aiPowered && analysis.modelLabel && (
+                    <span className="flex items-center gap-1">🤖 {analysis.modelLabel}</span>
+                  )}
+                  {analysis.executionTime && (
+                    <span>⏱ {(analysis.executionTime / 1000).toFixed(1)}s</span>
+                  )}
+                  {analysis.triedModels && (
+                    <span className="text-gray-400">({analysis.triedModels.length} نموذج)</span>
+                  )}
+                </div>
               </div>
             );
           })()}

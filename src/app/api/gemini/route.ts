@@ -77,6 +77,8 @@ const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج
 - اجعل ردودك منظمة: عناوين واضحة، نقاط مرتبة
 - كن مختصراً ومفيداً، لا تطيل في الشرح`;
 
+export const maxDuration = 30;
+
 export async function POST(req: NextRequest) {
   if (!GEMINI_API_KEY) {
     return NextResponse.json(
@@ -138,6 +140,10 @@ export async function POST(req: NextRequest) {
       ],
     };
 
+    // Timeout control for Gemini
+    const geminiController = new AbortController();
+    const geminiTimer = setTimeout(() => geminiController.abort(), 15_000);
+
     const response = await fetch(API_URL, {
       method: "POST",
       headers: { 
@@ -145,7 +151,9 @@ export async function POST(req: NextRequest) {
         "x-goog-api-key": GEMINI_API_KEY!,
       },
       body: JSON.stringify(body),
+      signal: geminiController.signal,
     });
+    clearTimeout(geminiTimer);
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
@@ -166,7 +174,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply: text });
 
   } catch (err) {
+    const isTimeout = err instanceof Error && err.name === 'AbortError';
     console.error("Gemini API Error:", err instanceof Error ? err.message : "Unknown error");
-    return NextResponse.json({ error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." }, { status: 500 });
+    return NextResponse.json(
+      { error: isTimeout ? "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى." : "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." },
+      { status: 500 }
+    );
   }
 }

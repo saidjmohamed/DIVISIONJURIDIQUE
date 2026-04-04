@@ -5,7 +5,19 @@ const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// نموذج الرد الصارم — يُستخدم للتحقق من صحة مخرجات الذكاء الاصطناعي
+// ⚡ PERFORMANCE CONFIG — Tuned for sub-10s responses
+// ═══════════════════════════════════════════════════════════════════════════
+
+const GLOBAL_TIMEOUT_MS = 14_000;   // Hard cap on entire request
+const MAX_MODELS_TO_TRY = 3;        // Max models before giving up
+const TIER_0_TIMEOUT = 8_000;       // Primary model: 8s
+const TIER_1_TIMEOUT = 6_000;       // Fast fallback: 6s
+const TIER_2_TIMEOUT = 6_000;       // Strong fallback: 6s
+const MAX_INPUT_CHARS = 8_000;      // Truncate long documents
+const CLIENT_TIMEOUT_MS = 20_000;   // Frontend should timeout at 20s
+
+// ═══════════════════════════════════════════════════════════════════════════
+// نموذج الرد الصارم
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface PetitionCheckResult {
@@ -23,285 +35,182 @@ interface PetitionCheckResult {
 
 function createEmptyResult(): PetitionCheckResult {
   return {
-    result: "needs_review",
-    score: 50,
-    documentType: "",
-    court: "",
-    date: "",
-    summary: "",
-    passedChecks: [],
-    failedChecks: [],
-    pendingChecks: [],
-    suggestions: [],
+    result: "needs_review", score: 50, documentType: "", court: "", date: "",
+    summary: "", passedChecks: [], failedChecks: [], pendingChecks: [], suggestions: [],
   };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// النماذج — Qwen3.6 Plus رئيسي مع fallback
+// النماذج — فقط الأسرع والأكثر موثوقية (3 نماذج كحد أقصى)
 // ═══════════════════════════════════════════════════════════════════════════
 
 interface PetitionModel { id: string; label: string; tier: number; maxTokens: number; }
+
 const MODELS: PetitionModel[] = [
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 0, maxTokens: 8192 },
-  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron Nano 30B",    tier: 1, maxTokens: 4096 },
-  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",           tier: 1, maxTokens: 4096 },
-  { id: "arcee-ai/trinity-mini:free",             label: "Trinity Mini",          tier: 1, maxTokens: 4096 },
+  // Tier 0: Primary — fast and reliable
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 0, maxTokens: 4096 },
+  // Tier 1: Fast fallbacks — lightweight models
   { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash",        tier: 1, maxTokens: 4096 },
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2, maxTokens: 6144 },
-  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder",           tier: 2, maxTokens: 6144 },
-  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 3, maxTokens: 4096 },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",        tier: 3, maxTokens: 4096 },
-  { id: "minimax/minimax-m2.5:free",              label: "MiniMax M2.5",          tier: 3, maxTokens: 4096 },
+  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",           tier: 1, maxTokens: 4096 },
+  // Tier 2: Strong fallbacks (only if T0+T1 all fail)
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2, maxTokens: 4096 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// البروميبت — صارم ومنظّم لإجبار JSON خالص
+// البروميبت — مُختصر لسرعة أسرع
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `أنت فاحص شكلي متخصص للعرائض والمحررات القانونية الجزائرية.
+const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
+الأساس: قانون الإجراءات الجزائية 25-14 + ق.إ.م.إ 08-09.
 
-## الأساس القانوني:
-- القانون رقم 25-14 المؤرخ في 3 غشت 2025 (قانون الإجراءات الجزائية الجديد)
-- الأمر رقم 08-09 المؤرخ في 25 فبراير 2008 (قانون الإجراءات المدنية والإدارية) وتعديلاته
+قواعد:
+- فحص شكلي فقط، لا تحلل الموضوع
+- لا تنشئ وقائع غير موجودة
+- إذا غير ظاهر ← "غير ظاهر من الملف"
+- اذكر المادة القانونية مع كل ملاحظة
 
-## قواعد الفحص الصارمة:
-1. فحصك شكلي فقط — لا تحلل الموضوع ولا تقدّر فرص النجاح
-2. لا تصف الدفوع بأنها قوية أو ضعيفة
-3. لا تنشئ وقائع غير موجودة في النص
-4. إذا كان عنصر غير ظاهر ← اكتب "غير ظاهر من الملف"
-5. إذا تعذّر التحقق ← صنّفه في pendingChecks
-6. اذكر رقم المادة القانونية مع كل ملاحظة
-7. لغة قانونية مهنية واضحة
-
-## الشروط الشكلية المطلوب فحصها:
-- اللغة العربية (جوهري)
-- تاريخ التحرير
-- عنوان/تسمية المحرر
-- تحديد الجهة القضائية (جوهري)
-- هوية الأطراف الكاملة: اسم، لقب، موطن (جوهري)
-- صفة الشخص المعنوي ومقره وممثله عند الاقتضاء (جوهري)
-- عرض موجز للوقائع
-- الطلبات أو أوجه الطعن (جوهري)
-- الإشارة للمرفقات إن ذُكرت
-- التوقيع وبيان اسم المحامي
-- التمثيل بمحامٍ حيث يكون وجوبياً (جوهري)
-
-## مستويات النتيجة:
-- accepted: جميع الشروط الجوهرية متوفرة
-- rejected: نقص جوهري صريح
-- needs_review: نقص قابل للتدارك أو غامض
-
-## تنسيق الرد المطلوب:
-يجب أن ترد بـ JSON فقط. لا تضف أي نص قبله أو بعده. لا تستخدم markdown. لا تكتب أي شرح.
-أكمل جميع الحقول دون استثناء.`;
+ردّ بـ JSON فقط. لا تضف أي نص آخر. أكمل جميع الحقول.`;
 
 const JSON_FORMAT_EXAMPLE = `{
-  "result": "accepted أو rejected أو needs_review",
+  "result": "accepted|rejected|needs_review",
   "score": 75,
-  "documentType": "عريضة افتتاح دعوى مدنية",
-  "court": "محكمة الجزائر المركزية",
+  "documentType": "عريضة افتتاح دعوى",
+  "court": "محكمة الجزائر",
   "date": "15 مارس 2026",
-  "summary": "ملخص من 3-5 جمل يوضح الحالة الشكلية العامة",
-  "passedChecks": [
-    {"label": "اللغة العربية", "article": "المادة 3 ق.إ.م.إ"}
-  ],
-  "failedChecks": [
-    {"label": "بيان موطن المدعى عليه", "article": "المادة 13 ق.إ.م.إ", "critical": true, "details": "لم يُذكر موطن المدعى عليه في العريضة وهو شرط جوهري للقبول"}
-  ],
-  "pendingChecks": [
-    {"label": "التبليغ الصحيح", "reason": "يتعذر التحقق من تاريخ التبليغ دون مرفقات"}
-  ],
-  "suggestions": [
-    {"label": "بيان الموطن", "suggestion": "أضف بيان موطن المدعى عليه كاملاً في بند هوية الأطراف"}
-  ]
+  "summary": "ملخص 3-5 جمل",
+  "passedChecks": [{"label": "اللغة العربية", "article": "المادة 3"}],
+  "failedChecks": [{"label": "بيان الموطن", "article": "المادة 13", "critical": true, "details": "السبب"}],
+  "pendingChecks": [{"label": "التبليغ", "reason": "السبب"}],
+  "suggestions": [{"label": "الموطن", "suggestion": "أضف..."}]
 }`;
 
 // ═══════════════════════════════════════════════════════════════════════════
-// أنواع الوثائق مع المواد القانونية
+// أنواع الوثائق
 // ═══════════════════════════════════════════════════════════════════════════
 
 const TYPE_LABELS: Record<string, string> = {
-  civil_opening: "عريضة افتتاح دعوى مدنية (المواد 13-17 ق.إ.م.إ)",
-  civil_response: "مذكرة جوابية (المواد 25-27 ق.إ.م.إ)",
-  civil_rejoinder: "مذكرة تعقيبية (المواد 25-27 ق.إ.م.إ)",
-  civil_formal_challenge: "دفع شكلي (المواد 50-54 ق.إ.م.إ)",
-  civil_incidental: "طلب عارض (المواد 28-30 ق.إ.م.إ)",
-  civil_appeal: "استئناف مدني (المواد 325-340 ق.إ.م.إ)",
-  civil_cassation: "طعن بالنقض مدني (المواد 349-354 ق.إ.م.إ)",
-  admin_initial: "دعوى إدارية (المواد 800-804 ق.إ.م.إ)",
-  admin_appeal: "استئناف إداري (المواد 904-911 ق.إ.م.إ)",
-  crim_complaint: "شكوى عادية (المواد 17, 26 ق.إ.ج 25-14)",
-  crim_civil_claim: "شكوى مع ادعاء مدني (المواد 72-75 ق.إ.ج 25-14)",
-  crim_direct_claim: "ادعاء مدني (المواد 2-4 ق.إ.ج 25-14)",
-  crim_misdemeanor_defense: "دفاع جنح (المواد 340-383 ق.إ.ج 25-14)",
-  crim_felony_defense: "دفاع جنايات (المواد 340-383 ق.إ.ج 25-14)",
-  crim_opposition: "معارضة (المواد 398-401 ق.إ.ج 25-14)",
-  crim_appeal: "استئناف جزائي (المواد 414-419 ق.إ.ج 25-14)",
-  crim_cassation: "نقض جزائي (المواد 495-500 ق.إ.ج 25-14)",
-  crim_bail: "إفراج مؤقت (المواد 123-127 ق.إ.ج 25-14)",
-  crim_indictment_appeal: "تظلم غرفة الاتهام (المواد 175-177 ق.إ.ج 25-14)",
-  crim_incidental_memo: "مذكرة عارضة (المواد 344-348 ق.إ.ج 25-14)",
+  civil_opening: "عريضة افتتاح دعوى مدنية",
+  civil_response: "مذكرة جوابية مدنية",
+  civil_rejoinder: "مذكرة تعقيبية مدنية",
+  civil_formal_challenge: "دفع شكلي مدني",
+  civil_incidental: "طلب عارض مدني",
+  civil_appeal: "استئناف مدني",
+  civil_cassation: "طعن بالنقض مدني",
+  admin_initial: "دعوى إدارية",
+  admin_appeal: "استئناف إداري",
+  crim_complaint: "شكوى عادية",
+  crim_civil_claim: "شكوى مع ادعاء مدني",
+  crim_direct_claim: "ادعاء مدني",
+  crim_misdemeanor_defense: "مذكرة دفاع جنح",
+  crim_felony_defense: "مذكرة دفاع جنايات",
+  crim_opposition: "معارضة",
+  crim_appeal: "استئناف جزائي",
+  crim_cassation: "نقض جزائي",
+  crim_bail: "طلب إفراج مؤقت",
+  crim_indictment_appeal: "تظلم غرفة الاتهام",
+  crim_incidental_memo: "مذكرة عارضة",
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// JSON Parser — قوي مع معالجة الأخطاء
+// JSON Parser — خفيف وسريع
 // ═══════════════════════════════════════════════════════════════════════════
 
 function extractJSON(raw: string): string | null {
-  // Step 1: Direct parse
   const trimmed = raw.trim();
-  try {
-    JSON.parse(trimmed);
-    return trimmed;
-  } catch { /* continue */ }
+  // Step 1: Direct parse
+  try { JSON.parse(trimmed); return trimmed; } catch {}
 
-  // Step 2: Extract from markdown code blocks
-  const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (codeBlockMatch) {
-    const inner = codeBlockMatch[1].trim();
-    try {
-      JSON.parse(inner);
-      return inner;
-    } catch { /* continue */ }
-  }
+  // Step 2: Code block extraction
+  const cb = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (cb) { try { JSON.parse(cb[1].trim()); return cb[1].trim(); } catch {} }
 
-  // Step 3: Find outermost {...} — handle nested braces
-  let depth = 0;
-  let start = -1;
+  // Step 3: Find outermost balanced {...}
+  let depth = 0, start = -1;
   for (let i = 0; i < trimmed.length; i++) {
-    if (trimmed[i] === '{') {
-      if (depth === 0) start = i;
-      depth++;
-    } else if (trimmed[i] === '}') {
+    if (trimmed[i] === '{') { if (depth === 0) start = i; depth++; }
+    else if (trimmed[i] === '}') {
       depth--;
       if (depth === 0 && start !== -1) {
-        const candidate = trimmed.substring(start, i + 1);
-        try {
-          JSON.parse(candidate);
-          return candidate;
-        } catch { /* continue searching */ }
-        start = -1;
+        const c = trimmed.substring(start, i + 1);
+        try { JSON.parse(c); return c; } catch { start = -1; }
       }
     }
   }
 
-  // Step 4: Try to fix truncated JSON — close open brackets
+  // Step 4: Fix truncated JSON
   if (start !== -1) {
-    let truncated = trimmed.substring(start);
-    // Count unclosed brackets and arrays
-    const openBraces = (truncated.match(/\{/g) || []).length;
-    const closeBraces = (truncated.match(/\}/g) || []).length;
-    const openBrackets = (truncated.match(/\[/g) || []).length;
-    const closeBrackets = (truncated.match(/\]/g) || []).length;
-    // Remove trailing incomplete key/value
-    truncated = truncated.replace(/,\s*"[^"]*"\s*:?\s*$/, '');
-    truncated = truncated.replace(/,\s*$/, '');
-    // Close remaining open structures
-    truncated += ']'.repeat(Math.max(0, openBrackets - closeBrackets));
-    truncated += '}'.repeat(Math.max(0, openBraces - closeBraces));
-    try {
-      JSON.parse(truncated);
-      return truncated;
-    } catch { /* give up */ }
+    let t = trimmed.substring(start);
+    t = t.replace(/,\s*"[^"]*"\s*:?\s*$/, '').replace(/,\s*$/, '');
+    const ob = (t.match(/\{/g) || []).length - (t.match(/\}/g) || []).length;
+    const oa = (t.match(/\[/g) || []).length - (t.match(/\]/g) || []).length;
+    t += ']'.repeat(Math.max(0, oa)) + '}'.repeat(Math.max(0, ob));
+    try { JSON.parse(t); return t; } catch {}
   }
-
   return null;
 }
 
 function parseAndValidate(raw: string): PetitionCheckResult | null {
   const jsonStr = extractJSON(raw);
   if (!jsonStr) return null;
-
   try {
-    const data = JSON.parse(jsonStr);
+    const d = JSON.parse(jsonStr);
+    const r = createEmptyResult();
+    const vr = ["accepted", "rejected", "needs_review"];
 
-    // Validate required fields
-    const result = createEmptyResult();
-    const validResults = ["accepted", "rejected", "needs_review"];
+    r.result = vr.includes(d.result) ? d.result : "needs_review";
+    r.score = typeof d.score === "number" ? Math.min(100, Math.max(0, d.score)) : 50;
+    r.documentType = String(d.documentType || "");
+    r.court = String(d.court || "");
+    r.date = String(d.date || "");
+    r.summary = String(d.summary || "");
 
-    result.result = validResults.includes(data.result) ? data.result : "needs_review";
-    result.score = typeof data.score === "number" ? Math.min(100, Math.max(0, data.score)) : 50;
-    result.documentType = typeof data.documentType === "string" ? data.documentType : "";
-    result.court = typeof data.court === "string" ? data.court : "";
-    result.date = typeof data.date === "string" ? data.date : "";
-    result.summary = typeof data.summary === "string" ? data.summary : "";
-
-    // Validate passedChecks
-    if (Array.isArray(data.passedChecks)) {
-      result.passedChecks = data.passedChecks
+    if (Array.isArray(d.passedChecks)) {
+      r.passedChecks = d.passedChecks
+        .filter((c: unknown) => c && typeof c === "object")
+        .map((c: Record<string, unknown>) => ({ label: String(c.label || ""), article: String(c.article || "") }))
+        .filter((c: { label: string }) => c.label);
+    }
+    if (Array.isArray(d.failedChecks)) {
+      r.failedChecks = d.failedChecks
         .filter((c: unknown) => c && typeof c === "object")
         .map((c: Record<string, unknown>) => ({
-          label: String(c.label || ""),
-          article: String(c.article || ""),
+          label: String(c.label || ""), article: String(c.article || ""),
+          critical: Boolean(c.critical), details: String(c.details || ""),
         }))
         .filter((c: { label: string }) => c.label);
     }
-
-    // Validate failedChecks
-    if (Array.isArray(data.failedChecks)) {
-      result.failedChecks = data.failedChecks
+    if (Array.isArray(d.pendingChecks)) {
+      r.pendingChecks = d.pendingChecks
         .filter((c: unknown) => c && typeof c === "object")
-        .map((c: Record<string, unknown>) => ({
-          label: String(c.label || ""),
-          article: String(c.article || ""),
-          critical: Boolean(c.critical),
-          details: String(c.details || ""),
-        }))
+        .map((c: Record<string, unknown>) => ({ label: String(c.label || ""), reason: String(c.reason || "") }))
+        .filter((c: { label: string }) => c.label);
+    }
+    if (Array.isArray(d.suggestions)) {
+      r.suggestions = d.suggestions
+        .filter((c: unknown) => c && typeof c === "object")
+        .map((c: Record<string, unknown>) => ({ label: String(c.label || ""), suggestion: String(c.suggestion || "") }))
         .filter((c: { label: string }) => c.label);
     }
 
-    // Validate pendingChecks
-    if (Array.isArray(data.pendingChecks)) {
-      result.pendingChecks = data.pendingChecks
-        .filter((c: unknown) => c && typeof c === "object")
-        .map((c: Record<string, unknown>) => ({
-          label: String(c.label || ""),
-          reason: String(c.reason || ""),
-        }))
-        .filter((c: { label: string }) => c.label);
-    }
+    if (!r.summary && r.passedChecks.length === 0 && r.failedChecks.length === 0) return null;
 
-    // Validate suggestions
-    if (Array.isArray(data.suggestions)) {
-      result.suggestions = data.suggestions
-        .filter((c: unknown) => c && typeof c === "object")
-        .map((c: Record<string, unknown>) => ({
-          label: String(c.label || ""),
-          suggestion: String(c.suggestion || ""),
-        }))
-        .filter((c: { label: string }) => c.label);
-    }
-
-    // At minimum we need a summary and some checks
-    if (!result.summary && result.passedChecks.length === 0 && result.failedChecks.length === 0) {
-      return null; // Truly empty response
-    }
-
-    // Auto-generate summary if missing
-    if (!result.summary) {
+    if (!r.summary) {
       const parts: string[] = [];
-      if (result.failedChecks.some(c => c.critical)) {
-        parts.push("توجد نواقص شكلية جوهرية");
-      } else if (result.failedChecks.length > 0) {
-        parts.push("توجد نواقص شكلية قابلة للتدارك");
-      }
-      if (result.passedChecks.length > 0) {
-        parts.push(`مع ${result.passedChecks.length} شروط مستوفاة`);
-      }
-      if (result.pendingChecks.length > 0) {
-        parts.push(`${result.pendingChecks.length} عناصر معلقة`);
-      }
-      result.summary = parts.join("، ") || "تم الفحص الشكلي للمستند.";
+      if (r.failedChecks.some(c => c.critical)) parts.push("توجد نواقص شكلية جوهرية");
+      else if (r.failedChecks.length > 0) parts.push("توجد نواقص شكلية قابلة للتدارك");
+      if (r.passedChecks.length > 0) parts.push(`مع ${r.passedChecks.length} شروط مستوفاة`);
+      if (r.pendingChecks.length > 0) parts.push(`${r.pendingChecks.length} عناصر معلقة`);
+      r.summary = parts.join("، ") || "تم الفحص الشكلي للمستند.";
     }
 
-    return result;
+    return r;
   } catch {
     return null;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Report Generator — تقرير نصي منظم
+// Report Generator
 // ═══════════════════════════════════════════════════════════════════════════
 
 function makeReport(r: PetitionCheckResult): string {
@@ -312,29 +221,20 @@ function makeReport(r: PetitionCheckResult): string {
   let s = `════════════════════════════════════════\n`;
   s += `        تقرير الفحص الشكلي\n`;
   s += `════════════════════════════════════════\n\n`;
-
   s += `📄 نوع الوثيقة: ${r.documentType || 'غير محدد'}\n`;
   s += `⚖️ الجهة القضائية: ${r.court || 'غير ظاهرة'}\n`;
   s += `📅 التاريخ: ${r.date || 'غير مذكور'}\n\n`;
   s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n`;
-  s += `🎯 النتيجة: ${verdict}\n`;
-  s += `📊 الدرجة: ${r.score}/100\n\n`;
+  s += `🎯 النتيجة: ${verdict}\n📊 الدرجة: ${r.score}/100\n\n`;
 
-  if (r.summary) {
-    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    s += `📝 الملخص:\n${r.summary}\n\n`;
-  }
-
+  if (r.summary) { s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n📝 الملخص:\n${r.summary}\n\n`; }
   if (r.passedChecks.length > 0) {
-    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    s += `✅ الشروط المستوفاة (${r.passedChecks.length}):\n`;
+    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✅ الشروط المستوفاة (${r.passedChecks.length}):\n`;
     for (const c of r.passedChecks) s += `   • ${c.label} — ${c.article}\n`;
     s += '\n';
   }
-
   if (r.failedChecks.length > 0) {
-    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    s += `❌ الشروط غير المستوفاة (${r.failedChecks.length}):\n`;
+    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ الشروط غير المستوفاة (${r.failedChecks.length}):\n`;
     for (const c of r.failedChecks) {
       s += `   • ${c.label} — ${c.critical ? '🔴 جوهري' : '🟡 قابل للتدارك'}\n`;
       s += `     المادة: ${c.article}\n`;
@@ -342,44 +242,43 @@ function makeReport(r: PetitionCheckResult): string {
     }
     s += '\n';
   }
-
   if (r.pendingChecks.length > 0) {
-    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    s += `🔍 فحوص معلّقة (${r.pendingChecks.length}):\n`;
+    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n🔍 فحوص معلّقة (${r.pendingChecks.length}):\n`;
     for (const c of r.pendingChecks) s += `   • ${c.label} — ${c.reason}\n`;
     s += '\n';
   }
-
   if (r.suggestions.length > 0) {
-    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
-    s += `✏️ اقتراحات التنقيح الشكلي (${r.suggestions.length}):\n`;
+    s += `━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n✏️ اقتراحات التنقيح الشكلي (${r.suggestions.length}):\n`;
     for (const c of r.suggestions) s += `   • ${c.label} → ${c.suggestion}\n`;
     s += '\n';
   }
-
   s += `══════════════════════════════════════\n`;
   s += `⚠️ تنبيه: هذا للفحص الشكلي الأولي ولا يغني عن مراجعة المحامي المختص.\n`;
   s += `🔒 الخصوصية: لا تُحفظ أي بيانات بعد انتهاء الفحص.\n`;
   s += `══════════════════════════════════════`;
-
   return s;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// API Route
+// AI Call — with per-model timeout + global abort signal
 // ═══════════════════════════════════════════════════════════════════════════
-
-export const maxDuration = 60;
 
 async function callModel(
   systemPrompt: string,
   userMessage: string,
   model: PetitionModel,
-): Promise<{ content: string | null; model: PetitionModel }> {
-  const timeout = model.tier === 0 ? 25000 : model.tier === 1 ? 12000 : model.tier === 2 ? 15000 : 8000;
+  globalSignal: AbortSignal,
+): Promise<{ content: string | null; model: PetitionModel; elapsed: number }> {
+  const timeout = model.tier === 0 ? TIER_0_TIMEOUT : model.tier === 1 ? TIER_1_TIMEOUT : TIER_2_TIMEOUT;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+
+  // Link global abort to per-model abort
+  const onGlobalAbort = () => { controller.abort(); };
+  globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
+
+  const startMs = Date.now();
 
   try {
     const res = await fetch(API_URL, {
@@ -397,22 +296,37 @@ async function callModel(
           { role: "user", content: userMessage },
         ],
         max_tokens: model.maxTokens,
-        temperature: 0.2, // Low for more deterministic output
+        temperature: 0.15,
       }),
       signal: controller.signal,
     });
     clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
 
-    if (!res.ok) return { content: null, model };
+    const elapsed = Date.now() - startMs;
+    console.log(`[PetitionCheck] ${model.label}: ${res.status} in ${elapsed}ms`);
+
+    if (!res.ok) return { content: null, model, elapsed };
 
     const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
-    return { content: content?.trim() || null, model };
-  } catch {
+    const content = data?.choices?.[0]?.message?.content?.trim();
+    return { content: content && content.length > 20 ? content : null, model, elapsed };
+  } catch (err) {
     clearTimeout(timer);
-    return { content: null, model };
+    globalSignal.removeEventListener("abort", onGlobalAbort);
+    const elapsed = Date.now() - startMs;
+    const reason = err instanceof Error && err.name === 'AbortError'
+      ? 'TIMEOUT' : err instanceof Error ? err.message : 'ERROR';
+    console.log(`[PetitionCheck] ${model.label}: ${reason} in ${elapsed}ms`);
+    return { content: null, model, elapsed };
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// API Route — Streaming SSE for real-time progress
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const maxDuration = 30; // Reduced from 60 — we don't need more
 
 export async function POST(req: NextRequest) {
   if (!OPENROUTER_KEY) {
@@ -423,105 +337,182 @@ export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
   const { limited } = await rateLimit({ key: 'petition-check', identifier: ip, limit: 10, window: 60 });
   if (limited) {
-    return NextResponse.json({ error: "تجاوزت الحد المسموح من الفحوص. انتظر دقيقة ثم حاول مرة أخرى." }, { status: 429 });
+    return NextResponse.json({ error: "تجاوزت الحد المسموح. انتظر دقيقة ثم حاول." }, { status: 429 });
   }
 
+  // ─── Parse request body ───
+  let text: string, documentType: string, documentCategory: string;
   try {
-    const { text, documentType, documentCategory } = await req.json();
-    if (!text?.trim()) return NextResponse.json({ error: "النص فارغ" }, { status: 400 });
-    if (!documentType) return NextResponse.json({ error: "اختر نوع الوثيقة" }, { status: 400 });
-    if (text.length > 15000) {
-      return NextResponse.json({ error: "النص طويل جداً. الحد الأقصى 15000 حرف." }, { status: 400 });
-    }
+    const body = await req.json();
+    text = body.text?.trim() || "";
+    documentType = body.documentType;
+    documentCategory = body.documentCategory;
+  } catch {
+    return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
+  }
 
-    const docLabel = TYPE_LABELS[documentType] || documentType;
-    const cat = { civil: "مدني", admin: "إداري", criminal: "جزائي" }[documentCategory] || "";
+  if (!text) return NextResponse.json({ error: "النص فارغ" }, { status: 400 });
+  if (!documentType) return NextResponse.json({ error: "اختر نوع الوثيقة" }, { status: 400 });
+  if (text.length > 15000) {
+    return NextResponse.json({ error: "النص طويل جداً. الحد الأقصى 15000 حرف." }, { status: 400 });
+  }
 
-    // ✅ FIX: Send full text (up to 12000 chars), not truncated to 5000
-    const userMsg = `## نوع الوثيقة: ${docLabel}
-## القسم: ${cat}
+  // ─── Global timeout — hard cap ───
+  const globalController = new AbortController();
+  const globalTimer = setTimeout(() => globalController.abort(), GLOBAL_TIMEOUT_MS);
 
-## محتوى الوثيقة:
-${text.slice(0, 12000)}
+  const docLabel = TYPE_LABELS[documentType] || documentType;
+  const cat = { civil: "مدني", admin: "إداري", criminal: "جزائي" }[documentCategory] || "";
 
-## تنسيق JSON المطلوب (التزم به حرفياً):
+  // Truncate input to max chars for speed
+  const truncatedText = text.length > MAX_INPUT_CHARS
+    ? text.slice(0, MAX_INPUT_CHARS)
+    : text;
+
+  const userMsg = `نوع الوثيقة: ${docLabel} (${cat})
+
+محتوى الوثيقة:
+${truncatedText}
+
+JSON المطلوب:
 ${JSON_FORMAT_EXAMPLE}
 
-## تنبيه أخير:
-ردك يجب أن يكون JSON صالح فقط. لا تكتب أي شيء آخر.`;
+ردك يجب أن يكون JSON صالح فقط.`;
 
-    const tried: string[] = [];
-    let parsedResult: PetitionCheckResult | null = null;
-    let usedModel = MODELS[0];
+  // ─── SSE Stream ───
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
 
-    // Strategy: Try each model, validate JSON response
-    for (const m of MODELS) {
-      tried.push(m.id);
-      const { content, model } = await callModel(SYSTEM_PROMPT, userMsg, m);
+      const sendError = (message: string) => {
+        send("error", { error: message });
+        controller.close();
+      };
 
-      if (!content || content.length < 20) continue;
+      try {
+        const startTime = Date.now();
+        const tried: string[] = [];
+        let parsedResult: PetitionCheckResult | null = null;
+        let usedModel = MODELS[0];
 
-      console.log(`[PetitionCheck] Model ${m.id} returned ${content.length} chars`);
+        // Notify: analysis started
+        send("status", { step: "connecting", message: "جاري الاتصال بنموذج الذكاء الاصطناعي..." });
 
-      // Try to parse and validate
-      const parsed = parseAndValidate(content);
-      if (parsed) {
-        parsedResult = parsed;
-        usedModel = model;
-        break;
-      }
+        // Try models with limit
+        for (let i = 0; i < MODELS.length && i < MAX_MODELS_TO_TRY; i++) {
+          if (globalController.signal.aborted) {
+            send("status", { step: "timeout", message: "تجاوز الوقت المسموح" });
+            break;
+          }
 
-      // If Tier 0 failed JSON parsing, retry once with a stronger instruction
-      if (m.tier === 0) {
-        console.log(`[PetitionCheck] Retrying ${m.id} with stricter prompt...`);
-        const retryMsg = userMsg + "\n\n⚠️ تنبيه مهم: ردك السابق لم يكن JSON صالح. يجب أن يكون الرد كائن JSON واحد فقط. لا تضف شيئاً قبله أو بعده. JSON فقط.";
-        const retry = await callModel(SYSTEM_PROMPT, retryMsg, m);
-        if (retry.content) {
-          const retryParsed = parseAndValidate(retry.content);
-          if (retryParsed) {
-            parsedResult = retryParsed;
+          const m = MODELS[i];
+          tried.push(m.id);
+
+          send("status", {
+            step: "analyzing",
+            message: `جاري التحليل بواسطة ${m.label}...`,
+            model: m.label,
+            attempt: i + 1,
+            maxAttempts: MAX_MODELS_TO_TRY,
+          });
+
+          const { content, model, elapsed } = await callModel(
+            SYSTEM_PROMPT, userMsg, m, globalController.signal,
+          );
+
+          if (!content) continue;
+
+          console.log(`[PetitionCheck] ${m.id} → ${content.length} chars in ${elapsed}ms`);
+
+          // Try to parse
+          const parsed = parseAndValidate(content);
+          if (parsed) {
+            parsedResult = parsed;
             usedModel = model;
             break;
           }
+
+          // Retry Tier 0 once with stricter instruction
+          if (m.tier === 0) {
+            console.log(`[PetitionCheck] Retrying ${m.id}...`);
+            send("status", { step: "retrying", message: "إعادة المحاولة بتعليمات أوضح..." });
+
+            const retryMsg = userMsg + "\n\n⚠️ ردك لم يكن JSON صالح. أعد الرد بكائن JSON واحد فقط. لا شيء قبله أو بعده.";
+            const retry = await callModel(SYSTEM_PROMPT, retryMsg, m, globalController.signal);
+
+            if (retry.content) {
+              const retryParsed = parseAndValidate(retry.content);
+              if (retryParsed) {
+                parsedResult = retryParsed;
+                usedModel = model;
+                break;
+              }
+            }
+          }
         }
+
+        clearTimeout(globalTimer);
+        const totalTime = Date.now() - startTime;
+
+        console.log(`[PetitionCheck] Total: ${totalTime}ms, Models tried: ${tried.length}, Parsed: ${!!parsedResult}`);
+
+        // Build result
+        if (parsedResult) {
+          const report = makeReport(parsedResult);
+          send("complete", {
+            ...parsedResult,
+            report,
+            rawReport: report,
+            aiPowered: true,
+            model: usedModel.id,
+            modelLabel: usedModel.label,
+            tier: usedModel.tier,
+            triedModels: tried,
+            parseFailed: false,
+            executionTime: totalTime,
+          });
+        } else {
+          // Timeout or all models failed
+          const isTimeout = globalController.signal.aborted;
+          const empty = createEmptyResult();
+          empty.summary = isTimeout
+            ? "استغرق التحليل وقتاً أطول من المتوقع. يرجى تقصير النص والمحاولة مرة أخرى."
+            : "تم الاتصال بالذكاء الاصطناعي لكن تعذّر تنسيق النتائج. يرجى المحاولة مرة أخرى.";
+
+          send(isTimeout ? "timeout" : "complete", {
+            ...empty,
+            report: `⚠️ ${empty.summary}`,
+            aiPowered: !isTimeout,
+            model: usedModel.id,
+            modelLabel: usedModel.label,
+            tier: usedModel.tier,
+            triedModels: tried,
+            parseFailed: true,
+            executionTime: totalTime,
+            timedOut: isTimeout,
+          });
+        }
+
+        controller.close();
+      } catch (err) {
+        clearTimeout(globalTimer);
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        console.error(`[PetitionCheck] Fatal: ${msg}`);
+        sendError("حدث خطأ في التحليل. يرجى المحاولة مرة أخرى.");
+        controller.close();
       }
+    },
+  });
 
-      // If no valid result yet, continue to next model
-      usedModel = model;
-    }
-
-    // If all models returned content but none parsed successfully, use raw content
-    if (!parsedResult) {
-      // Build a best-effort result from the situation
-      return NextResponse.json({
-        ...createEmptyResult(),
-        result: "needs_review",
-        summary: "تم تحليل الوثيقة لكن تعذّر تنسيق النتائج تلقائياً. يرجى المحاولة مرة أخرى.",
-        report: "⚠️ لم يتم الحصول على نتائج منظمة. يرجى إعادة المحاولة.",
-        aiPowered: true,
-        model: usedModel.id,
-        modelLabel: usedModel.label,
-        tier: usedModel.tier,
-        triedModels: tried,
-        parseFailed: true,
-      });
-    }
-
-    const report = makeReport(parsedResult);
-
-    return NextResponse.json({
-      ...parsedResult,
-      report,
-      rawReport: report,
-      aiPowered: true,
-      model: usedModel.id,
-      modelLabel: usedModel.label,
-      tier: usedModel.tier,
-      triedModels: tried,
-      parseFailed: false,
-    });
-  } catch (err) {
-    console.error("Petition Check Error:", err instanceof Error ? err.message : "Unknown error");
-    return NextResponse.json({ error: "حدث خطأ في تحليل الوثيقة. يرجى المحاولة مرة أخرى." }, { status: 500 });
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no", // Disable nginx buffering (for proxy setups)
+    },
+  });
 }

@@ -2,114 +2,38 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// المساعد القانوني الذكي — OpenRouter Multi-Model with Smart Fallback v4
-//
-// أفضل 10 نماذج مجانية من OpenRouter تفهم العربية والقانون (محدّث 03/04/2026):
-//   Tier 1 (أقوى — ذكاء عالي + عربي ممتاز):
-//     1. qwen/qwen3.6-plus:free                  ← 1M context, عربي ممتاز ⭐
-//     2. openai/gpt-oss-120b:free                 ← 131K context, تفكير منطقي عالي
-//     3. qwen/qwen3-coder:free                    ← 262K context, عربي جيد
-//
-//   Tier 2 (قوية — احتياطية):
-//     4. google/gemma-3-27b-it:free               ← 131K context, دقيق
-//     5. meta-llama/llama-3.3-70b-instruct:free   ← 65K context, متعدد اللغات
-//     6. stepfun/step-3.5-flash:free              ← 256K context, سريع
-//
-//   Tier 3 (احتياطية أخيرة):
-//     7. nvidia/nemotron-3-nano-30b-a3b:free      ← 256K context, جيد
-//     8. minimax/minimax-m2.5:free                ← 196K context
-//     9. openai/gpt-oss-20b:free                  ← 131K context, موثوق
-//     10. arcee-ai/trinity-mini:free               ← 131K context
+// المساعد القانوني الذكي — OpenRouter Multi-Model with Smart Fallback v5
+// ⚡ Optimized for speed: max 4 models, 10s global timeout
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
+
+const GLOBAL_TIMEOUT_MS = 25_000; // Chat can be a bit longer than petition check
+const MAX_MODELS_TO_TRY = 4;
+const TIER_TIMEOUTS: Record<number, number> = { 1: 10_000, 2: 8_000, 3: 6_000 };
 
 interface ModelConfig {
   id: string;
   label: string;
   tier: number;
   maxTokens: number;
-  description: string;
 }
 
 const ALL_MODELS: ModelConfig[] = [
-  // Tier 1 - أقوى النماذج للعربية والقانون (محدّثة 03/04/2026)
-  {
-    id: "qwen/qwen3.6-plus:free",
-    label: "Qwen 3.6 Plus ⭐",
-    tier: 1,
-    maxTokens: 4096,
-    description: "1M سياق — عربي ممتاز + قانون",
-  },
-  {
-    id: "openai/gpt-oss-120b:free",
-    label: "GPT OSS 120B ⭐",
-    tier: 1,
-    maxTokens: 4096,
-    description: "131K سياق — تفكير منطقي عالي",
-  },
-  {
-    id: "qwen/qwen3-coder:free",
-    label: "Qwen3 Coder ⭐",
-    tier: 1,
-    maxTokens: 4096,
-    description: "262K سياق — عربي جيد + دقيق",
-  },
-  // Tier 2 - قوية
-  {
-    id: "google/gemma-3-27b-it:free",
-    label: "Gemma 3 27B",
-    tier: 2,
-    maxTokens: 4096,
-    description: "Google — دقيق ومنضبط",
-  },
-  {
-    id: "meta-llama/llama-3.3-70b-instruct:free",
-    label: "Llama 3.3 70B",
-    tier: 2,
-    maxTokens: 4096,
-    description: "Meta — متعدد اللغات",
-  },
-  {
-    id: "stepfun/step-3.5-flash:free",
-    label: "Step 3.5 Flash",
-    tier: 2,
-    maxTokens: 4096,
-    description: "256K سياق — سريع جداً",
-  },
+  // Tier 1 - أقوى النماذج
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus ⭐", tier: 1, maxTokens: 4096 },
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B ⭐",  tier: 1, maxTokens: 4096 },
+  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder ⭐",    tier: 1, maxTokens: 4096 },
+  // Tier 2 - قوية وسريعة
+  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",       tier: 2, maxTokens: 4096 },
+  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",    tier: 2, maxTokens: 4096 },
+  { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash",    tier: 2, maxTokens: 4096 },
   // Tier 3 - احتياطية أخيرة
-  {
-    id: "nvidia/nemotron-3-nano-30b-a3b:free",
-    label: "Nemotron Nano 30B",
-    tier: 3,
-    maxTokens: 4096,
-    description: "256K سياق — جيد ومتعدد اللغات",
-  },
-  {
-    id: "minimax/minimax-m2.5:free",
-    label: "MiniMax M2.5",
-    tier: 3,
-    maxTokens: 4096,
-    description: "196K سياق — متعدد اللغات",
-  },
-  {
-    id: "openai/gpt-oss-20b:free",
-    label: "GPT OSS 20B",
-    tier: 3,
-    maxTokens: 4096,
-    description: "131K سياق — أصغر لكن موثوق",
-  },
-  {
-    id: "arcee-ai/trinity-mini:free",
-    label: "Trinity Mini",
-    tier: 3,
-    maxTokens: 4096,
-    description: "131K سياق — احتياطية أخيرة",
-  },
+  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",       tier: 3, maxTokens: 4096 },
+  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron Nano",    tier: 3, maxTokens: 4096 },
 ];
 
-// Fallback chain: try Tier 1 first, then Tier 2, then Tier 3
 const FALLBACK_CHAIN = ALL_MODELS.sort((a, b) => a.tier - b.tier);
 
 const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج في تطبيق "شامل" — المنصة القانونية الذكية في الجزائر.
@@ -181,25 +105,17 @@ interface Message {
 async function callOpenRouter(
   messages: Message[],
   modelConfig: ModelConfig,
-  signal?: AbortSignal,
+  globalSignal: AbortSignal,
 ): Promise<{ content: string | null; error?: string }> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000); // 15s timeout per model
+  const timeout = TIER_TIMEOUTS[modelConfig.tier] || 6_000;
 
-  // Link external signal if provided
-  signal?.addEventListener("abort", () => controller.abort());
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  const onGlobalAbort = () => controller.abort();
+  globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
 
   try {
-    const body: Record<string, unknown> = {
-      model: modelConfig.id,
-      messages: [
-        { role: "system", content: SYSTEM_PROMPT },
-        ...messages,
-      ],
-      max_tokens: modelConfig.maxTokens,
-      temperature: 0.7,
-    };
-
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {
@@ -208,47 +124,53 @@ async function callOpenRouter(
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
         "X-Title": "Shamil DZ - AI Legal Assistant",
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({
+        model: modelConfig.id,
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...messages,
+        ],
+        max_tokens: modelConfig.maxTokens,
+        temperature: 0.7,
+      }),
       signal: controller.signal,
     });
 
-    clearTimeout(timeout);
+    clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
 
     if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      const errMsg = errBody?.error?.message || `HTTP ${res.status}`;
-      return { content: null, error: errMsg };
+      return { content: null, error: `HTTP ${res.status}` };
     }
 
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content;
-
     return { content: content || null };
-  } catch (err: unknown) {
-    clearTimeout(timeout);
-    if (err instanceof DOMException && err.name === "AbortError") {
-      return { content: null, error: "timeout" };
-    }
-    return { content: null, error: "حدث خطأ داخلي" };
+  } catch (err) {
+    clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
+    const reason = err instanceof Error && err.name === 'AbortError' ? 'timeout' : 'error';
+    return { content: null, error: reason };
   }
 }
 
-export const maxDuration = 60; // Extend Vercel function timeout to 60s
+export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
   if (!OPENROUTER_KEY) {
-    return NextResponse.json(
-      { error: "مفتاح OpenRouter غير مضبوط." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "مفتاح OpenRouter غير مضبوط." }, { status: 500 });
   }
 
-  // Rate limiting: 20 requests per minute per IP
+  // Rate limiting
   const ip = getClientIp(req);
-  const { limited, remaining } = await rateLimit({ key: 'ai-chat', identifier: ip, limit: 20, window: 60 });
+  const { limited } = await rateLimit({ key: 'ai-chat', identifier: ip, limit: 20, window: 60 });
   if (limited) {
     return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
   }
+
+  // Global timeout controller
+  const globalController = new AbortController();
+  const globalTimer = setTimeout(() => globalController.abort(), GLOBAL_TIMEOUT_MS);
 
   try {
     const { messages, userMessage, model: preferredModel } = await req.json();
@@ -269,47 +191,52 @@ export async function POST(req: NextRequest) {
     let reply: string | null = null;
     let usedModelConfig: ModelConfig | null = null;
     const triedModels: string[] = [];
-    const errors: string[] = [];
+    let modelsTried = 0;
 
-    // Strategy 1: Try user's preferred model first
+    // Try preferred model first
     if (preferredModel) {
       const prefConfig = ALL_MODELS.find(m => m.id === preferredModel);
       if (prefConfig) {
         triedModels.push(prefConfig.id);
-        const result = await callOpenRouter(chatMessages, prefConfig);
+        modelsTried++;
+        const result = await callOpenRouter(chatMessages, prefConfig, globalController.signal);
         if (result.content) {
           reply = result.content;
           usedModelConfig = prefConfig;
-        } else if (result.error) {
-          errors.push(`${prefConfig.label}: ${result.error}`);
         }
       }
     }
 
-    // Strategy 2: Sequential Fallback through tiers
+    // Fallback chain — with max limit
     if (!reply) {
       for (const modelConfig of FALLBACK_CHAIN) {
+        if (globalController.signal.aborted) break;
         if (triedModels.includes(modelConfig.id)) continue;
+        if (modelsTried >= MAX_MODELS_TO_TRY) break;
 
         triedModels.push(modelConfig.id);
-        const result = await callOpenRouter(chatMessages, modelConfig);
+        modelsTried++;
 
+        const result = await callOpenRouter(chatMessages, modelConfig, globalController.signal);
         if (result.content) {
           reply = result.content;
           usedModelConfig = modelConfig;
           break;
-        } else if (result.error) {
-          errors.push(`${modelConfig.label}: ${result.error}`);
         }
       }
     }
 
+    clearTimeout(globalTimer);
+
     if (!reply) {
+      const isTimeout = globalController.signal.aborted;
       return NextResponse.json(
         {
-          error: `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة مرة أخرى.`,
+          error: isTimeout
+            ? "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."
+            : `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة مرة أخرى.`,
           triedModels,
-          errors,
+          timedOut: isTimeout,
         },
         { status: 503 }
       );
@@ -324,25 +251,22 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
+    clearTimeout(globalTimer);
     console.error("AI API Error:", err instanceof Error ? err.message : "Unknown error");
     return NextResponse.json({ error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." }, { status: 500 });
   }
 }
 
-// GET endpoint to list available models with details
+// GET endpoint to list available models
 export async function GET() {
   return NextResponse.json({
     models: ALL_MODELS.map(m => ({
       id: m.id,
       label: m.label,
       tier: m.tier,
-      description: m.description,
     })),
     totalModels: ALL_MODELS.length,
-    tiers: {
-      1: "أقوى — ذكاء عالي + عربي ممتاز",
-      2: "قوية — احتياطية",
-      3: "احتياطية أخيرة",
-    },
+    maxRetry: MAX_MODELS_TO_TRY,
+    globalTimeout: GLOBAL_TIMEOUT_MS,
   });
 }

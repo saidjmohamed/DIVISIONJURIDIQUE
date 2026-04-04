@@ -1,23 +1,24 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي الموحد
+ * AI Core — محرك الذكاء الاصطناعي الموحد (v2)
  *
- * يُوفر منطقاً مشتركاً لكل الأدوات التي تستخدم AI:
- * - petition-check (الفحص الشكلي)
- * - contract-review (فحص العقود) — مستقبلاً
- * - judgment-analyzer (تحليل الأحكام) — مستقبلاً
+ * ⚡ Performance-optimized shared logic:
+ * - Global timeout (configurable)
+ * - Max models limit (prevent cascading)
+ * - Per-model tier-based timeouts
+ * - AbortController with global signal linking
  *
- * يشارك: retry logic, model fallback, rate limiting, JSON parsing
+ * Used by: petition-check, ai-chat, future tools
  */
 
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // ─── Model Configuration ───────────────────────────────────
 
-interface AIModel {
+export interface AIModel {
   id: string;
   label: string;
   tier: number;
@@ -25,24 +26,36 @@ interface AIModel {
 }
 
 export const AI_MODELS: AIModel[] = [
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 0, maxTokens: 8192 },
-  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron Nano 30B",    tier: 1, maxTokens: 4096 },
-  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",           tier: 1, maxTokens: 4096 },
-  { id: "arcee-ai/trinity-mini:free",             label: "Trinity Mini",          tier: 1, maxTokens: 4096 },
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 0, maxTokens: 4096 },
   { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash",        tier: 1, maxTokens: 4096 },
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2, maxTokens: 6144 },
-  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder",           tier: 2, maxTokens: 6144 },
-  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 3, maxTokens: 4096 },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",        tier: 3, maxTokens: 4096 },
-  { id: "minimax/minimax-m2.5:free",              label: "MiniMax M2.5",          tier: 3, maxTokens: 4096 },
+  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",           tier: 1, maxTokens: 4096 },
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2, maxTokens: 4096 },
 ];
+
+// ─── Timeout Configuration ─────────────────────────────────
+
+export const TIMEOUT_CONFIG = {
+  tier0: 8_000,   // Primary model: 8s
+  tier1: 6_000,   // Fast fallback: 6s
+  tier2: 6_000,   // Strong fallback: 6s
+  tier3: 5_000,   // Last resort: 5s
+} as const;
+
+export function getTierTimeout(tier: number): number {
+  switch (tier) {
+    case 0: return TIMEOUT_CONFIG.tier0;
+    case 1: return TIMEOUT_CONFIG.tier1;
+    case 2: return TIMEOUT_CONFIG.tier2;
+    default: return TIMEOUT_CONFIG.tier3;
+  }
+}
 
 // ─── Rate Limiting Helper ─────────────────────────────────
 
 export interface RateLimitConfig {
   key: string;
   limit: number;
-  window: number; // seconds
+  window: number;
 }
 
 export async function checkRateLimit(
@@ -64,27 +77,24 @@ export async function checkRateLimit(
 
 // ─── AI Call with Retry & Fallback ────────────────────────
 
-interface AICallOptions {
+export interface AICallOptions {
   systemPrompt: string;
   userMessage: string;
-  /** Maximum tokens for response */
   maxTokens?: number;
-  /** Temperature (default: 0.2) */
   temperature?: number;
-  /** Timeout per model in ms (default: 25000) */
-  timeout?: number;
-  /** Number of retry attempts on Tier 0 if parsing fails (default: 0) */
+  globalTimeoutMs?: number;
+  maxModelsToTry?: number;
   retries?: number;
-  /** Custom retry message to append */
   retryMessage?: string;
-  /** Only try models up to this tier */
   maxTier?: number;
 }
 
-interface AIResult {
+export interface AIResult {
   content: string;
   model: AIModel;
   triedModels: string[];
+  elapsedMs: number;
+  timedOut: boolean;
 }
 
 export async function callAI(options: AICallOptions): Promise<AIResult | null> {
@@ -94,37 +104,69 @@ export async function callAI(options: AICallOptions): Promise<AIResult | null> {
     systemPrompt,
     userMessage,
     temperature = 0.2,
-    timeout = 25000,
+    globalTimeoutMs = 14_000,
+    maxModelsToTry = 3,
     retries = 0,
     retryMessage,
-    maxTier = 3,
+    maxTier = 2,
   } = options;
 
+  const globalController = new AbortController();
+  const globalTimer = setTimeout(() => globalController.abort(), globalTimeoutMs);
+
   const tried: string[] = [];
+  const startTime = Date.now();
+  let modelsTried = 0;
 
-  for (const model of AI_MODELS) {
-    if (model.tier > maxTier) continue;
-    tried.push(model.id);
+  try {
+    for (const model of AI_MODELS) {
+      if (model.tier > maxTier) continue;
+      if (globalController.signal.aborted) break;
+      if (modelsTried >= maxModelsToTry) break;
 
-    const maxTok = options.maxTokens || model.maxTokens;
+      tried.push(model.id);
+      modelsTried++;
 
-    // First attempt
-    const result = await callSingleModel(systemPrompt, userMessage, model, maxTok, temperature, timeout);
-    if (result) {
-      return { content: result, model, triedModels: tried };
-    }
+      const maxTok = options.maxTokens || model.maxTokens;
+      const timeout = getTierTimeout(model.tier);
 
-    // Retry on Tier 0
-    if (model.tier === 0 && retries > 0) {
-      const retryMsg = userMessage + (retryMessage || "\n\n⚠️ تنبيه: ردك السابق لم يكن بالصيغة المطلوبة. حاول مرة أخرى.");
-      const retryResult = await callSingleModel(systemPrompt, retryMsg, model, maxTok, temperature, timeout * 1.5);
-      if (retryResult) {
-        return { content: retryResult, model, triedModels: tried };
+      // First attempt
+      const result = await callSingleModel(
+        systemPrompt, userMessage, model, maxTok, temperature, timeout, globalController.signal,
+      );
+      if (result) {
+        clearTimeout(globalTimer);
+        return {
+          content: result, model, triedModels: tried,
+          elapsedMs: Date.now() - startTime, timedOut: false,
+        };
+      }
+
+      // Retry on Tier 0
+      if (model.tier === 0 && retries > 0 && !globalController.signal.aborted) {
+        const retryMsg = userMessage + (retryMessage || "\n\n⚠️ ردك لم يكن بالصيغة المطلوبة. أعد المحاولة.");
+        const retryResult = await callSingleModel(
+          systemPrompt, retryMsg, model, maxTok, temperature, timeout * 1.2, globalController.signal,
+        );
+        if (retryResult) {
+          clearTimeout(globalTimer);
+          return {
+            content: retryResult, model, triedModels: tried,
+            elapsedMs: Date.now() - startTime, timedOut: false,
+          };
+        }
       }
     }
-  }
 
-  return null; // All models failed
+    clearTimeout(globalTimer);
+    return {
+      content: '', model: AI_MODELS[0], triedModels: tried,
+      elapsedMs: Date.now() - startTime, timedOut: globalController.signal.aborted,
+    };
+  } catch {
+    clearTimeout(globalTimer);
+    return null;
+  }
 }
 
 async function callSingleModel(
@@ -134,9 +176,13 @@ async function callSingleModel(
   maxTokens: number,
   temperature: number,
   timeout: number,
+  globalSignal: AbortSignal,
 ): Promise<string | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
+
+  const onGlobalAbort = () => controller.abort();
+  globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
 
   try {
     const res = await fetch(API_URL, {
@@ -159,6 +205,7 @@ async function callSingleModel(
       signal: controller.signal,
     });
     clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
 
     if (!res.ok) return null;
 
@@ -167,6 +214,7 @@ async function callSingleModel(
     return content && content.length > 20 ? content : null;
   } catch {
     clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
     return null;
   }
 }
@@ -182,7 +230,6 @@ export function extractJSON(raw: string): string | null {
     try { JSON.parse(codeBlockMatch[1].trim()); return codeBlockMatch[1].trim(); } catch {}
   }
 
-  // Find outermost balanced {...}
   let depth = 0, start = -1;
   for (let i = 0; i < trimmed.length; i++) {
     if (trimmed[i] === '{') { if (depth === 0) start = i; depth++; }
@@ -194,18 +241,13 @@ export function extractJSON(raw: string): string | null {
     }
   }
 
-  // Try fixing truncated JSON
   if (start !== -1) {
-    let truncated = trimmed.substring(start);
-    const openB = (truncated.match(/\{/g) || []).length;
-    const closeB = (truncated.match(/\}/g) || []).length;
-    const openBr = (truncated.match(/\[/g) || []).length;
-    const closeBr = (truncated.match(/\]/g) || []).length;
-    truncated = truncated.replace(/,\s*"[^"]*"\s*:?\s*$/, '');
-    truncated = truncated.replace(/,\s*$/, '');
-    truncated += ']'.repeat(Math.max(0, openBr - closeBr));
-    truncated += '}'.repeat(Math.max(0, openB - closeB));
-    try { JSON.parse(truncated); return truncated; } catch {}
+    let t = trimmed.substring(start);
+    t = t.replace(/,\s*"[^"]*"\s*:?\s*$/, '').replace(/,\s*$/, '');
+    const ob = (t.match(/\{/g) || []).length - (t.match(/\}/g) || []).length;
+    const oa = (t.match(/\[/g) || []).length - (t.match(/\]/g) || []).length;
+    t += ']'.repeat(Math.max(0, oa)) + '}'.repeat(Math.max(0, ob));
+    try { JSON.parse(t); return t; } catch {}
   }
 
   return null;
