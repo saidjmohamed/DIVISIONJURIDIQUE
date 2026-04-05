@@ -261,6 +261,63 @@ export default function JudgmentAnalyzer({ onBack }: { onBack: () => void }) {
     try {
       const text = await extractTextFromFile(file);
       if (!text.trim()) throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
+
+      // ── محاولة AI أولاً ──────────────────────────────────────────────
+      try {
+        const res = await fetch('/api/tools/judgment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text }),
+        });
+
+        if (res.ok) {
+          const reader = res.body?.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let aiData: Record<string, unknown> | null = null;
+
+          while (reader) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data:')) continue;
+              try {
+                const data = JSON.parse(line.slice(5).trim()) as Record<string, unknown>;
+                if (data.error) throw new Error(data.error as string);
+                if (data.court || data.ruling) aiData = data;
+              } catch { /* تجاهل */ }
+            }
+          }
+
+          if (aiData) {
+            // تحويل مخرج AI إلى هيكل JudgmentExtraction
+            const toField = (val: unknown, label: string): ExtractedField => ({
+              label,
+              value: String(val || 'لم يتم استخراجه — يرجى المراجعة يدوياً'),
+              found: !!val,
+            });
+            const aiExtraction: JudgmentExtraction = {
+              court:         toField(aiData.court,     'الجهة القضائية'),
+              caseNumber:    toField(aiData.caseNumber,'رقم القضية'),
+              date:          toField(aiData.date,      'تاريخ الحكم'),
+              plaintiff:     toField(aiData.plaintiff, 'المدعي/المستأنف'),
+              defendant:     toField(aiData.defendant, 'المدعى عليه'),
+              ruling:        toField(aiData.ruling,    'منطوق الحكم'),
+              legalArticles: Array.isArray(aiData.legalBasis) ? (aiData.legalBasis as string[]) : [],
+            };
+            setExtraction(aiExtraction);
+            return; // ✅ AI نجح
+          }
+        }
+      } catch (aiErr) {
+        console.warn('[JudgmentAnalyzer] AI فشل، سيستخدم الاستخراج الآلي:', aiErr);
+      }
+
+      // ── Fallback: استخراج regex التقليدي ──────────────────────
       const result = extractJudgment(text);
       setExtraction(result);
     } catch (err) {

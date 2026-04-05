@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 
 /* ─────────────────────── Types ─────────────────────── */
 
@@ -169,6 +169,11 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
   });
   const [memo, setMemo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [aiPowered, setAiPowered] = useState(false);
+  const [modelLabel, setModelLabel] = useState<string>('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _abortRef = useRef<AbortController | null>(null);
 
   function updateField<K extends keyof FormData>(key: K, value: FormData[K]) {
     setFormData(prev => ({ ...prev, [key]: value }));
@@ -177,10 +182,60 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
   const isValid = formData.court.trim() && formData.plaintiff.trim() && formData.defendant.trim() &&
     formData.facts.trim() && formData.requests.trim();
 
-  function handleGenerate() {
+  async function handleGenerate() {
     if (!isValid) return;
+    setLoading(true);
+    setAiPowered(false);
+    setModelLabel('');
+
+    // ── محاولة AI أولاً ────────────────────────────────────────────
+    try {
+      const res = await fetch('/api/tools/memo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+
+      if (res.ok) {
+        const reader = res.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let aiMemo = '';
+        let aiModel = '';
+
+        while (reader) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data:')) continue;
+            try {
+              const data = JSON.parse(line.slice(5).trim());
+              if (data.memo) { aiMemo = data.memo; aiModel = data.modelLabel || ''; }
+            } catch { /* تجاهل */ }
+          }
+        }
+
+        if (aiMemo) {
+          setMemo(aiMemo);
+          setAiPowered(true);
+          setModelLabel(aiModel);
+          setLoading(false);
+          return; // ✅ AI نجح
+        }
+      }
+    } catch (aiErr) {
+      console.warn('[MemoDrafter] AI فشل، سيستخدم القالب الثابت:', aiErr);
+    }
+
+    // ── Fallback: القالب الثابت ──────────────────────────────────
     const text = generateMemo(formData);
     setMemo(text);
+    setAiPowered(false);
+    setLoading(false);
   }
 
   function copyMemo() {
@@ -206,7 +261,17 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-lg mb-6">
           <div className="bg-[#6d28d9] p-4 text-white flex justify-between items-center">
-            <span className="text-xs font-bold">{MEMO_TYPES.find(m => m.key === formData.memoType)?.label}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold">{MEMO_TYPES.find(m => m.key === formData.memoType)?.label}</span>
+              {aiPowered && (
+                <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">
+                  🤖 {modelLabel || 'AI'}
+                </span>
+              )}
+              {!aiPowered && (
+                <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded-full">📄 قالب ثابت</span>
+              )}
+            </div>
             <button onClick={copyMemo} className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-lg transition-all">
               {copied ? '✅ تم النسخ' : '📋 نسخ النص'}
             </button>
@@ -350,10 +415,17 @@ export default function MemoDrafter({ onBack }: { onBack: () => void }) {
 
         <button
           onClick={handleGenerate}
-          disabled={!isValid}
-          className="w-full py-4 bg-[#6d28d9] hover:bg-[#5b21b6] disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md active:scale-[0.98]"
+          disabled={!isValid || loading}
+          className="w-full py-4 bg-[#6d28d9] hover:bg-[#5b21b6] disabled:opacity-50 text-white rounded-xl font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
         >
-          ✨ إنشاء المذكرة القانونية
+          {loading ? (
+            <>
+              <span className="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              جاري صياغة المذكرة...
+            </>
+          ) : (
+            <>✨ إنشاء بالذكاء الاصطناعي</>
+          )}
         </button>
       </div>
     </div>

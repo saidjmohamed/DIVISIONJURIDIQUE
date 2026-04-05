@@ -378,7 +378,58 @@ export default function ContractReviewer({ onBack }: { onBack: () => void }) {
     try {
       const text = await extractTextFromFile(file);
       if (!text.trim()) throw new Error('لم يتم استخراج أي نص من المستند. تأكد أن الملف يحتوي على نص.');
-      // Client-side programmatic check — no API call
+
+      // ── محاولة AI أولاً ──────────────────────────────────────────────
+      try {
+        const res = await fetch('/api/tools/contract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, contractType }),
+        });
+
+        if (res.ok && res.headers.get('content-type')?.includes('text/event-stream')) {
+          const reader = res.body?.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let aiResult: ContractAnalysis | null = null;
+
+          while (reader) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (!line.startsWith('data:')) continue;
+              try {
+                const data = JSON.parse(line.slice(5).trim());
+                if (data.error) throw new Error(data.error);
+                if (data.checks && Array.isArray(data.checks)) {
+                  aiResult = {
+                    contractType: data.contractType || 'عقد',
+                    result: data.result || 'has_issues',
+                    score: data.score ?? 50,
+                    checks: data.checks,
+                    missingClauses: data.missingClauses || [],
+                    risks: data.risks || [],
+                    summary: data.summary || '',
+                  };
+                }
+              } catch { /* تجاهل سطر غير صالح */ }
+            }
+          }
+
+          if (aiResult) {
+            setAnalysis(aiResult);
+            return; // ✅ AI نجح
+          }
+        }
+      } catch (aiErr) {
+        console.warn('[ContractReviewer] AI فشل، سيستخدم الفحص الآلي:', aiErr);
+      }
+
+      // ── Fallback: الفحص الآلي بالكلمات المفتاحية ─────────────────────
       const result = reviewContract(text, contractType);
       setAnalysis(result);
     } catch (err) {

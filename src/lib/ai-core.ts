@@ -1,16 +1,17 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي (v8 — Fallback System)
+ * AI Core — محرك الذكاء الاصطناعي (v10 — Smart Fallback System)
  *
  * 🥇 المزود الأول:  OpenRouter → qwen/qwen3.6-plus:free
- * 🥈 المزود الثاني: Google Gemini 2.0 Flash  (fallback تلقائي — مجاني)
+ * 🥈 Fallback 1:    Google Gemini 2.5 Flash  (أسرع — مدفوع)
+ * 🥉 Fallback 2:    Google Gemini 2.0 Flash  (مجاني — 4 مفاتيح بالتناوب)
  *
  * الانتقال يحدث تلقائياً عند:
- *   - Rate limit (429) من OpenRouter
+ *   - Rate limit (429) من أي مزود
  *   - خطأ في الخادم (5xx)
  *   - Timeout
  *   - رد فارغ
  *
- * Used by: /api/ai, /api/gemini, /api/petition-check
+ * Used by: /api/ai, /api/gemini, /api/petition-check, /api/tools/*
  */
 
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
@@ -23,16 +24,17 @@ import { NextRequest } from "next/server";
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 
 // ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
-const GEMINI_KEYS: string[] = [
+export const GEMINI_KEYS: string[] = [
   process.env.GEMINI_API_KEY_1 || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM", // key 1
   process.env.GEMINI_API_KEY_2 || "AIzaSyA9QT3tfih8nIVQoeCPQPr7HnozvgdxETo", // key 2
   process.env.GEMINI_API_KEY_3 || "AIzaSyCG7CGixqvdyZ4dQpQBcEXi-UKEhO_iLvA", // key 3
   process.env.GEMINI_API_KEY_4 || "AIzaSyDL_dlkXQnU2NXmNdEwsFYiAxAcTQCyIAg", // key 4
 ].filter(Boolean);
 
-const OR_API_URL     = "https://openrouter.ai/api/v1/chat/completions";
-const GEMINI_MODEL   = "gemini-2.0-flash";
-const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
+const GEMINI_FLASH_25   = "gemini-2.5-flash-preview-04-17";
+const GEMINI_FLASH_20   = "gemini-2.0-flash";
+const GEMINI_API_BASE   = "https://generativelanguage.googleapis.com/v1beta/models";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🎯 تعريف النماذج
@@ -45,6 +47,7 @@ export interface AIModel {
   maxTokens: number;
   contextWindow: number;
   provider: "openrouter" | "gemini";
+  geminiModel?: string;
 }
 
 export const PRIMARY_MODEL: AIModel = {
@@ -56,27 +59,39 @@ export const PRIMARY_MODEL: AIModel = {
   provider: "openrouter",
 };
 
-export const FALLBACK_MODEL: AIModel = {
-  id: GEMINI_MODEL,
-  label: "Gemini 2.0 Flash",
+export const GEMINI_25_MODEL: AIModel = {
+  id: GEMINI_FLASH_25,
+  label: "Gemini 2.5 Flash",
   tier: 1,
+  maxTokens: 4096,
+  contextWindow: 1_000_000,
+  provider: "gemini",
+  geminiModel: GEMINI_FLASH_25,
+};
+
+export const FALLBACK_MODEL: AIModel = {
+  id: GEMINI_FLASH_20,
+  label: "Gemini 2.0 Flash",
+  tier: 2,
   maxTokens: 2048,
   contextWindow: 1_000_000,
   provider: "gemini",
+  geminiModel: GEMINI_FLASH_20,
 };
 
-export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, FALLBACK_MODEL];
+export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, GEMINI_25_MODEL, FALLBACK_MODEL];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚙️ Timeout
 // ═══════════════════════════════════════════════════════════════════════════
 
-export type RequestType = 'chat' | 'legal_analysis' | 'json_extraction' | 'fast';
+export type RequestType = 'chat' | 'legal_analysis' | 'json_extraction' | 'fast' | 'tools';
 
 export function getGlobalTimeout(type: RequestType): number {
   switch (type) {
     case 'legal_analysis':  return 28_000;
     case 'json_extraction': return 28_000;
+    case 'tools':           return 28_000;
     case 'fast':            return 20_000;
     case 'chat':
     default:                return 28_000;
@@ -115,7 +130,7 @@ export async function checkRateLimit(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🤖 AI Call — مع Fallback تلقائي
+// 🤖 AI Call — نظام Fallback ذكي ثلاثي المستويات
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface AICallOptions {
@@ -127,6 +142,8 @@ export interface AICallOptions {
   globalTimeoutMs?: number;
   requestType?: RequestType;
   preferredModel?: string;
+  /** إذا كان true سيتخطى OpenRouter ويبدأ مباشرة من Gemini */
+  geminiOnly?: boolean;
 }
 
 export interface AIResult {
@@ -147,14 +164,17 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
     temperature = 0.4,
     globalTimeoutMs,
     requestType = 'chat',
+    geminiOnly = false,
   } = options;
 
   const timeout    = globalTimeoutMs || getGlobalTimeout(requestType);
   const startTime  = Date.now();
   const triedModels: string[] = [];
 
-  // ── المحاولة الأولى: OpenRouter (Qwen 3.6 Plus Free) ──────────────────
-  if (OPENROUTER_KEY) {
+  // ══════════════════════════════════════════════════════════
+  // 🥇 المستوى الأول: OpenRouter (Qwen 3.6 Plus Free)
+  // ══════════════════════════════════════════════════════════
+  if (!geminiOnly && OPENROUTER_KEY) {
     triedModels.push(PRIMARY_MODEL.id);
     const ctrl  = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), Math.min(timeout, 20_000));
@@ -177,51 +197,95 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
           usedFallback: false,
         };
       }
-      console.warn("[AI Core] OpenRouter رد فارغ → Gemini Fallback");
+      console.warn("[AI Core] OpenRouter رد فارغ → Gemini 2.5 Flash");
     } catch (err) {
       clearTimeout(timer);
       const isAbort = err instanceof Error && err.name === 'AbortError';
-      console.warn(`[AI Core] OpenRouter ${isAbort ? 'TIMEOUT' : 'ERROR'} → Gemini Fallback`);
+      console.warn(`[AI Core] OpenRouter ${isAbort ? 'TIMEOUT' : 'ERROR'} → Gemini 2.5 Flash`);
     }
-  } else {
+  } else if (!geminiOnly) {
     console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط → Gemini مباشرة");
   }
 
-  // ── المحاولة الثانية: Google Gemini 2.0 Flash — تدوير على 4 مفاتيح ─────
-  triedModels.push(FALLBACK_MODEL.id);
-  const remaining = timeout - (Date.now() - startTime);
+  // ══════════════════════════════════════════════════════════
+  // 🥈 المستوى الثاني: Gemini 2.5 Flash (أسرع وأذكى)
+  // يجرب جميع المفاتيح الأربعة بالتناوب
+  // ══════════════════════════════════════════════════════════
+  triedModels.push(GEMINI_25_MODEL.id);
 
-  if (remaining < 3_000) {
-    return {
-      content: '',
-      model: FALLBACK_MODEL,
-      triedModels,
-      elapsedMs: Date.now() - startTime,
-      timedOut: true,
-      usedFallback: true,
-    };
-  }
-
-  // جرب كل مفتاح Gemini حتى ينجح أحدها
   for (let i = 0; i < GEMINI_KEYS.length; i++) {
-    const key = GEMINI_KEYS[i];
     const timeLeft = timeout - (Date.now() - startTime);
     if (timeLeft < 3_000) break;
 
+    const key    = GEMINI_KEYS[i];
     const ctrl2  = new AbortController();
     const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 15_000));
 
     try {
-      console.log(`[AI Core] 🔵 Gemini key #${i + 1}/${GEMINI_KEYS.length}...`);
+      console.log(`[AI Core] 🟡 Gemini 2.5 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
       const content = await callGemini(
         systemPrompt, userMessage, messages,
-        maxTokens || FALLBACK_MODEL.maxTokens,
-        temperature, ctrl2.signal, key,
+        maxTokens || GEMINI_25_MODEL.maxTokens,
+        temperature, ctrl2.signal, key, GEMINI_FLASH_25,
       );
       clearTimeout(timer2);
 
       if (content) {
-        console.log(`[AI Core] ✅ Gemini key #${i + 1} نجح`);
+        console.log(`[AI Core] ✅ Gemini 2.5 Flash key #${i + 1} نجح`);
+        return {
+          content,
+          model: GEMINI_25_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: false,
+          usedFallback: true,
+        };
+      }
+      console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} رد فارغ → key #${i + 2}`);
+    } catch (err) {
+      clearTimeout(timer2);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort) {
+        return {
+          content: '',
+          model: GEMINI_25_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: true,
+          usedFallback: true,
+        };
+      }
+      // 429 أو خطأ آخر → جرب المفتاح التالي
+      const errMsg = err instanceof Error ? err.message : 'Unknown';
+      console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} خطأ (${errMsg}) → key #${i + 2}`);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 🥉 المستوى الثالث: Gemini 2.0 Flash (خط الدفاع الأخير)
+  // يجرب جميع المفاتيح الأربعة بالتناوب
+  // ══════════════════════════════════════════════════════════
+  triedModels.push(FALLBACK_MODEL.id);
+
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const timeLeft = timeout - (Date.now() - startTime);
+    if (timeLeft < 3_000) break;
+
+    const key    = GEMINI_KEYS[i];
+    const ctrl3  = new AbortController();
+    const timer3 = setTimeout(() => ctrl3.abort(), Math.min(timeLeft, 12_000));
+
+    try {
+      console.log(`[AI Core] 🔵 Gemini 2.0 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
+      const content = await callGemini(
+        systemPrompt, userMessage, messages,
+        maxTokens || FALLBACK_MODEL.maxTokens,
+        temperature, ctrl3.signal, key, GEMINI_FLASH_20,
+      );
+      clearTimeout(timer3);
+
+      if (content) {
+        console.log(`[AI Core] ✅ Gemini 2.0 Flash key #${i + 1} نجح`);
         return {
           content,
           model: FALLBACK_MODEL,
@@ -231,13 +295,11 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
           usedFallback: true,
         };
       }
-      // رد فارغ — جرب المفتاح التالي
-      console.warn(`[AI Core] Gemini key #${i + 1} رد فارغ → key #${i + 2}`);
+      console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} رد فارغ → key #${i + 2}`);
     } catch (err) {
-      clearTimeout(timer2);
+      clearTimeout(timer3);
       const isAbort = err instanceof Error && err.name === 'AbortError';
       if (isAbort) {
-        // وقت انتهى — توقف
         return {
           content: '',
           model: FALLBACK_MODEL,
@@ -247,12 +309,11 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
           usedFallback: true,
         };
       }
-      // خطأ (429 أو غيره) — جرب المفتاح التالي
-      console.warn(`[AI Core] Gemini key #${i + 1} خطأ → key #${i + 2}`);
+      console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} خطأ → key #${i + 2}`);
     }
   }
 
-  // كلا المزودين فشلا
+  // جميع المزودين فشلوا
   return {
     content: '',
     model: FALLBACK_MODEL,
@@ -338,7 +399,7 @@ async function callOpenRouter(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔌 Google Gemini 2.0 Flash — Fallback مجاني
+// 🔌 Google Gemini — يدعم 2.5 Flash و 2.0 Flash
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function callGemini(
@@ -349,10 +410,10 @@ async function callGemini(
   temperature: number,
   signal: AbortSignal,
   apiKey: string,
+  model: string,
 ): Promise<string | null> {
   if (!apiKey) return null;
 
-  // بناء سجل المحادثة بصيغة Gemini
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
   if (history?.length) {
@@ -368,10 +429,10 @@ async function callGemini(
   contents.push({ role: "user", parts: [{ text: userMessage }] });
 
   const startMs = Date.now();
-  console.log(`[AI Core] 🔵 Gemini Fallback (${FALLBACK_MODEL.label})...`);
+  const apiUrl  = `${GEMINI_API_BASE}/${model}:generateContent`;
 
   try {
-    const res = await fetch(GEMINI_API_URL, {
+    const res = await fetch(apiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -398,8 +459,14 @@ async function callGemini(
 
     const elapsed = Date.now() - startMs;
 
+    if (res.status === 429) {
+      console.warn(`[AI Core] Gemini (${model}) 429 في ${elapsed}ms → مفتاح آخر`);
+      return null; // سيجرب المفتاح التالي
+    }
+
     if (!res.ok) {
-      console.error(`[AI Core] Gemini HTTP ${res.status} في ${elapsed}ms`);
+      const body = await res.text().catch(() => '');
+      console.error(`[AI Core] Gemini (${model}) HTTP ${res.status} في ${elapsed}ms: ${body.slice(0, 200)}`);
       return null;
     }
 
@@ -407,14 +474,14 @@ async function callGemini(
     const content = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (content && content.length > 5) {
-      console.log(`[AI Core] ✅ Gemini: ${content.length} حرف في ${elapsed}ms`);
+      console.log(`[AI Core] ✅ Gemini (${model}): ${content.length} حرف في ${elapsed}ms`);
       return content;
     }
-    console.warn(`[AI Core] Gemini رد فارغ في ${elapsed}ms`);
+    console.warn(`[AI Core] Gemini (${model}) رد فارغ في ${elapsed}ms`);
     return null;
   } catch (err) {
     const reason = err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR';
-    console.error(`[AI Core] Gemini ${reason}:`, err);
+    console.error(`[AI Core] Gemini (${model}) ${reason}:`, err);
     throw err;
   }
 }
@@ -459,4 +526,52 @@ export function parseJSON<T = Record<string, unknown>>(raw: string): T | null {
   const jsonStr = extractJSON(raw);
   if (!jsonStr) return null;
   try { return JSON.parse(jsonStr) as T; } catch { return null; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🏷️ مساعد SSE — إرسال أحداث الـ streaming
+// ═══════════════════════════════════════════════════════════════════════════
+
+export function createSSEStream(
+  handler: (send: (event: string, data: unknown) => void, close: () => void) => Promise<void>
+): Response {
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+
+      const send = (event: string, data: unknown) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch { closed = true; }
+      };
+
+      const close = () => {
+        if (!closed) {
+          closed = true;
+          try { controller.close(); } catch {}
+        }
+      };
+
+      try {
+        await handler(send, close);
+      } catch (err) {
+        console.error("[SSE] Fatal error:", err);
+        send("error", { error: "حدث خطأ في الخادم." });
+        close();
+      }
+    },
+    cancel() {},
+  });
+
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
 }
