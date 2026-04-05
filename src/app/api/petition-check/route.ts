@@ -58,29 +58,20 @@ const MODELS: PetitionModel[] = [
 // البروميبت — مُختصر لسرعة أسرع
 // ═══════════════════════════════════════════════════════════════════════════
 
-const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
-الأساس: قانون الإجراءات الجزائية 25-14 + ق.إ.م.إ 08-09.
+// English system prompt — free models follow English JSON instructions much better
+const SYSTEM_PROMPT = `You are a formal document checker for Algerian legal petitions.
+Based on: Code de procédure pénale 25-14 + CPC 08-09.
 
-قواعد:
-- فحص شكلي فقط، لا تحلل الموضوع
-- لا تنشئ وقائع غير موجودة
-- إذا غير ظاهر ← "غير ظاهر من الملف"
-- اذكر المادة القانونية مع كل ملاحظة
+Rules:
+- Formal check ONLY, do NOT analyze the substance
+- Do NOT create facts that are not in the document
+- If something is not visible, write "غير ظاهر من الملف"
+- Always cite the legal article number
 
-ردّ بـ JSON فقط. لا تضف أي نص آخر. أكمل جميع الحقول.`;
+IMPORTANT: Output ONLY valid JSON. No markdown, no explanation, no text before or after the JSON.`;
 
-const JSON_FORMAT_EXAMPLE = `{
-  "result": "accepted|rejected|needs_review",
-  "score": 75,
-  "documentType": "عريضة افتتاح دعوى",
-  "court": "محكمة الجزائر",
-  "date": "15 مارس 2026",
-  "summary": "ملخص 3-5 جمل",
-  "passedChecks": [{"label": "اللغة العربية", "article": "المادة 3"}],
-  "failedChecks": [{"label": "بيان الموطن", "article": "المادة 13", "critical": true, "details": "السبب"}],
-  "pendingChecks": [{"label": "التبليغ", "reason": "السبب"}],
-  "suggestions": [{"label": "الموطن", "suggestion": "أضف..."}]
-}`;
+// Simplified JSON schema — fewer fields, easier for models to follow
+const JSON_FORMAT_EXAMPLE = `{"result":"needs_review","score":50,"documentType":"عريضة افتتاح دعوى","court":"محكمة الجزائر","date":"15 مارس 2026","summary":"ملخص مختصر","passedChecks":[{"label":"اللغة العربية","article":"المادة 3"}],"failedChecks":[{"label":"بيان الموطن","article":"المادة 13","critical":true,"details":"السبب"}],"pendingChecks":[{"label":"التبليغ","reason":"السبب"}],"suggestions":[{"label":"الموطن","suggestion":"أضف..."}]}`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // أنواع الوثائق
@@ -299,7 +290,7 @@ async function callModel(
           { role: "user", content: userMessage },
         ],
         max_tokens: model.maxTokens,
-        temperature: 0.15,
+        temperature: 0.4,
       }),
       signal: controller.signal,
     });
@@ -379,15 +370,13 @@ export async function POST(req: NextRequest) {
     ? text.slice(0, MAX_INPUT_CHARS)
     : text;
 
-  const userMsg = `نوع الوثيقة: ${docLabel} (${cat})
+  const userMsg = `Document type: ${docLabel} (${cat})
 
-محتوى الوثيقة:
+Document content:
 ${truncatedText}
 
-JSON المطلوب:
-${JSON_FORMAT_EXAMPLE}
-
-ردك يجب أن يكون JSON صالح فقط.`;
+Return ONLY this JSON structure (no markdown, no code blocks, no explanation):
+${JSON_FORMAT_EXAMPLE}`;
 
   // ─── SSE Stream ───
   const encoder = new TextEncoder();
@@ -450,7 +439,7 @@ ${JSON_FORMAT_EXAMPLE}
             console.log(`[PetitionCheck] Retrying ${m.id}...`);
             send("status", { step: "retrying", message: "إعادة المحاولة بتعليمات أوضح..." });
 
-            const retryMsg = userMsg + "\n\n⚠️ ردك لم يكن JSON صالح. أعد الرد بكائن JSON واحد فقط. لا شيء قبله أو بعده.";
+            const retryMsg = userMsg + "\n\nCRITICAL: Your response was NOT valid JSON. You must return ONLY a single JSON object. No markdown, no code blocks, no text.";
             const retry = await callModel(SYSTEM_PROMPT, retryMsg, m, globalController.signal);
 
             if (retry.content) {
