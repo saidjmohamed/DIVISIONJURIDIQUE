@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ALL_MODELS, TIER1_MODELS, TIER2_MODELS, TIER3_MODELS, PRIMARY_MODEL, callAI, checkRateLimit,
+  ALL_MODELS, PRIMARY_MODEL, callAI, checkRateLimit,
 } from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// المساعد القانوني الذكي — SSE Streaming v8
-// 🧠 Smart Model Routing: T1→T2→T3→Gemini fallback
+// المساعد القانوني الذكي — SSE Streaming v9
+// 🧠 Qwen 3.6 Plus Free — النموذج الوحيد
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج في تطبيق "شامل" — المنصة القانونية الذكية في الجزائر.
@@ -160,7 +160,7 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// ─── GET: List all available models ──────────────────────────
+// ─── GET: النموذج المستخدم ──────────────────────────
 export async function GET() {
   return NextResponse.json({
     models: ALL_MODELS.map(m => ({
@@ -170,10 +170,6 @@ export async function GET() {
       contextWindow: m.contextWindow,
     })),
     totalModels: ALL_MODELS.length,
-    tiers: {
-      tier1: TIER1_MODELS.length,
-      tier2: TIER2_MODELS.length,
-      tier3: TIER3_MODELS.length,
-    },
+    primary: PRIMARY_MODEL.id,
   });
 }

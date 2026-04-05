@@ -4,8 +4,8 @@ import {
 } from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// فاحص العرائض القانونية — SSE Streaming v8
-// 🧠 Smart Model Routing: T1(legal)→T2→T3→Gemini fallback
+// فاحص العرائض القانونية — SSE Streaming v9
+// 🧠 Qwen 3.6 Plus Free — النموذج الوحيد
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
@@ -213,12 +213,11 @@ ${JSON_FORMAT}`;
       try {
         send("status", { step: "connecting", message: "جاري الاتصال..." });
 
-        // Call AI with legal_analysis routing (uses T1→T2 models)
+        // Qwen 3.6 Plus — النموذج الوحيد
         const result = await callAI({
           systemPrompt: SYSTEM_PROMPT,
           userMessage: userMsg,
           requestType: 'legal_analysis',
-          maxModelsToTry: 4,
           temperature: 0.4,
           globalTimeoutMs: 28_000,
         });
@@ -240,49 +239,20 @@ ${JSON_FORMAT}`;
             executionTime: result.elapsedMs,
           });
         } else if (result.content) {
-          // Got content but couldn't parse JSON — retry with stricter instruction
-          send("status", { step: "retrying", message: "إعادة المحاولة بتعليمات أوضح..." });
-
-          const retryResult = await callAI({
-            systemPrompt: SYSTEM_PROMPT,
-            userMessage: userMsg + "\n\n⚠️ ردك السابق لم يكن JSON صالح. أعد الإجابة بكائن JSON واحد فقط.",
-            requestType: 'legal_analysis',
-            maxModelsToTry: 2,
-            temperature: 0.3,
-            globalTimeoutMs: 18_000,
+          // تعذّر تحليل JSON — إخبار المستخدم مباشرة
+          const empty = createEmptyResult();
+          empty.summary = "تم الاتصال بالنموذج لكن تعذّر تنسيق النتائج. يرجى المحاولة مرة أخرى.";
+          send("complete", {
+            ...empty,
+            report: `⚠️ ${empty.summary}`,
+            aiPowered: true,
+            model: result.model.id,
+            modelLabel: result.model.label,
+            tier: result.model.tier,
+            triedModels: result.triedModels,
+            parseFailed: true,
+            executionTime: result.elapsedMs,
           });
-
-          const retryParsed = retryResult.content ? parseAndValidate(retryResult.content) : null;
-
-          if (retryParsed) {
-            const report = makeReport(retryParsed);
-            send("complete", {
-              ...retryParsed,
-              report,
-              rawReport: report,
-              aiPowered: true,
-              model: retryResult.model.id,
-              modelLabel: retryResult.model.label,
-              tier: retryResult.model.tier,
-              triedModels: [...result.triedModels, ...retryResult.triedModels],
-              parseFailed: false,
-              executionTime: result.elapsedMs + retryResult.elapsedMs,
-            });
-          } else {
-            const empty = createEmptyResult();
-            empty.summary = "تم الاتصال بالذكاء الاصطناعي لكن تعذّر تنسيق النتائج. يرجى المحاولة مرة أخرى.";
-            send("complete", {
-              ...empty,
-              report: `⚠️ ${empty.summary}`,
-              aiPowered: true,
-              model: result.model.id,
-              modelLabel: result.model.label,
-              tier: result.model.tier,
-              triedModels: result.triedModels,
-              parseFailed: true,
-              executionTime: result.elapsedMs,
-            });
-          }
         } else {
           // No content at all
           const isTimeout = result.timedOut;
