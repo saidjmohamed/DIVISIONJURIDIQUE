@@ -8,11 +8,10 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 // ⚡ PERFORMANCE CONFIG — Tuned for sub-10s responses
 // ═══════════════════════════════════════════════════════════════════════════
 
-const GLOBAL_TIMEOUT_MS = 18_000;   // Hard cap on entire request (within Vercel 30s)
-const MAX_MODELS_TO_TRY = 3;        // Max models before giving up
-const TIER_0_TIMEOUT = 10_000;      // Primary model: 10s
-const TIER_1_TIMEOUT = 8_000;       // Fast fallback: 8s
-const TIER_2_TIMEOUT = 6_000;       // Last resort: 6s
+const GLOBAL_TIMEOUT_MS = 20_000;   // Hard cap on entire request
+const MAX_MODELS_TO_TRY = 2;        // Only 2 models (faster overall)
+const TIER_0_TIMEOUT = 12_000;      // Primary model: 12s
+const TIER_1_TIMEOUT = 8_000;       // Fallback: 8s
 const MAX_INPUT_CHARS = 8_000;      // Truncate long documents
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -46,12 +45,10 @@ function createEmptyResult(): PetitionCheckResult {
 interface PetitionModel { id: string; label: string; tier: number; maxTokens: number; }
 
 const MODELS: PetitionModel[] = [
-  // Tier 0: Primary — tested & working
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 0, maxTokens: 4096 },
-  // Tier 1: Strong alternatives
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 1, maxTokens: 4096 },
-  // Tier 2: Last resort
-  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 2, maxTokens: 4096 },
+  // Tier 0: Primary
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 0, maxTokens: 1500 },
+  // Tier 1: Fallback
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 1, maxTokens: 1500 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -253,7 +250,7 @@ async function callModel(
   model: PetitionModel,
   globalSignal: AbortSignal,
 ): Promise<{ content: string | null; model: PetitionModel; elapsed: number }> {
-  const timeout = model.tier === 0 ? TIER_0_TIMEOUT : model.tier === 1 ? TIER_1_TIMEOUT : TIER_2_TIMEOUT;
+  const timeout = model.tier === 0 ? TIER_0_TIMEOUT : TIER_1_TIMEOUT;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
