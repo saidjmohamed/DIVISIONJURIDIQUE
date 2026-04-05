@@ -112,8 +112,14 @@ export default function AiAssistant() {
     const clientController = new AbortController();
     abortRef.current = clientController;
 
-    // Client-side timeout: 28s
+    // Track what the backend told us, so we can show a specific error on disconnect
+    let receivedStatusEvents = false;
+    let lastStatusMsg = "";
+    let clientTimeoutFired = false;
+
+    // Client-side timeout: 22s (backend global is 18s)
     const clientTimeout = setTimeout(() => {
+      clientTimeoutFired = true;
       clientController.abort();
       stopTimer();
       setIsLoading(false);
@@ -124,7 +130,23 @@ export default function AiAssistant() {
         timestamp: new Date(),
         error: true,
       }]);
-    }, 28_000);
+    }, 22_000);
+
+    // Helper: safely add an error message (idempotent)
+    let errorMessageShown = false;
+    const showErrorMessage = (content: string) => {
+      if (errorMessageShown) return;
+      errorMessageShown = true;
+      stopTimer();
+      setIsLoading(false);
+      setStatusMessage("");
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content,
+        timestamp: new Date(),
+        error: true,
+      }]);
+    };
 
     try {
       const res = await fetch("/api/ai", {
@@ -141,21 +163,16 @@ export default function AiAssistant() {
       clearTimeout(clientTimeout);
 
       if (!res.ok) {
-        stopTimer();
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: `❌ خطأ في الخادم (HTTP ${res.status}). يرجى المحاولة لاحقاً.`,
-          timestamp: new Date(),
-          error: true,
-        }]);
-        setIsLoading(false);
-        setStatusMessage("");
+        showErrorMessage(`❌ خطأ في الخادم (HTTP ${res.status}). يرجى المحاولة لاحقاً.`);
         return;
       }
 
       // ─── Read SSE stream ───
       const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      if (!reader) {
+        showErrorMessage("❌ لم يتم تلقي أي بيانات من الخادم. يرجى المحاولة مرة أخرى.");
+        return;
+      }
 
       const decoder = new TextDecoder();
       let buffer = "";
@@ -168,10 +185,15 @@ export default function AiAssistant() {
           const data = JSON.parse(eventData);
 
           if (eventType === "status") {
-            setStatusMessage(data.message || "");
+            receivedStatusEvents = true;
+            lastStatusMsg = data.message || "";
+            setStatusMessage(lastStatusMsg);
           } else if (eventType === "complete") {
-            stopTimer();
             streamSettled = true;
+            errorMessageShown = true; // prevent post-loop error message
+            stopTimer();
+            setIsLoading(false);
+            setStatusMessage("");
             setMessages(prev => [...prev, {
               role: "assistant",
               content: data.reply,
@@ -180,30 +202,12 @@ export default function AiAssistant() {
               tier: data.tier,
               executionTime: data.executionTime,
             }]);
-            setIsLoading(false);
-            setStatusMessage("");
           } else if (eventType === "timeout") {
-            stopTimer();
             streamSettled = true;
-            setMessages(prev => [...prev, {
-              role: "assistant",
-              content: `⏱️ ${data.error || "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."}`,
-              timestamp: new Date(),
-              error: true,
-            }]);
-            setIsLoading(false);
-            setStatusMessage("");
+            showErrorMessage(`⏱️ ${data.error || "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."}`);
           } else if (eventType === "error") {
-            stopTimer();
             streamSettled = true;
-            setMessages(prev => [...prev, {
-              role: "assistant",
-              content: `❌ ${data.error || "حدث خطأ غير معروف"}`,
-              timestamp: new Date(),
-              error: true,
-            }]);
-            setIsLoading(false);
-            setStatusMessage("");
+            showErrorMessage(`❌ ${data.error || "حدث خطأ غير معروف"}`);
           }
         } catch {
           // Ignore malformed JSON
@@ -234,8 +238,16 @@ export default function AiAssistant() {
         }
       }
 
+      // Read loop — handle both normal end and abrupt disconnect
       while (!streamSettled) {
-        const { done, value } = await reader.read();
+        let readResult: ReadableStreamReadResult<Uint8Array>;
+        try {
+          readResult = await reader.read();
+        } catch {
+          // reader.read() threw — network disconnected mid-stream
+          break;
+        }
+        const { done, value } = readResult;
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
@@ -256,35 +268,31 @@ export default function AiAssistant() {
         parseSSEChunk(buffer);
       }
 
-      // If stream ended without settling
+      // Stream ended without a terminal event → intelligent error based on context
       if (!streamSettled) {
-        stopTimer();
-        setIsLoading(false);
-        setStatusMessage("");
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "❌ انقطع الاتصال بالخادم. يرجى المحاولة مرة أخرى.",
-          timestamp: new Date(),
-          error: true,
-        }]);
+        if (receivedStatusEvents) {
+          // Backend was working (tried models) but connection dropped before final event
+          showErrorMessage(
+            "⚠️ تم الاتصال بالخادم لكن النماذج المجانية لم تُرجع رداً في الوقت المحدد. " +
+            (lastStatusMsg ? `(آخر حالة: ${lastStatusMsg}) ` : "") +
+            "يرجى المحاولة مرة أخرى."
+          );
+        } else {
+          // No events at all — connection never established properly
+          showErrorMessage("❌ انقطع الاتصال بالخادم قبل بدء التحليل. يرجى تحديث الصفحة والمحاولة مرة أخرى.");
+        }
       }
 
     } catch (err) {
       clearTimeout(clientTimeout);
-      stopTimer();
 
-      if (err instanceof Error && err.name === 'AbortError') {
-        // User cancelled or client timeout — error already handled
+      if (clientTimeoutFired) {
+        // Already handled by timeout handler
+      } else if (err instanceof Error && err.name === 'AbortError') {
+        // User cancelled
       } else {
-        setMessages(prev => [...prev, {
-          role: "assistant",
-          content: "❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت.",
-          timestamp: new Date(),
-          error: true,
-        }]);
+        showErrorMessage("❌ تعذّر الاتصال بالخادم. تأكد من الاتصال بالإنترنت وحاول مرة أخرى.");
       }
-      setIsLoading(false);
-      setStatusMessage("");
     } finally {
       abortRef.current = null;
       inputRef.current?.focus();

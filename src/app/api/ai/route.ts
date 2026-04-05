@@ -2,20 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// المساعد القانوني الذكي — OpenRouter Multi-Model with SSE Streaming v6
-// ⚡ Streaming prevents 504: response starts immediately, events flow in real-time
+// المساعد القانوني الذكي — OpenRouter Multi-Model with SSE Streaming v7
+// ⚡ Streaming prevents 504 + resilient model fallback
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-// ⚡ PERFORMANCE CONFIG — aggressive timeouts to stay well under Vercel limits
-const GLOBAL_TIMEOUT_MS = 25_000;   // Hard cap (within Vercel 30s)
-const MAX_MODELS_TO_TRY = 3;        // Max models before giving up
+// ⚡ PERFORMANCE CONFIG — must complete well within Vercel limits
+const GLOBAL_TIMEOUT_MS = 18_000;   // Hard cap (Vercel can kill at ~10-30s depending on plan)
+const MAX_MODELS_TO_TRY = 3;
 const TIER_TIMEOUTS: Record<number, number> = {
-  1: 12_000,   // Tier 1: Primary — 12s (free models can be slow)
-  2: 8_000,    // Tier 2: Fast — 8s
-  3: 6_000,    // Tier 3: Last resort — 6s
+  1: 8_000,   // Tier 1: Primary — 8s
+  2: 6_000,   // Tier 2: Fast — 6s
+  3: 5_000,   // Tier 3: Last resort — 5s
 };
 
 interface ModelConfig {
@@ -144,13 +144,12 @@ async function callOpenRouter(
       signal: controller.signal,
     });
 
-    // DON'T clear timer here — body read (res.json) can also hang
     if (!res.ok) {
       cleanup();
       return { content: null, error: `HTTP ${res.status}` };
     }
 
-    // Body read — this is where models can hang generating tokens
+    // Body read can also hang — timer stays active
     const data = await res.json();
     cleanup();
 
@@ -171,11 +170,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "مفتاح OpenRouter غير مضبوط." }, { status: 500 });
   }
 
-  // Rate limiting
-  const ip = getClientIp(req);
-  const { limited } = await rateLimit({ key: 'ai-chat', identifier: ip, limit: 20, window: 60 });
-  if (limited) {
-    return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
+  // Rate limiting (fail-open if Redis unavailable)
+  try {
+    const ip = getClientIp(req);
+    const { limited } = await rateLimit({ key: 'ai-chat', identifier: ip, limit: 20, window: 60 });
+    if (limited) {
+      return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
+    }
+  } catch {
+    // Fail-open: continue if rate limiting fails
   }
 
   // ─── Parse request body ───
@@ -216,12 +219,20 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (event: string, data: unknown) => {
+      let closed = false;
+      const safeSend = (event: string, data: unknown) => {
+        if (closed) return;
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
         } catch {
-          // Client already disconnected
+          closed = true;
         }
+      };
+
+      const safeClose = () => {
+        if (closed) return;
+        closed = true;
+        try { controller.close(); } catch {}
       };
 
       try {
@@ -231,8 +242,8 @@ export async function POST(req: NextRequest) {
         let reply: string | null = null;
         let usedModelConfig: ModelConfig | null = null;
 
-        // Notify: analysis started
-        send("status", { step: "connecting", message: "جاري الاتصال بنموذج الذكاء الاصطناعي..." });
+        // Immediately notify client: stream is alive
+        safeSend("status", { step: "connecting", message: "جاري الاتصال..." });
 
         // Try preferred model first
         if (preferredModel) {
@@ -241,7 +252,7 @@ export async function POST(req: NextRequest) {
             triedModels.push(prefConfig.id);
             modelsTried++;
 
-            send("status", {
+            safeSend("status", {
               step: "analyzing",
               message: `جاري التحليل بواسطة ${prefConfig.label}...`,
               model: prefConfig.label,
@@ -260,14 +271,14 @@ export async function POST(req: NextRequest) {
         // Fallback chain
         if (!reply) {
           for (const modelConfig of FALLBACK_CHAIN) {
-            if (globalController.signal.aborted) break;
+            if (closed || globalController.signal.aborted) break;
             if (triedModels.includes(modelConfig.id)) continue;
             if (modelsTried >= MAX_MODELS_TO_TRY) break;
 
             triedModels.push(modelConfig.id);
             modelsTried++;
 
-            send("status", {
+            safeSend("status", {
               step: "analyzing",
               message: `جاري التحليل بواسطة ${modelConfig.label}...`,
               model: modelConfig.label,
@@ -281,6 +292,8 @@ export async function POST(req: NextRequest) {
               usedModelConfig = modelConfig;
               break;
             }
+
+            console.log(`[AI Chat] ${modelConfig.label} failed: ${result.error}`);
           }
         }
 
@@ -290,7 +303,7 @@ export async function POST(req: NextRequest) {
         console.log(`[AI Chat] Total: ${totalTime}ms, Models tried: ${triedModels.length}, Success: ${!!reply}`);
 
         if (reply) {
-          send("complete", {
+          safeSend("complete", {
             reply,
             model: usedModelConfig!.id,
             modelLabel: usedModelConfig!.label,
@@ -300,23 +313,27 @@ export async function POST(req: NextRequest) {
           });
         } else {
           const isTimeout = globalController.signal.aborted;
-          send(isTimeout ? "timeout" : "error", {
+          safeSend(isTimeout ? "timeout" : "error", {
             error: isTimeout
               ? "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."
-              : `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة مرة أخرى.`,
+              : `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة لاحقاً.`,
             triedModels,
             timedOut: isTimeout,
             executionTime: totalTime,
           });
         }
 
-        controller.close();
+        // Brief delay to ensure the final event is flushed before closing
+        await new Promise(r => setTimeout(r, 200));
+        safeClose();
+
       } catch (err) {
         clearTimeout(globalTimer);
         const msg = err instanceof Error ? err.message : "Unknown error";
         console.error("[AI Chat] Fatal:", msg);
-        send("error", { error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." });
-        controller.close();
+        safeSend("error", { error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." });
+        await new Promise(r => setTimeout(r, 100));
+        safeClose();
       }
     },
     cancel() {
