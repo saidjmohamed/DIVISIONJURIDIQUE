@@ -8,13 +8,12 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 // ⚡ PERFORMANCE CONFIG — Tuned for sub-10s responses
 // ═══════════════════════════════════════════════════════════════════════════
 
-const GLOBAL_TIMEOUT_MS = 22_000;   // Hard cap on entire request (within Vercel 30s)
+const GLOBAL_TIMEOUT_MS = 18_000;   // Hard cap on entire request (within Vercel 30s)
 const MAX_MODELS_TO_TRY = 3;        // Max models before giving up
-const TIER_0_TIMEOUT = 12_000;      // Primary model: 12s (free models can be slow)
+const TIER_0_TIMEOUT = 10_000;      // Primary model: 10s
 const TIER_1_TIMEOUT = 8_000;       // Fast fallback: 8s
-const TIER_2_TIMEOUT = 6_000;       // Strong fallback: 6s
+const TIER_2_TIMEOUT = 6_000;       // Last resort: 6s
 const MAX_INPUT_CHARS = 8_000;      // Truncate long documents
-const CLIENT_TIMEOUT_MS = 28_000;   // Frontend should timeout at 28s
 
 // ═══════════════════════════════════════════════════════════════════════════
 // نموذج الرد الصارم
@@ -47,13 +46,12 @@ function createEmptyResult(): PetitionCheckResult {
 interface PetitionModel { id: string; label: string; tier: number; maxTokens: number; }
 
 const MODELS: PetitionModel[] = [
-  // Tier 0: Primary — fast and reliable
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 0, maxTokens: 4096 },
-  // Tier 1: Fast fallbacks — lightweight models
-  { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash",        tier: 1, maxTokens: 4096 },
-  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",           tier: 1, maxTokens: 4096 },
-  // Tier 2: Strong fallbacks (only if T0+T1 all fail)
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2, maxTokens: 4096 },
+  // Tier 0: Primary — tested & working with strict JSON output
+  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 0, maxTokens: 4096 },
+  // Tier 1: Strong fallback
+  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 1, maxTokens: 4096 },
+  // Tier 2: Last resort
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 2, maxTokens: 4096 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
