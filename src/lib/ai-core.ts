@@ -65,10 +65,10 @@ export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, ...BACKUP_MODELS, ...TIER3_
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TIMEOUT_CONFIG = {
-  primary: 15_000,     // Primary model gets 15s (it's the main workhorse)
-  backup: 5_000,       // Backup models get 5s each (fast cycling)
-  geminiDelay: 10_000, // Start Gemini after 10s if primary + backups failed
-  geminiTimeout: 15_000, // Gemini gets 15s once started
+  primary: 25_000,      // Primary model (free tier is slow: simple=10s, real=20-25s)
+  backup: 5_000,        // Backup models get 5s each
+  geminiDelay: 0,       // Start Gemini IMMEDIATELY in parallel (no delay)
+  geminiTimeout: 25_000, // Gemini gets same timeout as primary
 } as const;
 
 export function getTierTimeout(tier: number): number {
@@ -104,7 +104,7 @@ export function getGlobalTimeout(type: RequestType): number {
   switch (type) {
     case 'legal_analysis': return 28_000;
     case 'json_extraction': return 28_000;
-    case 'fast': return 15_000;
+    case 'fast': return 28_000;
     case 'chat':
     default: return 28_000;
   }
