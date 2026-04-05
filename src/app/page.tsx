@@ -21,10 +21,11 @@ const DualDeadlineView = dynamic(() => import('@/components/deadlines/DualDeadli
 const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
+const LegalUpdatesTab = dynamic(() => import('@/components/LegalUpdatesTab'), { ssr: false });
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState<'search' | 'deadlines' | 'jurisprudence' | 'lawyer-tools' | 'judicial'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'deadlines' | 'jurisprudence' | 'lawyer-tools' | 'judicial' | 'legal-updates'>('search');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -56,6 +57,7 @@ export default function HomePage() {
     { id: 'judicial', label: 'الجهات', icon: '🏛️', description: 'حدد الاختصاص الإقليمي (المحاكم والمجالس) لكل بلديات الوطن بدقة متناهية.' },
     { id: 'jurisprudence', label: 'الاجتهاد', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني وتوحيد القضاء.' },
     { id: 'lawyer-tools', label: 'الأدوات', icon: '💼', description: 'أدوات مهنية متخصصة للتحقق من العرائض، صياغة المذكرات، وتحليل الأحكام.' },
+    { id: 'legal-updates', label: 'مستجدات', icon: '📡', description: 'آخر القوانين والمراسيم والاجتهادات الجديدة — مراقبة يومية تلقائية للجريدة الرسمية ومجلس الدولة.' },
   ], []);
 
   if (!mounted) return null;
@@ -158,6 +160,7 @@ export default function HomePage() {
               {activeTab === 'judicial' && <JudicialHierarchy />}
               {activeTab === 'jurisprudence' && <JurisprudenceTab />}
               {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('search')} />}
+              {activeTab === 'legal-updates' && <LegalUpdatesTab />}
             </motion.div>
           </AnimatePresence>
         </div>
