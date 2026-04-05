@@ -184,6 +184,11 @@ async function callSingleModel(
   const onGlobalAbort = () => controller.abort();
   globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
 
+  const cleanup = () => {
+    clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
+  };
+
   try {
     const res = await fetch(API_URL, {
       method: "POST",
@@ -204,17 +209,21 @@ async function callSingleModel(
       }),
       signal: controller.signal,
     });
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
+    // DON'T clear timer here — body read can also hang
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      cleanup();
+      return null;
+    }
 
+    // Body read — covered by timeout until cleared
     const data = await res.json();
+    cleanup();
+
     const content = data?.choices?.[0]?.message?.content?.trim();
     return content && content.length > 20 ? content : null;
   } catch {
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
+    cleanup();
     return null;
   }
 }

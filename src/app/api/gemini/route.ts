@@ -153,16 +153,17 @@ export async function POST(req: NextRequest) {
 
     const response = await fetch(API_URL, {
       method: "POST",
-      headers: { 
+      headers: {
         "Content-Type": "application/json",
         "x-goog-api-key": GEMINI_API_KEY!,
       },
       body: JSON.stringify(body),
       signal: geminiController.signal,
     });
-    clearTimeout(geminiTimer);
+    // DON'T clear timer here — body read can also hang
 
     if (!response.ok) {
+      clearTimeout(geminiTimer);
       const err = await response.json().catch(() => ({}));
       console.error("Gemini API Error:", err);
       return NextResponse.json(
@@ -171,7 +172,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Body read — covered by timeout until cleared
     const data = await response.json();
+    clearTimeout(geminiTimer);
+
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!text) {

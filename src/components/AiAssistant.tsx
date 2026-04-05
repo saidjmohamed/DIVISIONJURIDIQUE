@@ -159,81 +159,116 @@ export default function AiAssistant() {
 
       const decoder = new TextDecoder();
       let buffer = "";
+      let streamSettled = false;
 
-      while (true) {
+      // Helper to process a single SSE event
+      function processSSEEvent(eventType: string, eventData: string) {
+        if (!eventType || !eventData) return;
+        try {
+          const data = JSON.parse(eventData);
+
+          if (eventType === "status") {
+            setStatusMessage(data.message || "");
+          } else if (eventType === "complete") {
+            stopTimer();
+            streamSettled = true;
+            setMessages(prev => [...prev, {
+              role: "assistant",
+              content: data.reply,
+              timestamp: new Date(),
+              modelLabel: data.modelLabel,
+              tier: data.tier,
+              executionTime: data.executionTime,
+            }]);
+            setIsLoading(false);
+            setStatusMessage("");
+          } else if (eventType === "timeout") {
+            stopTimer();
+            streamSettled = true;
+            setMessages(prev => [...prev, {
+              role: "assistant",
+              content: `⏱️ ${data.error || "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."}`,
+              timestamp: new Date(),
+              error: true,
+            }]);
+            setIsLoading(false);
+            setStatusMessage("");
+          } else if (eventType === "error") {
+            stopTimer();
+            streamSettled = true;
+            setMessages(prev => [...prev, {
+              role: "assistant",
+              content: `❌ ${data.error || "حدث خطأ غير معروف"}`,
+              timestamp: new Date(),
+              error: true,
+            }]);
+            setIsLoading(false);
+            setStatusMessage("");
+          }
+        } catch {
+          // Ignore malformed JSON
+        }
+      }
+
+      // Helper to parse a chunk of SSE data
+      function parseSSEChunk(chunk: string) {
+        const lines = chunk.split("\n");
+        let eventType = "";
+        let eventData = "";
+
+        for (const line of lines) {
+          if (line.startsWith("event: ")) {
+            eventType = line.slice(7).trim();
+          } else if (line.startsWith("data: ")) {
+            eventData = line.slice(6).trim();
+          } else if (line === "" && eventType && eventData) {
+            processSSEEvent(eventType, eventData);
+            eventType = "";
+            eventData = "";
+          }
+        }
+
+        // Handle unprocessed event data (stream ended without empty line)
+        if (eventType && eventData) {
+          processSSEEvent(eventType, eventData);
+        }
+      }
+
+      while (!streamSettled) {
         const { done, value } = await reader.read();
         if (done) break;
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Parse SSE events
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || ""; // Keep incomplete line in buffer
+        // Split on double newlines to find complete SSE events
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || "";
 
-        let currentEvent = "";
-        let currentData = "";
-
-        for (const line of lines) {
-          if (line.startsWith("event: ")) {
-            currentEvent = line.slice(7).trim();
-          } else if (line.startsWith("data: ")) {
-            currentData = line.slice(6).trim();
-          } else if (line === "" && currentEvent && currentData) {
-            // Process complete event
-            try {
-              const data = JSON.parse(currentData);
-
-              if (currentEvent === "status") {
-                setStatusMessage(data.message || "");
-              } else if (currentEvent === "complete") {
-                stopTimer();
-                setMessages(prev => [...prev, {
-                  role: "assistant",
-                  content: data.reply,
-                  timestamp: new Date(),
-                  modelLabel: data.modelLabel,
-                  tier: data.tier,
-                  executionTime: data.executionTime,
-                }]);
-                setIsLoading(false);
-                setStatusMessage("");
-              } else if (currentEvent === "timeout") {
-                stopTimer();
-                setMessages(prev => [...prev, {
-                  role: "assistant",
-                  content: `⏱️ ${data.error || "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."}`,
-                  timestamp: new Date(),
-                  error: true,
-                }]);
-                setIsLoading(false);
-                setStatusMessage("");
-              } else if (currentEvent === "error") {
-                stopTimer();
-                setMessages(prev => [...prev, {
-                  role: "assistant",
-                  content: `❌ ${data.error || "حدث خطأ غير معروف"}`,
-                  timestamp: new Date(),
-                  error: true,
-                }]);
-                setIsLoading(false);
-                setStatusMessage("");
-              }
-            } catch {
-              // Ignore malformed JSON
-            }
-
-            currentEvent = "";
-            currentData = "";
+        for (const event of events) {
+          if (event.trim()) {
+            parseSSEChunk(event);
           }
         }
       }
 
-      // If stream ended without a complete event
-      stopTimer();
-      if (isLoading) {
+      // Process any remaining data in buffer
+      if (buffer.trim() && !streamSettled) {
+        parseSSEChunk(buffer);
+      }
+
+      // If stream ended without settling
+      if (!streamSettled) {
+        stopTimer();
         setIsLoading(false);
         setStatusMessage("");
+        setMessages(prev => [...prev, {
+          role: "assistant",
+          content: "❌ انقطع الاتصال بالخادم. يرجى المحاولة مرة أخرى.",
+          timestamp: new Date(),
+          error: true,
+        }]);
       }
+
     } catch (err) {
       clearTimeout(clientTimeout);
       stopTimer();

@@ -118,6 +118,11 @@ async function callOpenRouter(
   const onGlobalAbort = () => controller.abort();
   globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
 
+  const cleanup = () => {
+    clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
+  };
+
   try {
     const res = await fetch(API_URL, {
       method: "POST",
@@ -139,19 +144,20 @@ async function callOpenRouter(
       signal: controller.signal,
     });
 
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
-
+    // DON'T clear timer here — body read (res.json) can also hang
     if (!res.ok) {
+      cleanup();
       return { content: null, error: `HTTP ${res.status}` };
     }
 
+    // Body read — this is where models can hang generating tokens
     const data = await res.json();
+    cleanup();
+
     const content = data?.choices?.[0]?.message?.content;
     return { content: content || null };
   } catch (err) {
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
+    cleanup();
     const reason = err instanceof Error && err.name === 'AbortError' ? 'timeout' : 'error';
     return { content: null, error: reason };
   }

@@ -280,6 +280,11 @@ async function callModel(
 
   const startMs = Date.now();
 
+  const cleanup = () => {
+    clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
+  };
+
   try {
     const res = await fetch(API_URL, {
       method: "POST",
@@ -300,20 +305,27 @@ async function callModel(
       }),
       signal: controller.signal,
     });
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
 
+    // DON'T clear timer here — body read (res.json) can also hang
     const elapsed = Date.now() - startMs;
-    console.log(`[PetitionCheck] ${model.label}: ${res.status} in ${elapsed}ms`);
+    console.log(`[PetitionCheck] ${model.label}: ${res.status} headers in ${elapsed}ms`);
 
-    if (!res.ok) return { content: null, model, elapsed };
+    if (!res.ok) {
+      cleanup();
+      return { content: null, model, elapsed };
+    }
 
+    // Body read — this is where models can hang generating tokens
     const data = await res.json();
+    cleanup();
+
+    const totalElapsed = Date.now() - startMs;
+    console.log(`[PetitionCheck] ${model.label}: complete in ${totalElapsed}ms`);
+
     const content = data?.choices?.[0]?.message?.content?.trim();
-    return { content: content && content.length > 20 ? content : null, model, elapsed };
+    return { content: content && content.length > 20 ? content : null, model, elapsed: totalElapsed };
   } catch (err) {
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
+    cleanup();
     const elapsed = Date.now() - startMs;
     const reason = err instanceof Error && err.name === 'AbortError'
       ? 'TIMEOUT' : err instanceof Error ? err.message : 'ERROR';

@@ -258,16 +258,79 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       let buffer = '';
       let settled = false;
 
-      while (!settled) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Helper to process a single SSE event
+      function processEvent(eventType: string, eventData: string) {
+        if (!eventType || !eventData) return;
+        try {
+          const data = JSON.parse(eventData);
 
-        buffer += decoder.decode(value, { stream: true });
+          switch (eventType) {
+            case 'status':
+              setStatusMessage(data.message || 'جاري التحليل...');
+              if (data.model) setCurrentModel(data.model);
+              if (data.attempt) setAttemptCount(data.attempt);
+              break;
 
-        // Parse SSE events
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || ''; // Keep incomplete line in buffer
+            case 'complete':
+              stopElapsedTimer();
+              settled = true;
+              setAnalysis({
+                result: data.result || 'needs_review',
+                score: data.score ?? 50,
+                documentType: data.documentType,
+                court: data.court,
+                date: data.date,
+                summary: data.summary || '',
+                passedChecks: data.passedChecks || [],
+                failedChecks: data.failedChecks || [],
+                pendingChecks: data.pendingChecks || [],
+                suggestions: data.suggestions || [],
+                report: data.report || data.rawReport || '',
+                aiPowered: !!data.aiPowered,
+                model: data.model,
+                modelLabel: data.modelLabel,
+                tier: data.tier,
+                triedModels: data.triedModels,
+                parseFailed: !!data.parseFailed,
+                executionTime: data.executionTime,
+                timedOut: data.timedOut,
+              });
+              break;
 
+            case 'timeout':
+              stopElapsedTimer();
+              settled = true;
+              setAnalysis({
+                result: 'needs_review',
+                score: 50,
+                summary: 'استغرق التحليل وقتاً أطول من المتوقع. يرجى تقصير النص والمحاولة مرة أخرى.',
+                passedChecks: [],
+                failedChecks: [],
+                pendingChecks: [],
+                suggestions: [],
+                report: '⚠️ تجاوز وقت التحليل. يرجى تقصير نص المستند والمحاولة مرة أخرى.',
+                aiPowered: false,
+                triedModels: data.triedModels,
+                parseFailed: true,
+                executionTime: data.executionTime,
+                timedOut: true,
+              });
+              break;
+
+            case 'error':
+              stopElapsedTimer();
+              settled = true;
+              setError(data.error || 'حدث خطأ غير متوقع');
+              break;
+          }
+        } catch {
+          // Ignore JSON parse errors for partial events
+        }
+      }
+
+      // Helper to parse a chunk of SSE data
+      function parseSSEChunk(chunk: string) {
+        const lines = chunk.split('\n');
         let eventType = '';
         let eventData = '';
 
@@ -277,77 +340,38 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
           } else if (line.startsWith('data: ')) {
             eventData = line.slice(6);
           } else if (line === '' && eventType && eventData) {
-            // Process complete event
-            try {
-              const data = JSON.parse(eventData);
-
-              switch (eventType) {
-                case 'status':
-                  setStatusMessage(data.message || 'جاري التحليل...');
-                  if (data.model) setCurrentModel(data.model);
-                  if (data.attempt) setAttemptCount(data.attempt);
-                  break;
-
-                case 'complete':
-                  stopElapsedTimer();
-                  settled = true;
-                  setAnalysis({
-                    result: data.result || 'needs_review',
-                    score: data.score ?? 50,
-                    documentType: data.documentType,
-                    court: data.court,
-                    date: data.date,
-                    summary: data.summary || '',
-                    passedChecks: data.passedChecks || [],
-                    failedChecks: data.failedChecks || [],
-                    pendingChecks: data.pendingChecks || [],
-                    suggestions: data.suggestions || [],
-                    report: data.report || data.rawReport || '',
-                    aiPowered: !!data.aiPowered,
-                    model: data.model,
-                    modelLabel: data.modelLabel,
-                    tier: data.tier,
-                    triedModels: data.triedModels,
-                    parseFailed: !!data.parseFailed,
-                    executionTime: data.executionTime,
-                    timedOut: data.timedOut,
-                  });
-                  break;
-
-                case 'timeout':
-                  stopElapsedTimer();
-                  settled = true;
-                  setAnalysis({
-                    result: 'needs_review',
-                    score: 50,
-                    summary: 'استغرق التحليل وقتاً أطول من المتوقع. يرجى تقصير النص والمحاولة مرة أخرى.',
-                    passedChecks: [],
-                    failedChecks: [],
-                    pendingChecks: [],
-                    suggestions: [],
-                    report: '⚠️ تجاوز وقت التحليل. يرجى تقصير نص المستند والمحاولة مرة أخرى.',
-                    aiPowered: false,
-                    triedModels: data.triedModels,
-                    parseFailed: true,
-                    executionTime: data.executionTime,
-                    timedOut: true,
-                  });
-                  break;
-
-                case 'error':
-                  stopElapsedTimer();
-                  settled = true;
-                  setError(data.error || 'حدث خطأ غير متوقع');
-                  break;
-              }
-            } catch (parseErr) {
-              // Ignore JSON parse errors for partial events
-            }
-
+            processEvent(eventType, eventData);
             eventType = '';
             eventData = '';
           }
         }
+
+        // If we have unprocessed event data (stream ended without empty line)
+        if (eventType && eventData) {
+          processEvent(eventType, eventData);
+        }
+      }
+
+      while (!settled) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Split on double newlines to find complete SSE events
+        const events = buffer.split('\n\n');
+        buffer = events.pop() || ''; // Keep incomplete event in buffer
+
+        for (const event of events) {
+          if (event.trim()) {
+            parseSSEChunk(event);
+          }
+        }
+      }
+
+      // Process any remaining data in buffer (stream ended without trailing \n\n)
+      if (buffer.trim() && !settled) {
+        parseSSEChunk(buffer);
       }
 
       stopElapsedTimer();
