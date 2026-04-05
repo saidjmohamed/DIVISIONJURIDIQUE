@@ -21,8 +21,14 @@ import { NextRequest } from "next/server";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-// مفتاح Gemini — يدعم fallback مدمج في الكود
-const GEMINI_KEY     = process.env.GEMINI_API_KEY || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM";
+
+// ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
+const GEMINI_KEYS: string[] = [
+  process.env.GEMINI_API_KEY_1 || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM", // key 1
+  process.env.GEMINI_API_KEY_2 || "AIzaSyA9QT3tfih8nIVQoeCPQPr7HnozvgdxETo", // key 2
+  process.env.GEMINI_API_KEY_3 || "AIzaSyCG7CGixqvdyZ4dQpQBcEXi-UKEhO_iLvA", // key 3
+  process.env.GEMINI_API_KEY_4 || "AIzaSyDL_dlkXQnU2NXmNdEwsFYiAxAcTQCyIAg", // key 4
+].filter(Boolean);
 
 const OR_API_URL     = "https://openrouter.ai/api/v1/chat/completions";
 const GEMINI_MODEL   = "gemini-2.0-flash";
@@ -181,7 +187,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
     console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط → Gemini مباشرة");
   }
 
-  // ── المحاولة الثانية: Google Gemini 2.0 Flash (Fallback) ──────────────
+  // ── المحاولة الثانية: Google Gemini 2.0 Flash — تدوير على 4 مفاتيح ─────
   triedModels.push(FALLBACK_MODEL.id);
   const remaining = timeout - (Date.now() - startTime);
 
@@ -196,40 +202,54 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
     };
   }
 
-  const ctrl2  = new AbortController();
-  const timer2 = setTimeout(() => ctrl2.abort(), remaining);
+  // جرب كل مفتاح Gemini حتى ينجح أحدها
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const key = GEMINI_KEYS[i];
+    const timeLeft = timeout - (Date.now() - startTime);
+    if (timeLeft < 3_000) break;
 
-  try {
-    const content = await callGemini(
-      systemPrompt, userMessage, messages,
-      maxTokens || FALLBACK_MODEL.maxTokens,
-      temperature, ctrl2.signal,
-    );
-    clearTimeout(timer2);
+    const ctrl2  = new AbortController();
+    const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 15_000));
 
-    if (content) {
-      console.log("[AI Core] ✅ Gemini Fallback نجح");
-      return {
-        content,
-        model: FALLBACK_MODEL,
-        triedModels,
-        elapsedMs: Date.now() - startTime,
-        timedOut: false,
-        usedFallback: true,
-      };
+    try {
+      console.log(`[AI Core] 🔵 Gemini key #${i + 1}/${GEMINI_KEYS.length}...`);
+      const content = await callGemini(
+        systemPrompt, userMessage, messages,
+        maxTokens || FALLBACK_MODEL.maxTokens,
+        temperature, ctrl2.signal, key,
+      );
+      clearTimeout(timer2);
+
+      if (content) {
+        console.log(`[AI Core] ✅ Gemini key #${i + 1} نجح`);
+        return {
+          content,
+          model: FALLBACK_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: false,
+          usedFallback: true,
+        };
+      }
+      // رد فارغ — جرب المفتاح التالي
+      console.warn(`[AI Core] Gemini key #${i + 1} رد فارغ → key #${i + 2}`);
+    } catch (err) {
+      clearTimeout(timer2);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort) {
+        // وقت انتهى — توقف
+        return {
+          content: '',
+          model: FALLBACK_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: true,
+          usedFallback: true,
+        };
+      }
+      // خطأ (429 أو غيره) — جرب المفتاح التالي
+      console.warn(`[AI Core] Gemini key #${i + 1} خطأ → key #${i + 2}`);
     }
-  } catch (err) {
-    clearTimeout(timer2);
-    const isAbort = err instanceof Error && err.name === 'AbortError';
-    console.error(`[AI Core] Gemini ${isAbort ? 'TIMEOUT' : 'ERROR'}:`, err);
-    return {
-      content: '',
-      model: FALLBACK_MODEL,
-      triedModels,
-      elapsedMs: Date.now() - startTime,
-      timedOut: isAbort,
-      usedFallback: true,
-    };
   }
 
   // كلا المزودين فشلا
@@ -328,8 +348,9 @@ async function callGemini(
   maxTokens: number,
   temperature: number,
   signal: AbortSignal,
+  apiKey: string,
 ): Promise<string | null> {
-  if (!GEMINI_KEY) return null;
+  if (!apiKey) return null;
 
   // بناء سجل المحادثة بصيغة Gemini
   const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
@@ -354,7 +375,7 @@ async function callGemini(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "x-goog-api-key": GEMINI_KEY,
+        "x-goog-api-key": apiKey,
       },
       body: JSON.stringify({
         system_instruction: { parts: [{ text: systemPrompt }] },
