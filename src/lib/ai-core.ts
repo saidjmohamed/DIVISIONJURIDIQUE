@@ -1,11 +1,11 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي (v7 — Fallback System)
+ * AI Core — محرك الذكاء الاصطناعي (v8 — Fallback System)
  *
  * 🥇 المزود الأول:  OpenRouter → qwen/qwen3.6-plus:free
- * 🥈 المزود الثاني: Perplexity → sonar  (fallback تلقائي)
+ * 🥈 المزود الثاني: Google Gemini 2.0 Flash  (fallback تلقائي — مجاني)
  *
  * الانتقال يحدث تلقائياً عند:
- *   - Rate limit (429)
+ *   - Rate limit (429) من OpenRouter
  *   - خطأ في الخادم (5xx)
  *   - Timeout
  *   - رد فارغ
@@ -20,11 +20,13 @@ import { NextRequest } from "next/server";
 // 🔑 مفاتيح API
 // ═══════════════════════════════════════════════════════════════════════════
 
-const OPENROUTER_KEY  = process.env.OPENROUTER_API_KEY;
-const PERPLEXITY_KEY  = process.env.PERPLEXITY_API_KEY;
+const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+// مفتاح Gemini — يدعم fallback مدمج في الكود
+const GEMINI_KEY     = process.env.GEMINI_API_KEY || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM";
 
-const OR_API_URL   = "https://openrouter.ai/api/v1/chat/completions";
-const PPLX_API_URL = "https://api.perplexity.ai/chat/completions";
+const OR_API_URL     = "https://openrouter.ai/api/v1/chat/completions";
+const GEMINI_MODEL   = "gemini-2.0-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🎯 تعريف النماذج
@@ -36,7 +38,7 @@ export interface AIModel {
   tier: number;
   maxTokens: number;
   contextWindow: number;
-  provider: "openrouter" | "perplexity";
+  provider: "openrouter" | "gemini";
 }
 
 export const PRIMARY_MODEL: AIModel = {
@@ -49,12 +51,12 @@ export const PRIMARY_MODEL: AIModel = {
 };
 
 export const FALLBACK_MODEL: AIModel = {
-  id: "sonar",
-  label: "Perplexity Sonar",
+  id: GEMINI_MODEL,
+  label: "Gemini 2.0 Flash",
   tier: 1,
-  maxTokens: 4096,
-  contextWindow: 128_000,
-  provider: "perplexity",
+  maxTokens: 2048,
+  contextWindow: 1_000_000,
+  provider: "gemini",
 };
 
 export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, FALLBACK_MODEL];
@@ -69,7 +71,7 @@ export function getGlobalTimeout(type: RequestType): number {
   switch (type) {
     case 'legal_analysis':  return 28_000;
     case 'json_extraction': return 28_000;
-    case 'fast':            return 28_000;
+    case 'fast':            return 20_000;
     case 'chat':
     default:                return 28_000;
   }
@@ -107,7 +109,7 @@ export async function checkRateLimit(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🤖 AI Call — مع نظام Fallback تلقائي
+// 🤖 AI Call — مع Fallback تلقائي
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface AICallOptions {
@@ -145,17 +147,17 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   const startTime  = Date.now();
   const triedModels: string[] = [];
 
-  // ── المحاولة الأولى: OpenRouter (Qwen 3.6 Plus Free) ──
+  // ── المحاولة الأولى: OpenRouter (Qwen 3.6 Plus Free) ──────────────────
   if (OPENROUTER_KEY) {
     triedModels.push(PRIMARY_MODEL.id);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), Math.min(timeout, 20_000));
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), Math.min(timeout, 20_000));
 
     try {
       const content = await callOpenRouter(
         systemPrompt, userMessage, messages,
         maxTokens || PRIMARY_MODEL.maxTokens,
-        temperature, controller.signal,
+        temperature, ctrl.signal,
       );
       clearTimeout(timer);
 
@@ -169,70 +171,65 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
           usedFallback: false,
         };
       }
-      // رد فارغ — انتقل إلى Fallback
-      console.warn("[AI Core] OpenRouter returned empty — switching to Perplexity fallback");
+      console.warn("[AI Core] OpenRouter رد فارغ → Gemini Fallback");
     } catch (err) {
       clearTimeout(timer);
       const isAbort = err instanceof Error && err.name === 'AbortError';
-      console.warn(`[AI Core] OpenRouter ${isAbort ? 'TIMEOUT' : 'ERROR'} — switching to Perplexity fallback`);
+      console.warn(`[AI Core] OpenRouter ${isAbort ? 'TIMEOUT' : 'ERROR'} → Gemini Fallback`);
     }
   } else {
-    console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط — جرب Perplexity مباشرة");
+    console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط → Gemini مباشرة");
   }
 
-  // ── المحاولة الثانية: Perplexity (Sonar) ──
-  if (PERPLEXITY_KEY) {
-    triedModels.push(FALLBACK_MODEL.id);
-    const remainingTime = timeout - (Date.now() - startTime);
-    if (remainingTime < 3_000) {
-      // لا وقت كافٍ للمحاولة الثانية
+  // ── المحاولة الثانية: Google Gemini 2.0 Flash (Fallback) ──────────────
+  triedModels.push(FALLBACK_MODEL.id);
+  const remaining = timeout - (Date.now() - startTime);
+
+  if (remaining < 3_000) {
+    return {
+      content: '',
+      model: FALLBACK_MODEL,
+      triedModels,
+      elapsedMs: Date.now() - startTime,
+      timedOut: true,
+      usedFallback: true,
+    };
+  }
+
+  const ctrl2  = new AbortController();
+  const timer2 = setTimeout(() => ctrl2.abort(), remaining);
+
+  try {
+    const content = await callGemini(
+      systemPrompt, userMessage, messages,
+      maxTokens || FALLBACK_MODEL.maxTokens,
+      temperature, ctrl2.signal,
+    );
+    clearTimeout(timer2);
+
+    if (content) {
+      console.log("[AI Core] ✅ Gemini Fallback نجح");
       return {
-        content: '',
+        content,
         model: FALLBACK_MODEL,
         triedModels,
         elapsedMs: Date.now() - startTime,
-        timedOut: true,
+        timedOut: false,
         usedFallback: true,
       };
     }
-
-    const controller2 = new AbortController();
-    const timer2 = setTimeout(() => controller2.abort(), remainingTime);
-
-    try {
-      const content = await callPerplexity(
-        systemPrompt, userMessage, messages,
-        maxTokens || FALLBACK_MODEL.maxTokens,
-        temperature, controller2.signal,
-      );
-      clearTimeout(timer2);
-
-      if (content) {
-        console.log("[AI Core] ✅ Perplexity fallback نجح");
-        return {
-          content,
-          model: FALLBACK_MODEL,
-          triedModels,
-          elapsedMs: Date.now() - startTime,
-          timedOut: false,
-          usedFallback: true,
-        };
-      }
-    } catch (err) {
-      clearTimeout(timer2);
-      const isAbort = err instanceof Error && err.name === 'AbortError';
-      console.error(`[AI Core] Perplexity ${isAbort ? 'TIMEOUT' : 'ERROR'}:`, err);
-      return {
-        content: '',
-        model: FALLBACK_MODEL,
-        triedModels,
-        elapsedMs: Date.now() - startTime,
-        timedOut: isAbort,
-        usedFallback: true,
-      };
-    }
-  } else {
-    console.warn("[AI Core] PERPLEXITY_API_KEY غير مضبوط — لا يوجد fallback");
+  } catch (err) {
+    clearTimeout(timer2);
+    const isAbort = err instanceof Error && err.name === 'AbortError';
+    console.error(`[AI Core] Gemini ${isAbort ? 'TIMEOUT' : 'ERROR'}:`, err);
+    return {
+      content: '',
+      model: FALLBACK_MODEL,
+      triedModels,
+      elapsedMs: Date.now() - startTime,
+      timedOut: isAbort,
+      usedFallback: true,
+    };
   }
 
   // كلا المزودين فشلا
@@ -263,19 +260,17 @@ async function callOpenRouter(
   const apiMessages: Array<{ role: string; content: string }> = [
     { role: "system", content: systemPrompt },
   ];
-
-  if (history && history.length > 0) {
+  if (history?.length) {
     for (const msg of history.slice(-10)) {
       if (msg.role === 'user' || msg.role === 'assistant') {
         apiMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 5000) });
       }
     }
   }
-
   apiMessages.push({ role: "user", content: userMessage });
 
   const startMs = Date.now();
-  console.log(`[AI Core] 🟢 استدعاء OpenRouter (${PRIMARY_MODEL.label})...`);
+  console.log(`[AI Core] 🟢 OpenRouter (${PRIMARY_MODEL.label})...`);
 
   try {
     const res = await fetch(OR_API_URL, {
@@ -297,25 +292,22 @@ async function callOpenRouter(
 
     const elapsed = Date.now() - startMs;
 
-    // 429 = rate limit → trigger fallback
     if (res.status === 429) {
-      console.warn(`[AI Core] OpenRouter 429 Rate Limit في ${elapsed}ms → Fallback`);
+      console.warn(`[AI Core] OpenRouter 429 في ${elapsed}ms → Fallback`);
       return null;
     }
-
     if (!res.ok) {
       console.error(`[AI Core] OpenRouter HTTP ${res.status} في ${elapsed}ms`);
       return null;
     }
 
-    const data = await res.json();
+    const data    = await res.json();
     const content = data?.choices?.[0]?.message?.content?.trim();
 
     if (content && content.length > 5) {
       console.log(`[AI Core] ✅ OpenRouter: ${content.length} حرف في ${elapsed}ms`);
       return content;
     }
-
     console.warn(`[AI Core] OpenRouter رد فارغ في ${elapsed}ms`);
     return null;
   } catch (err) {
@@ -326,10 +318,10 @@ async function callOpenRouter(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔌 Perplexity — Sonar (Fallback)
+// 🔌 Google Gemini 2.0 Flash — Fallback مجاني
 // ═══════════════════════════════════════════════════════════════════════════
 
-async function callPerplexity(
+async function callGemini(
   systemPrompt: string,
   userMessage: string,
   history: Array<{ role: string; content: string }> | undefined,
@@ -337,37 +329,48 @@ async function callPerplexity(
   temperature: number,
   signal: AbortSignal,
 ): Promise<string | null> {
-  if (!PERPLEXITY_KEY) return null;
+  if (!GEMINI_KEY) return null;
 
-  const apiMessages: Array<{ role: string; content: string }> = [
-    { role: "system", content: systemPrompt },
-  ];
+  // بناء سجل المحادثة بصيغة Gemini
+  const contents: Array<{ role: string; parts: Array<{ text: string }> }> = [];
 
-  if (history && history.length > 0) {
+  if (history?.length) {
     for (const msg of history.slice(-10)) {
       if (msg.role === 'user' || msg.role === 'assistant') {
-        apiMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 5000) });
+        contents.push({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: String(msg.content || '').slice(0, 5000) }],
+        });
       }
     }
   }
-
-  apiMessages.push({ role: "user", content: userMessage });
+  contents.push({ role: "user", parts: [{ text: userMessage }] });
 
   const startMs = Date.now();
-  console.log(`[AI Core] 🔵 استدعاء Perplexity Fallback (${FALLBACK_MODEL.label})...`);
+  console.log(`[AI Core] 🔵 Gemini Fallback (${FALLBACK_MODEL.label})...`);
 
   try {
-    const res = await fetch(PPLX_API_URL, {
+    const res = await fetch(GEMINI_API_URL, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${PERPLEXITY_KEY}`,
         "Content-Type": "application/json",
+        "x-goog-api-key": GEMINI_KEY,
       },
       body: JSON.stringify({
-        model: FALLBACK_MODEL.id,
-        messages: apiMessages,
-        max_tokens: maxTokens,
-        temperature,
+        system_instruction: { parts: [{ text: systemPrompt }] },
+        contents,
+        generationConfig: {
+          temperature,
+          maxOutputTokens: maxTokens,
+          topK: 40,
+          topP: 0.95,
+        },
+        safetySettings: [
+          { category: "HARM_CATEGORY_HARASSMENT",        threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_HATE_SPEECH",       threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" },
+          { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+        ],
       }),
       signal,
     });
@@ -375,23 +378,22 @@ async function callPerplexity(
     const elapsed = Date.now() - startMs;
 
     if (!res.ok) {
-      console.error(`[AI Core] Perplexity HTTP ${res.status} في ${elapsed}ms`);
+      console.error(`[AI Core] Gemini HTTP ${res.status} في ${elapsed}ms`);
       return null;
     }
 
-    const data = await res.json();
-    const content = data?.choices?.[0]?.message?.content?.trim();
+    const data    = await res.json();
+    const content = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (content && content.length > 5) {
-      console.log(`[AI Core] ✅ Perplexity: ${content.length} حرف في ${elapsed}ms`);
+      console.log(`[AI Core] ✅ Gemini: ${content.length} حرف في ${elapsed}ms`);
       return content;
     }
-
-    console.warn(`[AI Core] Perplexity رد فارغ في ${elapsed}ms`);
+    console.warn(`[AI Core] Gemini رد فارغ في ${elapsed}ms`);
     return null;
   } catch (err) {
     const reason = err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR';
-    console.error(`[AI Core] Perplexity ${reason}:`, err);
+    console.error(`[AI Core] Gemini ${reason}:`, err);
     throw err;
   }
 }
