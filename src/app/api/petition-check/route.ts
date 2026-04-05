@@ -8,13 +8,13 @@ const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 // ⚡ PERFORMANCE CONFIG — Tuned for sub-10s responses
 // ═══════════════════════════════════════════════════════════════════════════
 
-const GLOBAL_TIMEOUT_MS = 14_000;   // Hard cap on entire request
+const GLOBAL_TIMEOUT_MS = 22_000;   // Hard cap on entire request (within Vercel 30s)
 const MAX_MODELS_TO_TRY = 3;        // Max models before giving up
-const TIER_0_TIMEOUT = 8_000;       // Primary model: 8s
-const TIER_1_TIMEOUT = 6_000;       // Fast fallback: 6s
+const TIER_0_TIMEOUT = 12_000;      // Primary model: 12s (free models can be slow)
+const TIER_1_TIMEOUT = 8_000;       // Fast fallback: 8s
 const TIER_2_TIMEOUT = 6_000;       // Strong fallback: 6s
 const MAX_INPUT_CHARS = 8_000;      // Truncate long documents
-const CLIENT_TIMEOUT_MS = 20_000;   // Frontend should timeout at 20s
+const CLIENT_TIMEOUT_MS = 28_000;   // Frontend should timeout at 28s
 
 // ═══════════════════════════════════════════════════════════════════════════
 // نموذج الرد الصارم

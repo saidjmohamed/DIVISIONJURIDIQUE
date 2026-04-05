@@ -112,7 +112,7 @@ export default function AiAssistant() {
     const clientController = new AbortController();
     abortRef.current = clientController;
 
-    // Client-side timeout: 25s
+    // Client-side timeout: 28s
     const clientTimeout = setTimeout(() => {
       clientController.abort();
       stopTimer();
@@ -124,7 +124,7 @@ export default function AiAssistant() {
         timestamp: new Date(),
         error: true,
       }]);
-    }, 25_000);
+    }, 28_000);
 
     try {
       const res = await fetch("/api/ai", {

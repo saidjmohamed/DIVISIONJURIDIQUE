@@ -10,12 +10,12 @@ const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const API_URL = "https://openrouter.ai/api/v1/chat/completions";
 
 // ⚡ PERFORMANCE CONFIG — aggressive timeouts to stay well under Vercel limits
-const GLOBAL_TIMEOUT_MS = 20_000;   // Hard cap on entire request
-const MAX_MODELS_TO_TRY = 3;        // Max models before giving up (was 4)
+const GLOBAL_TIMEOUT_MS = 25_000;   // Hard cap (within Vercel 30s)
+const MAX_MODELS_TO_TRY = 3;        // Max models before giving up
 const TIER_TIMEOUTS: Record<number, number> = {
-  1: 8_000,   // Tier 1: Primary — 8s
-  2: 6_000,   // Tier 2: Fast — 6s
-  3: 5_000,   // Tier 3: Last resort — 5s
+  1: 12_000,   // Tier 1: Primary — 12s (free models can be slow)
+  2: 8_000,    // Tier 2: Fast — 8s
+  3: 6_000,    // Tier 3: Last resort — 6s
 };
 
 interface ModelConfig {

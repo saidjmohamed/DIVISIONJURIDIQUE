@@ -224,7 +224,7 @@ export default function SmartPetitionChecker({ onBack }: { onBack: () => void })
       const controller = new AbortController();
       abortControllerRef.current = controller;
 
-      const CLIENT_TIMEOUT = 20_000;
+      const CLIENT_TIMEOUT = 28_000;
       const clientTimer = setTimeout(() => controller.abort(), CLIENT_TIMEOUT);
 
       setStatusMessage('جاري الاتصال بنموذج الذكاء الاصطناعي...');
