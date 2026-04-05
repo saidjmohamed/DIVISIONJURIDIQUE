@@ -33,10 +33,6 @@ export const PRIMARY_MODEL: AIModel = {
   contextWindow: 1_000_000,
 };
 
-// Legacy exports — kept for compatibility with route.ts imports
-export const TIER1_MODELS: AIModel[] = [PRIMARY_MODEL];
-export const TIER2_MODELS: AIModel[] = [];
-export const TIER3_MODELS: AIModel[] = [];
 export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -97,7 +93,6 @@ export interface AICallOptions {
   maxTokens?: number;
   temperature?: number;
   globalTimeoutMs?: number;
-  maxModelsToTry?: number;
   requestType?: RequestType;
   preferredModel?: string;
 }

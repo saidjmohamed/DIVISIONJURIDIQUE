@@ -71,7 +71,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
     },
     {
       title: "الذكاء الاصطناعي القانوني",
-      description: "مساعد ذكي مدعم بنموذج Gemini 2.5 Flash للإجابة على استفساراتك القانونية وتلخيص النصوص المعقدة بسرعة ودقة.",
+      description: "مساعد ذكي مدعم بنموذج Qwen 3.6 Plus للإجابة على استفساراتك القانونية وتلخيص النصوص المعقدة بسرعة ودقة.",
       icon: "🤖",
       color: "from-indigo-600 to-indigo-800"
     }

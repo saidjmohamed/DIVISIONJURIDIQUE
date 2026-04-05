@@ -17,7 +17,7 @@ interface Message {
 interface AvailableModel {
   id: string;
   label: string;
-  tier: number;
+  tier?: number;
 }
 
 const SUGGESTED_QUESTIONS = [
@@ -47,7 +47,7 @@ export default function AiAssistant() {
   const [isLoading, setIsLoading]           = useState(false);
   const [copiedIdx, setCopiedIdx]           = useState<number | null>(null);
   const [models, setModels]                 = useState<AvailableModel[]>([]);
-  const [selectedModel, setSelectedModel]   = useState("auto");
+  const [selectedModel, setSelectedModel]   = useState("qwen/qwen3.6-plus:free");
   const [showReasoning, setShowReasoning]   = useState<number | null>(null);
   const [isExpanded, setIsExpanded]         = useState(false);
   const [statusMessage, setStatusMessage]   = useState("");
@@ -63,8 +63,9 @@ export default function AiAssistant() {
     fetch("/api/ai")
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => {
-        if (data.models && data.models.length > 0) {
-          setModels(data.models);
+        if (data.model) {
+          setModels([{ id: data.model, label: data.label || "Qwen 3.6 Plus", tier: 0 }]);
+          setSelectedModel(data.model);
         }
       })
       .catch(() => {});
@@ -429,7 +430,7 @@ export default function AiAssistant() {
           <h1 className="text-lg sm:text-xl font-bold text-white">المساعد القانوني الذكي</h1>
           <div className="flex items-center justify-center gap-2 mt-1 flex-wrap">
             <span className="text-white/70 text-[10px] sm:text-xs">
-              {models.length} نماذج مجانية — نظام Fallback ذكي
+              Qwen 3.6 Plus — مجاني ومفتوح المصدر
             </span>
             {lastAssistantMsg && (
               <span className="text-[9px] px-2 py-0.5 rounded-full font-bold"
@@ -440,34 +441,12 @@ export default function AiAssistant() {
           </div>
         </div>
 
-        {/* Model Selector */}
-        {models.length > 0 && (
-          <div className="px-3 py-2 border-b border-gray-100 flex-shrink-0 bg-gray-50">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-bold text-gray-500">🤖 النموذج:</span>
-              <select
-                value={selectedModel}
-                onChange={e => setSelectedModel(e.target.value)}
-                disabled={isLoading}
-                className="text-[11px] px-2 py-1 rounded-lg border font-bold transition-all flex-1 min-w-[140px]"
-                style={{
-                  background: "#f0fdf4",
-                  borderColor: "#86efac",
-                  color: "#15803d",
-                  outline: "none",
-                  cursor: "pointer",
-                }}
-              >
-                <option value="auto">🔄 تلقائي (Fallback ذكي)</option>
-                {models.map(m => (
-                  <option key={m.id} value={m.id}>
-                    {m.tier === 1 ? "⭐" : m.tier === 2 ? "⚡" : "🔵"} {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        )}
+        {/* Model Badge */}
+        <div className="px-3 py-1.5 border-b border-gray-100 flex-shrink-0 bg-gray-50 text-center">
+          <span className="text-[10px] font-bold" style={{ color: "#15803d" }}>
+            🧠 qwen/qwen3.6-plus:free
+          </span>
+        </div>
 
         {/* Chat Messages */}
         <div ref={chatContainerRef} className="flex-1 overflow-y-auto p-3 sm:p-4"
@@ -479,10 +458,7 @@ export default function AiAssistant() {
               <h2 className="text-base font-bold mb-1" style={{ color: "#1a3a5c" }}>
                 مرحباً بك في المساعد القانوني
               </h2>
-              <p className="text-gray-400 text-xs mb-1">مدعوم بـ {models.length} نموذج ذكاء اصطناعي مجاني</p>
-              <p className="text-gray-400 text-[10px] mb-4">
-                نظام Fallback ذكي يختار أفضل نموذج تلقائياً
-              </p>
+              <p className="text-gray-400 text-xs mb-4">مدعوم بـ Qwen 3.6 Plus عبر OpenRouter</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-right">
                 {SUGGESTED_QUESTIONS.map((q, i) => (
                   <button key={i} onClick={() => sendMessage(q)}

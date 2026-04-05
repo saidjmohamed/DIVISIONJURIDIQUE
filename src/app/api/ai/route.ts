@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ALL_MODELS, PRIMARY_MODEL, callAI, checkRateLimit,
+  PRIMARY_MODEL, callAI, checkRateLimit,
 } from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -114,8 +114,6 @@ export async function POST(req: NextRequest) {
           userMessage,
           messages: chatMessages,
           requestType: 'chat',
-          preferredModel: preferredModel || PRIMARY_MODEL.id,
-          maxModelsToTry: 4,
           temperature: 0.7,
         });
 
@@ -163,13 +161,8 @@ export async function POST(req: NextRequest) {
 // ─── GET: النموذج المستخدم ──────────────────────────
 export async function GET() {
   return NextResponse.json({
-    models: ALL_MODELS.map(m => ({
-      id: m.id,
-      label: m.label,
-      tier: m.tier,
-      contextWindow: m.contextWindow,
-    })),
-    totalModels: ALL_MODELS.length,
-    primary: PRIMARY_MODEL.id,
+    model: PRIMARY_MODEL.id,
+    label: PRIMARY_MODEL.label,
+    contextWindow: PRIMARY_MODEL.contextWindow,
   });
 }
