@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  ALL_MODELS, TIER1_MODELS, TIER2_MODELS, TIER3_MODELS, callAI, checkRateLimit,
+  ALL_MODELS, TIER1_MODELS, TIER2_MODELS, TIER3_MODELS, PRIMARY_MODEL, callAI, checkRateLimit,
 } from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -114,7 +114,7 @@ export async function POST(req: NextRequest) {
           userMessage,
           messages: chatMessages,
           requestType: 'chat',
-          preferredModel,
+          preferredModel: preferredModel || PRIMARY_MODEL.id,
           maxModelsToTry: 4,
           temperature: 0.7,
         });

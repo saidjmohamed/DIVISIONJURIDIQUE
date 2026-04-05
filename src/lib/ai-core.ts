@@ -1,11 +1,12 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي الموحد (v4)
+ * AI Core — محرك الذكاء الاصطناعي الموحد (v5)
  *
- * 🧠 Parallel Race Strategy:
- * - OpenRouter models tried sequentially (fast cycling)
- * - Gemini starts in parallel after a short delay (last resort)
- * - First successful response wins, others are cancelled
- * - No more sequential timeout accumulation!
+ * 🧠 Primary Model + Parallel Backup Strategy:
+ * - Qwen 3.6 Plus is the PRIMARY model for ALL requests
+ * - Gets generous 15s timeout (it's the main workhorse)
+ * - If it fails, 2 backup models tried quickly (5s each)
+ * - Gemini runs in parallel after 10s delay (last resort)
+ * - First successful response wins
  *
  * Used by: /api/ai, /api/petition-check
  */
@@ -20,71 +21,62 @@ const OR_API_URL = "https://openrouter.ai/api/v1/chat/completions";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🧠 MODEL REGISTRY — All FREE models, ranked by tier
+// 🎯 PRIMARY MODEL — Qwen 3.6 Plus (used for ALL requests)
+// ═══════════════════════════════════════════════════════════════════════════
+
+export const PRIMARY_MODEL: AIModel = {
+  id: "qwen/qwen3.6-plus:free",
+  label: "Qwen 3.6 Plus",
+  tier: 0,             // tier 0 = primary (special)
+  maxTokens: 4096,
+  contextWindow: 1_000_000,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🧠 BACKUP MODELS — Only used if primary fails
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface AIModel {
   id: string;
   label: string;
-  tier: number;        // 1=Strongest, 2=Balanced, 3=Fast
+  tier: number;
   maxTokens: number;
   contextWindow: number;
 }
 
-/**
- * 🥇 TIER 1 — Strongest (legal reasoning, complex analysis)
- *    Large context, high quality
- */
-export const TIER1_MODELS: AIModel[] = [
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 1, maxTokens: 4096, contextWindow: 1_000_000 },
-  { id: "z-ai/glm-4.5-air:free",                  label: "GLM 4.5 Air",          tier: 1, maxTokens: 4096, contextWindow: 131_072 },
-  { id: "qwen/qwen3-coder:free",                  label: "Qwen3 Coder",           tier: 1, maxTokens: 4096, contextWindow: 262_000 },
-  { id: "meta-llama/llama-3.3-70b-instruct:free", label: "Llama 3.3 70B",      tier: 1, maxTokens: 4096, contextWindow: 65_536 },
-];
-
-/**
- * 🥈 TIER 2 — Balanced (good speed + quality)
- *    Medium size, reliable
- */
-export const TIER2_MODELS: AIModel[] = [
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 2, maxTokens: 4096, contextWindow: 131_072 },
+const BACKUP_MODELS: AIModel[] = [
+  { id: "z-ai/glm-4.5-air:free",                  label: "GLM 4.5 Air",          tier: 2, maxTokens: 4096, contextWindow: 131_072 },
   { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 2, maxTokens: 4096, contextWindow: 131_072 },
-  { id: "arcee-ai/trinity-mini:free",             label: "Trinity Mini",          tier: 2, maxTokens: 4096, contextWindow: 131_072 },
-  { id: "qwen/qwen3-next-80b-a3b-instruct:free",  label: "Qwen3 Next 80B",       tier: 2, maxTokens: 4096, contextWindow: 262_144 },
 ];
 
-/**
- * 🥉 TIER 3 — Fast (quick responses, simple tasks)
- *    Small, fast, reliable
- */
+// Legacy tier arrays — kept for GET /api/ai model selector
+export const TIER1_MODELS: AIModel[] = [PRIMARY_MODEL];
+export const TIER2_MODELS: AIModel[] = BACKUP_MODELS;
 export const TIER3_MODELS: AIModel[] = [
   { id: "google/gemma-3-12b-it:free",             label: "Gemma 3 12B",           tier: 3, maxTokens: 2048, contextWindow: 32_768 },
   { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",           tier: 3, maxTokens: 2048, contextWindow: 131_072 },
-  { id: "meta-llama/llama-3.2-3b-instruct:free",  label: "Llama 3.2 3B",        tier: 3, maxTokens: 2048, contextWindow: 131_072 },
-  { id: "nvidia/nemotron-3-nano-30b-a3b:free",    label: "Nemotron 30B",          tier: 3, maxTokens: 2048, contextWindow: 256_000 },
 ];
 
-// Flat list of ALL models (used by GET /api/ai for model selector)
-export const ALL_MODELS: AIModel[] = [...TIER1_MODELS, ...TIER2_MODELS, ...TIER3_MODELS];
+// Flat list for model selector UI
+export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, ...BACKUP_MODELS, ...TIER3_MODELS];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚙️ TIMEOUT CONFIGURATION (v4 — optimized for parallel race)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TIMEOUT_CONFIG = {
-  tier1: 7_000,    // Strongest: 7s (was 12s — faster cycling)
-  tier2: 5_000,    // Balanced: 5s (was 8s)
-  tier3: 4_000,    // Fast: 4s (was 6s)
-  geminiDelay: 6_000,   // Start Gemini after 6s if no OpenRouter response
-  geminiTimeout: 15_000, // Gemini gets 15s to respond once started
+  primary: 15_000,     // Primary model gets 15s (it's the main workhorse)
+  backup: 5_000,       // Backup models get 5s each (fast cycling)
+  geminiDelay: 10_000, // Start Gemini after 10s if primary + backups failed
+  geminiTimeout: 15_000, // Gemini gets 15s once started
 } as const;
 
 export function getTierTimeout(tier: number): number {
   switch (tier) {
-    case 1: return TIMEOUT_CONFIG.tier1;
-    case 2: return TIMEOUT_CONFIG.tier2;
-    case 3: return TIMEOUT_CONFIG.tier3;
-    default: return 5_000;
+    case 0: return TIMEOUT_CONFIG.primary;  // Primary model
+    case 2: return TIMEOUT_CONFIG.backup;    // Backup models
+    case 3: return TIMEOUT_CONFIG.backup;    // Fast models
+    default: return TIMEOUT_CONFIG.backup;
   }
 }
 
@@ -110,11 +102,11 @@ export function getModelsForRequest(type: RequestType): AIModel[] {
 
 export function getGlobalTimeout(type: RequestType): number {
   switch (type) {
-    case 'legal_analysis': return 25_000;
-    case 'json_extraction': return 22_000;
-    case 'fast': return 12_000;
+    case 'legal_analysis': return 28_000;
+    case 'json_extraction': return 28_000;
+    case 'fast': return 15_000;
     case 'chat':
-    default: return 25_000;
+    default: return 28_000;
   }
 }
 
@@ -220,35 +212,38 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   try {
     // ── Track OpenRouter chain ──
     const orDone = new Promise<string | null>(async (resolve) => {
-      // 1. Try preferred model first
-      if (preferredModel) {
-        const pref = ALL_MODELS.find(m => m.id === preferredModel);
-        if (pref && !resolved && !globalController.signal.aborted) {
-          tried.push(pref.id);
-          modelsTried++;
-          const result = await callOpenRouter(
-            systemPrompt, userMessage, messages, pref, temperature, globalController.signal,
-          );
-          if (result) { resolved = true; resolve(result); return; }
-        }
+      // 1. Try PRIMARY model first (Qwen 3.6 Plus) — with generous 15s timeout
+      if (!resolved && !globalController.signal.aborted) {
+        const primaryModel = preferredModel
+          ? ALL_MODELS.find(m => m.id === preferredModel) || PRIMARY_MODEL
+          : PRIMARY_MODEL;
+
+        tried.push(primaryModel.id);
+        modelsTried++;
+        console.log(`[AI Core] Trying primary: ${primaryModel.label} (timeout: ${TIMEOUT_CONFIG.primary}ms)...`);
+
+        const result = await callOpenRouter(
+          systemPrompt, userMessage, messages, primaryModel, temperature, globalController.signal,
+          TIMEOUT_CONFIG.primary,
+        );
+        if (result) { resolved = true; resolve(result); return; }
+        console.log(`[AI Core] Primary failed, trying backups...`);
       }
 
-      // 2. Sequential fallback through model tiers
-      for (const model of models) {
+      // 2. Quick backup fallback (2 models × 5s each)
+      for (const model of BACKUP_MODELS) {
         if (resolved || globalController.signal.aborted) break;
-        if (tried.includes(model.id)) continue;
         if (modelsTried >= maxModelsToTry) break;
 
         tried.push(model.id);
         modelsTried++;
 
         const maxTok = options.maxTokens || model.maxTokens;
-        const timeout = getTierTimeout(model.tier);
 
         const result = await callOpenRouter(
           systemPrompt, userMessage, messages,
           { ...model, maxTokens: maxTok },
-          temperature, globalController.signal, timeout,
+          temperature, globalController.signal, TIMEOUT_CONFIG.backup,
         );
         if (result) {
           resolved = true;
@@ -290,9 +285,10 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
     // Prefer OpenRouter result (it finished first), else use Gemini
     if (orResult) {
-      const model = preferredModel
-        ? ALL_MODELS.find(m => m.id === preferredModel) || models[0]
-        : models[tried.filter(t => !t.includes('gemini'))[0] ? tried.filter(t => !t.includes('gemini'))[0] : 0] || models[0];
+      // Find which model produced the result
+      const orModels = tried.filter(t => !t.includes('gemini'));
+      const winningModelId = orModels[orModels.length - 1] || PRIMARY_MODEL.id;
+      const model = ALL_MODELS.find(m => m.id === winningModelId) || PRIMARY_MODEL;
       return makeResult(orResult, model);
     }
 

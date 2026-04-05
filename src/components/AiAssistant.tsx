@@ -117,7 +117,7 @@ export default function AiAssistant() {
     let lastStatusMsg = "";
     let clientTimeoutFired = false;
 
-    // Client-side timeout: 28s (backend global is 25s + 3s buffer)
+    // Client-side timeout: 32s (backend global is 28s + 4s buffer)
     const clientTimeout = setTimeout(() => {
       clientTimeoutFired = true;
       clientController.abort();
@@ -130,7 +130,7 @@ export default function AiAssistant() {
         timestamp: new Date(),
         error: true,
       }]);
-    }, 28_000);
+    }, 32_000);
 
     // Helper: safely add an error message (idempotent)
     let errorMessageShown = false;
