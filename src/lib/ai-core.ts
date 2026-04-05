@@ -23,7 +23,7 @@ import { NextRequest } from "next/server";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const GROQ_KEY       = process.env.GROQ_API_KEY;
+const GROQ_KEY       = process.env.GROQ_API_KEY || "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";
 
 // ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
 export const GEMINI_KEYS: string[] = [
