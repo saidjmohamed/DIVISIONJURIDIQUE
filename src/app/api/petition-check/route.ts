@@ -55,12 +55,9 @@ const MODELS: PetitionModel[] = [
 // البروميبت — مُختصر لسرعة أسرع
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Arabic system prompt — minimal, fast
-const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية. قانون الإجراءات 25-14 + ق.إ.م.إ 08-09.
-فحص شكلي فقط. لا تحلل الموضوع. لا تنشئ وقائع.
-أجب بـ JSON فقط بهذه الحقول:
-{"result":"accepted أو rejected أو needs_review","score":0-100,"documentType":"نوع","court":"المحكمة","date":"التاريخ","summary":"ملخص 3 جمل","passedChecks":[{"label":"","article":""}],"failedChecks":[{"label":"","article":"","critical":true,"details":""}],"pendingChecks":[{"label":"","reason":""}],"suggestions":[{"label":"","suggestion":""}]}
-لا تضف أي نص آخر قبل أو بعد JSON.`;
+// Minimal English prompt — Arabic causes some models to hang
+const SYSTEM_PROMPT = `Check this legal document formally. Output JSON only.
+{"result":"accepted|rejected|needs_review","score":75,"documentType":"type","court":"court","date":"date","summary":"3 sentence summary","passedChecks":[],"failedChecks":[],"pendingChecks":[],"suggestions":[]}`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // أنواع الوثائق
@@ -359,7 +356,7 @@ export async function POST(req: NextRequest) {
     ? text.slice(0, MAX_INPUT_CHARS)
     : text;
 
-  const userMsg = `نوع الوثيقة: ${docLabel} (${cat})
+  const userMsg = `Type: ${docLabel} (${cat})
 
 ${truncatedText}`;
 
