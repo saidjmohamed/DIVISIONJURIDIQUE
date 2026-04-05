@@ -55,15 +55,12 @@ const MODELS: PetitionModel[] = [
 // البروميبت — مُختصر لسرعة أسرع
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Arabic system prompt — free models generate Arabic much better than English JSON
-const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
-الأساس: قانون الإجراءات الجزائية 25-14 + ق.إ.م.إ 08-09.
-
-فحص شكلي فقط. لا تحلل الموضوع. لا تنشئ وقائع غير موجودة.
-أذكر المادة القانونية مع كل ملاحظة.`;
-
-// Simplified JSON — compact single line, easier for models to copy
-const JSON_FORMAT_EXAMPLE = `{"result":"needs_review","score":50,"documentType":"عريضة","court":"محكمة","date":"2026","summary":"ملخص","passedChecks":[{"label":"اللغة","article":"م3"}],"failedChecks":[{"label":"الموطن","article":"م13","critical":true,"details":"سبب"}],"pendingChecks":[{"label":"التبليغ","reason":"سبب"}],"suggestions":[{"label":"الموطن","suggestion":"أضف"}]}`;
+// Arabic system prompt — minimal, fast
+const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية. قانون الإجراءات 25-14 + ق.إ.م.إ 08-09.
+فحص شكلي فقط. لا تحلل الموضوع. لا تنشئ وقائع.
+أجب بـ JSON فقط بهذه الحقول:
+{"result":"accepted أو rejected أو needs_review","score":0-100,"documentType":"نوع","court":"المحكمة","date":"التاريخ","summary":"ملخص 3 جمل","passedChecks":[{"label":"","article":""}],"failedChecks":[{"label":"","article":"","critical":true,"details":""}],"pendingChecks":[{"label":"","reason":""}],"suggestions":[{"label":"","suggestion":""}]}
+لا تضف أي نص آخر قبل أو بعد JSON.`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // أنواع الوثائق
@@ -364,11 +361,7 @@ export async function POST(req: NextRequest) {
 
   const userMsg = `نوع الوثيقة: ${docLabel} (${cat})
 
-محتوى الوثيقة:
-${truncatedText}
-
-حلل الوثيقة وأجب بالعربية ثم أعد النتيجة بهذا التنسيق JSON بالضبط:
-${JSON_FORMAT_EXAMPLE}`;
+${truncatedText}`;
 
   // ─── SSE Stream ───
   const encoder = new TextEncoder();
