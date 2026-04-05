@@ -6,15 +6,35 @@ import { NextResponse } from "next/server";
 
 export const maxDuration = 30;
 
+interface TestResult {
+  keyConfigured: boolean;
+  keyPreview?: string;
+  status?: number;
+  response?: {
+    hasContent: boolean;
+    content: string | null;
+    error: string | null;
+    errorCode?: string | null;
+  };
+  error?: string;
+  note?: string;
+  keyHasFallback?: boolean;
+}
+
 export async function GET() {
   const OR_KEY = process.env.OPENROUTER_API_KEY;
   const GEM_KEY = process.env.GEMINI_API_KEY;
-  const results: Record<string, unknown> = {};
+  const results: { openrouter: TestResult; gemini: TestResult } = {
+    openrouter: { keyConfigured: false },
+    gemini: { keyConfigured: false },
+  };
 
   // ── Test OpenRouter ──
   if (OR_KEY) {
-    const maskedKey = OR_KEY.slice(0, 8) + "..." + OR_KEY.slice(-4);
-    results.openrouter = { keyConfigured: true, keyPreview: maskedKey };
+    results.openrouter = {
+      keyConfigured: true,
+      keyPreview: OR_KEY.slice(0, 8) + "..." + OR_KEY.slice(-4),
+    };
 
     try {
       const controller = new AbortController();
@@ -36,19 +56,21 @@ export async function GET() {
       });
 
       clearTimeout(timer);
-      const body = await res.json().catch(() => ({}));
+      const body = await res.json().catch(() => ({})) as Record<string, unknown>;
       results.openrouter.status = res.status;
+      const choices = body?.choices as Array<Record<string, unknown>> | undefined;
+      const errMsg = body?.error as Record<string, unknown> | undefined;
       results.openrouter.response = {
-        hasContent: !!(body?.choices?.[0]?.message?.content),
-        content: body?.choices?.[0]?.message?.content || null,
-        error: body?.error?.message || null,
-        errorCode: body?.error?.code || null,
+        hasContent: !!(choices?.[0]?.message as Record<string, unknown>)?.content,
+        content: String(((choices?.[0]?.message as Record<string, unknown>)?.content) || ""),
+        error: errMsg?.message ? String(errMsg.message) : null,
+        errorCode: errMsg?.code ? String(errMsg.code) : null,
       };
     } catch (err) {
       results.openrouter.error = err instanceof Error ? err.message : "Unknown error";
     }
   } else {
-    results.openrouter = { keyConfigured: false, note: "No OPENROUTER_API_KEY in Vercel env" };
+    results.openrouter.note = "No OPENROUTER_API_KEY in Vercel env vars";
   }
 
   // ── Test Gemini ──
@@ -73,12 +95,15 @@ export async function GET() {
     );
 
     clearTimeout(timer);
-    const body = await res.json().catch(() => ({}));
+    const body = await res.json().catch(() => ({})) as Record<string, unknown>;
     results.gemini.status = res.status;
+    const candidates = body?.candidates as Array<Record<string, unknown>> | undefined;
+    const errMsg = body?.error as Record<string, unknown> | undefined;
+    const parts = ((candidates?.[0]?.content) as Record<string, unknown>)?.parts as Array<Record<string, unknown>> | undefined;
     results.gemini.response = {
-      hasContent: !!(body?.candidates?.[0]?.content?.parts?.[0]?.text),
-      text: body?.candidates?.[0]?.content?.parts?.[0]?.text || null,
-      error: body?.error?.message || null,
+      hasContent: !!parts?.[0]?.text,
+      content: String(parts?.[0]?.text || ""),
+      error: errMsg?.message ? String(errMsg.message) : null,
     };
   } catch (err) {
     results.gemini.error = err instanceof Error ? err.message : "Unknown error";
