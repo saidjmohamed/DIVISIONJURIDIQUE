@@ -1,9 +1,10 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي (v10 — Smart Fallback System)
+ * AI Core — محرك الذكاء الاصطناعي (v11 — Smart Fallback System)
  *
  * 🥇 المزود الأول:  OpenRouter → qwen/qwen3.6-plus:free
  * 🥈 Fallback 1:    Google Gemini 2.5 Flash  (أسرع — مدفوع)
  * 🥉 Fallback 2:    Google Gemini 2.0 Flash  (مجاني — 4 مفاتيح بالتناوب)
+ * 🏅 Fallback 3:    Groq → llama-3.3-70b-versatile (مجاني — سريع جداً)
  *
  * الانتقال يحدث تلقائياً عند:
  *   - Rate limit (429) من أي مزود
@@ -22,6 +23,7 @@ import { NextRequest } from "next/server";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
+const GROQ_KEY       = process.env.GROQ_API_KEY;
 
 // ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
 export const GEMINI_KEYS: string[] = [
@@ -32,6 +34,7 @@ export const GEMINI_KEYS: string[] = [
 ].filter(Boolean);
 
 const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
+const GROQ_API_URL      = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_FLASH_25   = "gemini-2.5-flash-preview-04-17";
 const GEMINI_FLASH_20   = "gemini-2.0-flash";
 const GEMINI_API_BASE   = "https://generativelanguage.googleapis.com/v1beta/models";
@@ -46,7 +49,7 @@ export interface AIModel {
   tier: number;
   maxTokens: number;
   contextWindow: number;
-  provider: "openrouter" | "gemini";
+  provider: "openrouter" | "gemini" | "groq";
   geminiModel?: string;
 }
 
@@ -79,7 +82,16 @@ export const FALLBACK_MODEL: AIModel = {
   geminiModel: GEMINI_FLASH_20,
 };
 
-export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, GEMINI_25_MODEL, FALLBACK_MODEL];
+export const GROQ_MODEL: AIModel = {
+  id: "llama-3.3-70b-versatile",
+  label: "Llama 3.3 70B (Groq)",
+  tier: 3,
+  maxTokens: 4096,
+  contextWindow: 128_000,
+  provider: "groq",
+};
+
+export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, GEMINI_25_MODEL, FALLBACK_MODEL, GROQ_MODEL];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚙️ Timeout
@@ -130,7 +142,7 @@ export async function checkRateLimit(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🤖 AI Call — نظام Fallback ذكي ثلاثي المستويات
+// 🤖 AI Call — نظام Fallback ذكي رباعي المستويات
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface AICallOptions {
@@ -208,7 +220,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🥈 المستوى الثاني: Gemini 2.5 Flash (أسرع وأذكى)
+  // 🥈 المستوى الثاني: Gemini 2.5 Flash
   // يجرب جميع المفاتيح الأربعة بالتناوب
   // ══════════════════════════════════════════════════════════
   triedModels.push(GEMINI_25_MODEL.id);
@@ -255,14 +267,13 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
           usedFallback: true,
         };
       }
-      // 429 أو خطأ آخر → جرب المفتاح التالي
       const errMsg = err instanceof Error ? err.message : 'Unknown';
       console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} خطأ (${errMsg}) → key #${i + 2}`);
     }
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🥉 المستوى الثالث: Gemini 2.0 Flash (خط الدفاع الأخير)
+  // 🥉 المستوى الثالث: Gemini 2.0 Flash
   // يجرب جميع المفاتيح الأربعة بالتناوب
   // ══════════════════════════════════════════════════════════
   triedModels.push(FALLBACK_MODEL.id);
@@ -311,6 +322,49 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
       }
       console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} خطأ → key #${i + 2}`);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 🏅 المستوى الرابع: Groq — llama-3.3-70b-versatile (خط الدفاع الأخير)
+  // مجاني وسريع جداً — يعمل حتى عند انتهاء حصة Gemini
+  // ══════════════════════════════════════════════════════════
+  if (GROQ_KEY) {
+    triedModels.push(GROQ_MODEL.id);
+    const timeLeft = timeout - (Date.now() - startTime);
+
+    if (timeLeft >= 3_000) {
+      const ctrl4  = new AbortController();
+      const timer4 = setTimeout(() => ctrl4.abort(), Math.min(timeLeft, 15_000));
+
+      try {
+        console.log("[AI Core] 🟣 Groq llama-3.3-70b...");
+        const content = await callGroq(
+          systemPrompt, userMessage, messages,
+          maxTokens || GROQ_MODEL.maxTokens,
+          temperature, ctrl4.signal,
+        );
+        clearTimeout(timer4);
+
+        if (content) {
+          console.log("[AI Core] ✅ Groq نجح");
+          return {
+            content,
+            model: GROQ_MODEL,
+            triedModels,
+            elapsedMs: Date.now() - startTime,
+            timedOut: false,
+            usedFallback: true,
+          };
+        }
+        console.warn("[AI Core] Groq رد فارغ");
+      } catch (err) {
+        clearTimeout(timer4);
+        const isAbort = err instanceof Error && err.name === 'AbortError';
+        console.warn(`[AI Core] Groq ${isAbort ? 'TIMEOUT' : 'ERROR'}:`, err);
+      }
+    }
+  } else {
+    console.warn("[AI Core] GROQ_API_KEY غير مضبوط — تخطي Groq");
   }
 
   // جميع المزودين فشلوا
@@ -461,7 +515,7 @@ async function callGemini(
 
     if (res.status === 429) {
       console.warn(`[AI Core] Gemini (${model}) 429 في ${elapsed}ms → مفتاح آخر`);
-      return null; // سيجرب المفتاح التالي
+      return null;
     }
 
     if (!res.ok) {
@@ -482,6 +536,79 @@ async function callGemini(
   } catch (err) {
     const reason = err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR';
     console.error(`[AI Core] Gemini (${model}) ${reason}:`, err);
+    throw err;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔌 Groq — llama-3.3-70b-versatile (خط الدفاع الأخير)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function callGroq(
+  systemPrompt: string,
+  userMessage: string,
+  history: Array<{ role: string; content: string }> | undefined,
+  maxTokens: number,
+  temperature: number,
+  signal: AbortSignal,
+): Promise<string | null> {
+  if (!GROQ_KEY) return null;
+
+  const apiMessages: Array<{ role: string; content: string }> = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (history?.length) {
+    for (const msg of history.slice(-10)) {
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        apiMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 5000) });
+      }
+    }
+  }
+  apiMessages.push({ role: "user", content: userMessage });
+
+  const startMs = Date.now();
+  console.log("[AI Core] 🟣 Groq (llama-3.3-70b-versatile)...");
+
+  try {
+    const res = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GROQ_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL.id,
+        messages: apiMessages,
+        max_tokens: maxTokens,
+        temperature,
+      }),
+      signal,
+    });
+
+    const elapsed = Date.now() - startMs;
+
+    if (res.status === 429) {
+      console.warn(`[AI Core] Groq 429 في ${elapsed}ms`);
+      return null;
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`[AI Core] Groq HTTP ${res.status} في ${elapsed}ms: ${body.slice(0, 200)}`);
+      return null;
+    }
+
+    const data    = await res.json();
+    const content = data?.choices?.[0]?.message?.content?.trim();
+
+    if (content && content.length > 5) {
+      console.log(`[AI Core] ✅ Groq: ${content.length} حرف في ${elapsed}ms`);
+      return content;
+    }
+    console.warn(`[AI Core] Groq رد فارغ في ${elapsed}ms`);
+    return null;
+  } catch (err) {
+    const reason = err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR';
+    console.error(`[AI Core] Groq ${reason}:`, err);
     throw err;
   }
 }
