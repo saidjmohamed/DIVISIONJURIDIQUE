@@ -65,7 +65,7 @@ export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, ...BACKUP_MODELS, ...TIER3_
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TIMEOUT_CONFIG = {
-  primary: 25_000,      // Primary model (free tier is slow: simple=10s, real=20-25s)
+  primary: 60_000,      // Primary model — effectively unlimited (global timeout controls actual limit)
   backup: 5_000,        // Backup models get 5s each
   geminiDelay: 0,       // Start Gemini IMMEDIATELY in parallel (no delay)
   geminiTimeout: 25_000, // Gemini gets same timeout as primary
