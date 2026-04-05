@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const MODEL   = "models/gemini-2.5-flash";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM";
+const MODEL   = "models/gemini-2.0-flash";
 const API_URL = `https://generativelanguage.googleapis.com/v1beta/${MODEL}:generateContent`;
 
 const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج في تطبيق "شامل" — المنصة القانونية الذكية في الجزائر.

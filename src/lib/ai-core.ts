@@ -1,12 +1,11 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي الموحد (v3)
+ * AI Core — محرك الذكاء الاصطناعي الموحد (v4)
  *
- * 🧠 Smart Model Routing & Fallback System
- * - 3 tiers of FREE OpenRouter models
- * - Smart routing based on request type
- * - Intelligent fallback with retry
- * - Global timeout protection
- * - Gemini as ultimate fallback (if configured)
+ * 🧠 Parallel Race Strategy:
+ * - OpenRouter models tried sequentially (fast cycling)
+ * - Gemini starts in parallel after a short delay (last resort)
+ * - First successful response wins, others are cancelled
+ * - No more sequential timeout accumulation!
  *
  * Used by: /api/ai, /api/petition-check
  */
@@ -15,9 +14,10 @@ import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { NextRequest } from "next/server";
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const GEMINI_KEY = process.env.GEMINI_API_KEY;
+// Gemini key: env var first, then hardcoded fallback (user-provided backup)
+const GEMINI_KEY = process.env.GEMINI_API_KEY || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM";
 const OR_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🧠 MODEL REGISTRY — All FREE models, ranked by tier
@@ -68,13 +68,15 @@ export const TIER3_MODELS: AIModel[] = [
 export const ALL_MODELS: AIModel[] = [...TIER1_MODELS, ...TIER2_MODELS, ...TIER3_MODELS];
 
 // ═══════════════════════════════════════════════════════════════════════════
-// ⚙️ TIMEOUT CONFIGURATION
+// ⚙️ TIMEOUT CONFIGURATION (v4 — optimized for parallel race)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TIMEOUT_CONFIG = {
-  tier1: 12_000,   // Strongest: 12s (larger models need more time)
-  tier2: 8_000,    // Balanced: 8s
-  tier3: 6_000,    // Fast: 6s
+  tier1: 7_000,    // Strongest: 7s (was 12s — faster cycling)
+  tier2: 5_000,    // Balanced: 5s (was 8s)
+  tier3: 4_000,    // Fast: 4s (was 6s)
+  geminiDelay: 6_000,   // Start Gemini after 6s if no OpenRouter response
+  geminiTimeout: 15_000, // Gemini gets 15s to respond once started
 } as const;
 
 export function getTierTimeout(tier: number): number {
@@ -82,7 +84,7 @@ export function getTierTimeout(tier: number): number {
     case 1: return TIMEOUT_CONFIG.tier1;
     case 2: return TIMEOUT_CONFIG.tier2;
     case 3: return TIMEOUT_CONFIG.tier3;
-    default: return 6_000;
+    default: return 5_000;
   }
 }
 
@@ -95,28 +97,24 @@ export type RequestType = 'chat' | 'legal_analysis' | 'json_extraction' | 'fast'
 export function getModelsForRequest(type: RequestType): AIModel[] {
   switch (type) {
     case 'legal_analysis':
-      // Tier 1 → Tier 2 (strongest models for complex legal reasoning)
       return [...TIER1_MODELS.slice(0, 2), ...TIER2_MODELS.slice(0, 2)];
     case 'json_extraction':
-      // Tier 1 → Tier 2 (need strong models for structured output)
       return [...TIER1_MODELS.slice(0, 2), ...TIER2_MODELS.slice(0, 2)];
     case 'fast':
-      // Tier 3 → Tier 2 (prioritize speed)
       return [...TIER3_MODELS.slice(0, 2), ...TIER2_MODELS.slice(0, 1)];
     case 'chat':
     default:
-      // All tiers: start strong, fallback to fast
       return [...TIER1_MODELS.slice(0, 1), ...TIER2_MODELS.slice(0, 2), ...TIER3_MODELS.slice(0, 1)];
   }
 }
 
 export function getGlobalTimeout(type: RequestType): number {
   switch (type) {
-    case 'legal_analysis': return 20_000;
-    case 'json_extraction': return 18_000;
+    case 'legal_analysis': return 25_000;
+    case 'json_extraction': return 22_000;
     case 'fast': return 12_000;
     case 'chat':
-    default: return 20_000;
+    default: return 25_000;
   }
 }
 
@@ -152,7 +150,7 @@ export async function checkRateLimit(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🤖 AI CALL ENGINE — Unified call with retry, fallback, timeout
+// 🤖 AI CALL ENGINE — Parallel Race (OpenRouter || Gemini)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface AICallOptions {
@@ -175,6 +173,10 @@ export interface AIResult {
   timedOut: boolean;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 export async function callAI(options: AICallOptions): Promise<AIResult> {
   const {
     systemPrompt,
@@ -194,95 +196,123 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
   const tried: string[] = [];
   const startTime = Date.now();
+
+  // Shared state between OpenRouter chain and Gemini racer
+  let resolved = false;
   let modelsTried = 0;
 
+  const makeResult = (content: string, model: AIModel): AIResult => ({
+    content,
+    model,
+    triedModels: [...tried],
+    elapsedMs: Date.now() - startTime,
+    timedOut: false,
+  });
+
+  const makeFailResult = (timedOut: boolean): AIResult => ({
+    content: '',
+    model: models[0],
+    triedModels: [...tried],
+    elapsedMs: Date.now() - startTime,
+    timedOut,
+  });
+
   try {
-    // Try preferred model first (if specified and in our model list)
-    if (preferredModel) {
-      const pref = ALL_MODELS.find(m => m.id === preferredModel);
-      if (pref && !globalController.signal.aborted) {
-        tried.push(pref.id);
-        modelsTried++;
-        const result = await callOpenRouter(
-          systemPrompt, userMessage, messages, pref, temperature, globalController.signal,
-        );
-        if (result) {
-          clearTimeout(globalTimer);
-          return {
-            content: result,
-            model: pref,
-            triedModels: tried,
-            elapsedMs: Date.now() - startTime,
-            timedOut: false,
-          };
+    // ── Track OpenRouter chain ──
+    const orDone = new Promise<string | null>(async (resolve) => {
+      // 1. Try preferred model first
+      if (preferredModel) {
+        const pref = ALL_MODELS.find(m => m.id === preferredModel);
+        if (pref && !resolved && !globalController.signal.aborted) {
+          tried.push(pref.id);
+          modelsTried++;
+          const result = await callOpenRouter(
+            systemPrompt, userMessage, messages, pref, temperature, globalController.signal,
+          );
+          if (result) { resolved = true; resolve(result); return; }
         }
       }
-    }
 
-    // Fallback chain
-    for (const model of models) {
-      if (globalController.signal.aborted) break;
-      if (tried.includes(model.id)) continue;
-      if (modelsTried >= maxModelsToTry) break;
+      // 2. Sequential fallback through model tiers
+      for (const model of models) {
+        if (resolved || globalController.signal.aborted) break;
+        if (tried.includes(model.id)) continue;
+        if (modelsTried >= maxModelsToTry) break;
 
-      tried.push(model.id);
-      modelsTried++;
+        tried.push(model.id);
+        modelsTried++;
 
-      const maxTok = options.maxTokens || model.maxTokens;
-      const timeout = getTierTimeout(model.tier);
+        const maxTok = options.maxTokens || model.maxTokens;
+        const timeout = getTierTimeout(model.tier);
 
-      const result = await callOpenRouter(
-        systemPrompt, userMessage, messages,
-        { ...model, maxTokens: maxTok },
-        temperature, globalController.signal, timeout,
-      );
-      if (result) {
-        clearTimeout(globalTimer);
-        return {
-          content: result,
-          model,
-          triedModels: tried,
-          elapsedMs: Date.now() - startTime,
-          timedOut: false,
-        };
+        const result = await callOpenRouter(
+          systemPrompt, userMessage, messages,
+          { ...model, maxTokens: maxTok },
+          temperature, globalController.signal, timeout,
+        );
+        if (result) {
+          resolved = true;
+          resolve(result);
+          return;
+        }
       }
-    }
 
-    // Final fallback: Gemini (if API key available)
-    if (GEMINI_KEY && !globalController.signal.aborted) {
-      tried.push('gemini-2.5-flash');
-      console.log(`[AI Core] OpenRouter exhausted, trying Gemini fallback...`);
+      resolve(null);
+    });
+
+    // ── Track Gemini (delayed start) ──
+    const geminiDone = new Promise<{ content: string; modelId: string } | null>(async (resolve) => {
+      // Wait for delay before starting Gemini (last resort)
+      await sleep(TIMEOUT_CONFIG.geminiDelay);
+
+      if (resolved || globalController.signal.aborted) {
+        resolve(null);
+        return;
+      }
+
+      tried.push('gemini-2.0-flash (احتياطي)');
+      console.log(`[AI Core] Starting Gemini fallback after ${TIMEOUT_CONFIG.geminiDelay}ms delay...`);
+
       const geminiResult = await callGemini(systemPrompt, userMessage, messages, temperature, globalController.signal);
-      if (geminiResult) {
-        clearTimeout(globalTimer);
-        return {
-          content: geminiResult,
-          model: { id: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash', tier: 0, maxTokens: 4096, contextWindow: 1_000_000 },
-          triedModels: tried,
-          elapsedMs: Date.now() - startTime,
-          timedOut: false,
-        };
+      if (geminiResult && !resolved) {
+        resolved = true;
+        resolve({ content: geminiResult, modelId: 'gemini-2.0-flash' });
+        return;
       }
-    }
+
+      resolve(null);
+    });
+
+    // ── Race: OpenRouter chain vs delayed Gemini ──
+    const [orResult, geminiResult] = await Promise.all([orDone, geminiDone]);
 
     clearTimeout(globalTimer);
-    return {
-      content: '',
-      model: models[0],
-      triedModels: tried,
-      elapsedMs: Date.now() - startTime,
-      timedOut: globalController.signal.aborted,
-    };
+
+    // Prefer OpenRouter result (it finished first), else use Gemini
+    if (orResult) {
+      const model = preferredModel
+        ? ALL_MODELS.find(m => m.id === preferredModel) || models[0]
+        : models[tried.filter(t => !t.includes('gemini'))[0] ? tried.filter(t => !t.includes('gemini'))[0] : 0] || models[0];
+      return makeResult(orResult, model);
+    }
+
+    if (geminiResult) {
+      return makeResult(geminiResult.content, {
+        id: 'gemini-2.0-flash',
+        label: 'Gemini 2.0 Flash (احتياطي)',
+        tier: 0,
+        maxTokens: 4096,
+        contextWindow: 1_000_000,
+      });
+    }
+
+    // Both failed
+    return makeFailResult(globalController.signal.aborted);
+
   } catch (err) {
     clearTimeout(globalTimer);
     console.error('[AI Core] Fatal:', err);
-    return {
-      content: '',
-      model: models[0],
-      triedModels: tried,
-      elapsedMs: Date.now() - startTime,
-      timedOut: true,
-    };
+    return makeFailResult(true);
   }
 }
 
@@ -299,7 +329,10 @@ async function callOpenRouter(
   globalSignal: AbortSignal,
   overrideTimeout?: number,
 ): Promise<string | null> {
-  if (!OPENROUTER_KEY) return null;
+  if (!OPENROUTER_KEY) {
+    console.log(`[OpenRouter] No API key configured, skipping ${model.label}`);
+    return null;
+  }
 
   const timeout = overrideTimeout || getTierTimeout(model.tier);
   const controller = new AbortController();
@@ -318,7 +351,6 @@ async function callOpenRouter(
       { role: "system", content: systemPrompt },
     ];
 
-    // Add history if provided (last 10 messages, validated roles only)
     if (history && history.length > 0) {
       const recent = history.slice(-10);
       for (const msg of recent) {
@@ -354,7 +386,8 @@ async function callOpenRouter(
 
     if (!res.ok) {
       cleanup();
-      console.log(`[OpenRouter] ${model.label}: HTTP ${res.status} in ${Date.now() - startMs}ms`);
+      const elapsed = Date.now() - startMs;
+      console.log(`[OpenRouter] ${model.label}: HTTP ${res.status} in ${elapsed}ms`);
       return null;
     }
 
@@ -365,7 +398,7 @@ async function callOpenRouter(
     const elapsed = Date.now() - startMs;
 
     if (content && content.length > 5) {
-      console.log(`[OpenRouter] ${model.label}: ${content.length} chars in ${elapsed}ms ✅`);
+      console.log(`[OpenRouter] ✅ ${model.label}: ${content.length} chars in ${elapsed}ms`);
       return content;
     }
 
@@ -380,7 +413,7 @@ async function callOpenRouter(
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔌 Gemini Call (Ultimate Fallback)
+// 🔌 Gemini Call (Last Resort — with own dedicated timeout)
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function callGemini(
@@ -390,14 +423,19 @@ async function callGemini(
   temperature: number,
   globalSignal: AbortSignal,
 ): Promise<string | null> {
-  if (!GEMINI_KEY) return null;
+  if (!GEMINI_KEY) {
+    console.log(`[Gemini] No API key configured`);
+    return null;
+  }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 10_000);
-  globalSignal.addEventListener("abort", () => controller.abort(), { once: true });
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_CONFIG.geminiTimeout);
+  const onGlobalAbort = () => controller.abort();
+  globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
 
   const cleanup = () => {
     clearTimeout(timer);
+    globalSignal.removeEventListener("abort", onGlobalAbort);
   };
 
   try {
@@ -415,6 +453,8 @@ async function callGemini(
     }
 
     contents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+    const startMs = Date.now();
 
     const res = await fetch(GEMINI_API_URL, {
       method: "POST",
@@ -436,25 +476,30 @@ async function callGemini(
       signal: controller.signal,
     });
 
-    cleanup();
-
     if (!res.ok) {
-      console.log(`[Gemini] HTTP ${res.status}`);
+      cleanup();
+      const elapsed = Date.now() - startMs;
+      console.log(`[Gemini] HTTP ${res.status} in ${elapsed}ms`);
       return null;
     }
 
     const data = await res.json();
+    cleanup();
+
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    const elapsed = Date.now() - startMs;
 
     if (text && text.length > 5) {
-      console.log(`[Gemini] ${text.length} chars ✅`);
+      console.log(`[Gemini] ✅ ${text.length} chars in ${elapsed}ms`);
       return text;
     }
 
+    console.log(`[Gemini] empty/short response in ${elapsed}ms`);
     return null;
   } catch (err) {
     cleanup();
-    console.log(`[Gemini] ${(err instanceof Error && err.name === 'AbortError') ? 'TIMEOUT' : 'ERROR'}`);
+    const reason = err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR';
+    console.log(`[Gemini] ${reason}`);
     return null;
   }
 }
