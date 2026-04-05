@@ -3,7 +3,7 @@ import { callAI, checkRateLimit, createSSEStream } from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // أداة صياغة المذكرات القانونية — /api/tools/memo
-// 🧠 OpenRouter → Gemini 2.5 Flash → Gemini 2.0 Flash (4 مفاتيح)
+// 🧠 Qwen 3.6 Plus → Gemini 2.5 Flash → Gemini 2.0 Flash → Groq
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const maxDuration = 30;

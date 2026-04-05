@@ -12,7 +12,7 @@
  *   - Timeout
  *   - رد فارغ
  *
- * Used by: /api/ai, /api/gemini, /api/petition-check, /api/tools/*
+ * Used by: /api/ai, /api/petition-check, /api/tools/contract, /api/tools/judgment, /api/tools/memo
  */
 
 import { rateLimit, getClientIp } from "@/lib/rate-limit";

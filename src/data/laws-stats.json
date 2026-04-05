@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-04-02T23:19:58.330Z",
+  "generatedAt": "2026-04-05T19:03:47.517Z",
   "summary": {
     "totalLaws": 116,
     "coreLaws": 7,
@@ -44,7 +44,7 @@
         }
       ],
       "fileSizeKB": 717,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     },
     {
       "id": "qima",
@@ -63,7 +63,7 @@
         }
       ],
       "fileSizeKB": 658,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     },
     {
       "id": "penal",
@@ -98,7 +98,7 @@
         }
       ],
       "fileSizeKB": 476,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     },
     {
       "id": "civil",
@@ -133,7 +133,7 @@
         }
       ],
       "fileSizeKB": 561,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     },
     {
       "id": "commercial",
@@ -152,7 +152,7 @@
         }
       ],
       "fileSizeKB": 802,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     },
     {
       "id": "maritime",
@@ -187,7 +187,7 @@
         }
       ],
       "fileSizeKB": 559,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     },
     {
       "id": "family",
@@ -201,7 +201,7 @@
       "maxArticle": 224,
       "gaps": [],
       "fileSizeKB": 118,
-      "lastUpdated": "2026-04-02"
+      "lastUpdated": "2026-04-05"
     }
   ]
 }

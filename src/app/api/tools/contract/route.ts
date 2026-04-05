@@ -3,7 +3,7 @@ import { callAI, checkRateLimit, extractJSON, createSSEStream } from "@/lib/ai-c
 
 // ═══════════════════════════════════════════════════════════════════════════
 // أداة مراجعة العقود — /api/tools/contract
-// 🧠 OpenRouter → Gemini 2.5 Flash → Gemini 2.0 Flash (4 مفاتيح)
+// 🧠 Qwen 3.6 Plus → Gemini 2.5 Flash → Gemini 2.0 Flash → Groq
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const maxDuration = 30;
