@@ -220,7 +220,7 @@ ${JSON_FORMAT}`;
           requestType: 'legal_analysis',
           maxModelsToTry: 4,
           temperature: 0.4,
-          globalTimeoutMs: 25_000,
+          globalTimeoutMs: 28_000,
         });
 
         const parsed = result.content ? parseAndValidate(result.content) : null;
@@ -249,7 +249,7 @@ ${JSON_FORMAT}`;
             requestType: 'legal_analysis',
             maxModelsToTry: 2,
             temperature: 0.3,
-            globalTimeoutMs: 15_000,
+            globalTimeoutMs: 18_000,
           });
 
           const retryParsed = retryResult.content ? parseAndValidate(retryResult.content) : null;
