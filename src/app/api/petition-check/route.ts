@@ -46,32 +46,27 @@ function createEmptyResult(): PetitionCheckResult {
 interface PetitionModel { id: string; label: string; tier: number; maxTokens: number; }
 
 const MODELS: PetitionModel[] = [
-  // Tier 0: Primary — tested & working with strict JSON output
+  // Tier 0: Primary — tested & working
   { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 0, maxTokens: 4096 },
-  // Tier 1: Strong fallback
-  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 1, maxTokens: 4096 },
+  // Tier 1: Strong alternatives
+  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 1, maxTokens: 4096 },
   // Tier 2: Last resort
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 2, maxTokens: 4096 },
+  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",           tier: 2, maxTokens: 4096 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // البروميبت — مُختصر لسرعة أسرع
 // ═══════════════════════════════════════════════════════════════════════════
 
-// English system prompt — free models follow English JSON instructions much better
-const SYSTEM_PROMPT = `You are a formal document checker for Algerian legal petitions.
-Based on: Code de procédure pénale 25-14 + CPC 08-09.
+// Arabic system prompt — free models generate Arabic much better than English JSON
+const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
+الأساس: قانون الإجراءات الجزائية 25-14 + ق.إ.م.إ 08-09.
 
-Rules:
-- Formal check ONLY, do NOT analyze the substance
-- Do NOT create facts that are not in the document
-- If something is not visible, write "غير ظاهر من الملف"
-- Always cite the legal article number
+فحص شكلي فقط. لا تحلل الموضوع. لا تنشئ وقائع غير موجودة.
+أذكر المادة القانونية مع كل ملاحظة.`;
 
-IMPORTANT: Output ONLY valid JSON. No markdown, no explanation, no text before or after the JSON.`;
-
-// Simplified JSON schema — fewer fields, easier for models to follow
-const JSON_FORMAT_EXAMPLE = `{"result":"needs_review","score":50,"documentType":"عريضة افتتاح دعوى","court":"محكمة الجزائر","date":"15 مارس 2026","summary":"ملخص مختصر","passedChecks":[{"label":"اللغة العربية","article":"المادة 3"}],"failedChecks":[{"label":"بيان الموطن","article":"المادة 13","critical":true,"details":"السبب"}],"pendingChecks":[{"label":"التبليغ","reason":"السبب"}],"suggestions":[{"label":"الموطن","suggestion":"أضف..."}]}`;
+// Simplified JSON — compact single line, easier for models to copy
+const JSON_FORMAT_EXAMPLE = `{"result":"needs_review","score":50,"documentType":"عريضة","court":"محكمة","date":"2026","summary":"ملخص","passedChecks":[{"label":"اللغة","article":"م3"}],"failedChecks":[{"label":"الموطن","article":"م13","critical":true,"details":"سبب"}],"pendingChecks":[{"label":"التبليغ","reason":"سبب"}],"suggestions":[{"label":"الموطن","suggestion":"أضف"}]}`;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // أنواع الوثائق
@@ -309,10 +304,10 @@ async function callModel(
     cleanup();
 
     const totalElapsed = Date.now() - startMs;
-    console.log(`[PetitionCheck] ${model.label}: complete in ${totalElapsed}ms`);
-
     const content = data?.choices?.[0]?.message?.content?.trim();
-    return { content: content && content.length > 20 ? content : null, model, elapsed: totalElapsed };
+    const contentLen = content?.length || 0;
+    console.log(`[PetitionCheck] ${model.label}: ${contentLen} chars in ${totalElapsed}ms, first100: ${content?.slice(0, 100) || 'EMPTY'}`);
+    return { content: content && contentLen > 5 ? content : null, model, elapsed: totalElapsed };
   } catch (err) {
     cleanup();
     const elapsed = Date.now() - startMs;
@@ -370,12 +365,12 @@ export async function POST(req: NextRequest) {
     ? text.slice(0, MAX_INPUT_CHARS)
     : text;
 
-  const userMsg = `Document type: ${docLabel} (${cat})
+  const userMsg = `نوع الوثيقة: ${docLabel} (${cat})
 
-Document content:
+محتوى الوثيقة:
 ${truncatedText}
 
-Return ONLY this JSON structure (no markdown, no code blocks, no explanation):
+حلل الوثيقة وأجب بالعربية ثم أعد النتيجة بهذا التنسيق JSON بالضبط:
 ${JSON_FORMAT_EXAMPLE}`;
 
   // ─── SSE Stream ───
@@ -439,7 +434,7 @@ ${JSON_FORMAT_EXAMPLE}`;
             console.log(`[PetitionCheck] Retrying ${m.id}...`);
             send("status", { step: "retrying", message: "إعادة المحاولة بتعليمات أوضح..." });
 
-            const retryMsg = userMsg + "\n\nCRITICAL: Your response was NOT valid JSON. You must return ONLY a single JSON object. No markdown, no code blocks, no text.";
+            const retryMsg = userMsg + "\n\nمهم: ردك السابق لم يكن JSON صالح. أعد الإجابة بنفس تنسيق JSON بالضبط بدون أي نص إضافي.";
             const retry = await callModel(SYSTEM_PROMPT, retryMsg, m, globalController.signal);
 
             if (retry.content) {
