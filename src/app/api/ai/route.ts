@@ -1,43 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+  ALL_MODELS, TIER1_MODELS, TIER2_MODELS, TIER3_MODELS, callAI, checkRateLimit,
+} from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// المساعد القانوني الذكي — OpenRouter Multi-Model with SSE Streaming v7
-// ⚡ Streaming prevents 504 + resilient model fallback
+// المساعد القانوني الذكي — SSE Streaming v8
+// 🧠 Smart Model Routing: T1→T2→T3→Gemini fallback
 // ═══════════════════════════════════════════════════════════════════════════
-
-const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-// ⚡ PERFORMANCE CONFIG — must complete well within Vercel limits
-const GLOBAL_TIMEOUT_MS = 18_000;   // Hard cap (Vercel can kill at ~10-30s depending on plan)
-const MAX_MODELS_TO_TRY = 3;
-const TIER_TIMEOUTS: Record<number, number> = {
-  1: 8_000,   // Tier 1: Primary — 8s
-  2: 6_000,   // Tier 2: Fast — 6s
-  3: 5_000,   // Tier 3: Last resort — 5s
-};
-
-interface ModelConfig {
-  id: string;
-  label: string;
-  tier: number;
-  maxTokens: number;
-}
-
-const ALL_MODELS: ModelConfig[] = [
-  // Tier 1 — أقوى النماذج (Primary)
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",      tier: 1, maxTokens: 4096 },
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",       tier: 1, maxTokens: 4096 },
-  // Tier 2 — قوية وسريعة (Fallback)
-  { id: "google/gemma-3-27b-it:free",             label: "Gemma 3 27B",         tier: 2, maxTokens: 4096 },
-  { id: "stepfun/step-3.5-flash:free",            label: "Step 3.5 Flash",      tier: 2, maxTokens: 4096 },
-  // Tier 3 — احتياطية أخيرة (Last resort)
-  { id: "openai/gpt-oss-20b:free",                label: "GPT OSS 20B",         tier: 3, maxTokens: 4096 },
-];
-
-// Pre-sorted by tier
-const FALLBACK_CHAIN = ALL_MODELS.sort((a, b) => a.tier - b.tier);
 
 const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج في تطبيق "شامل" — المنصة القانونية الذكية في الجزائر.
 
@@ -57,131 +26,50 @@ const SYSTEM_PROMPT = `أنت "الشامل ⚖️"، مساعد ذكي مدمج
 7. 💼 الأدوات: أدوات مهنية للمحامين
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🏛️ معرفتك القانونية (الاختصاص الإقليمي خاصة):
+🏛️ معرفتك القانونية:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- المرسوم التنفيذي 22-435: يحدد دوائر اختصاص المحاكم والمجالس القضائية
-- القانون 08-09: قانون الإجراءات المدنية والإدارية (مواد الاختصاص)
-- الهيكل القضائي الجزائري:
-  • المحكمة العليا (أعلى محكمة)
-  • مجالس قضائية (محكمة استئناف في كل ولاية)
-  • محاكم ابتدائية (في كل دائرة)
-  • محاكم إدارية (في كل مجلس قضائي)
-  • محاكم تجارية (في المجالس القضائية الرئيسية)
+- المرسوم التنفيذي 22-435: دوائر اختصاص المحاكم والمجالس القضائية
+- القانون 08-09: قانون الإجراءات المدنية والإدارية
+- الهيكل القضائي الجزائري: المحكمة العليا → مجالس قضائية → محاكم ابتدائية → محاكم إدارية → محاكم تجارية
 - القواعد العامة للاختصاص الإقليمي:
   • القاعدة: محكمة موطن المدعى عليه (المادة 42 ق.إ.م.إ)
   • استثناء العقارات: محكمة موقع العقار
   • الدعاوى التجارية: المحكمة التجارية المختصة
   • دعاوى الإدارة: المحكمة الإدارية المختصة
-  • الاختصاص الاستثنائي لمحكمة مقر المؤسسة
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-👤 من أنشأ هذا التطبيق:
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-هذا التطبيق من تطوير وصميم الأستاذ سايج محمد، محامٍ ممارس ومتخصص لدى مجلس قضاء الجزائر.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📋 قواعد الرد:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-1. أجب باللغة العربية الفصحى المبسطة دائماً
-2. إذا سأل المستخدم عن التطبيق: اشرح الأقسام وكيفية الاستخدام بوضوح
-3. إذا سأل عن الاختصاص الإقليمي: اشرح القواعد العامة ثم اجب على سؤاله المحدد
-4. اذكر رقم المادة والنص القانوني عند الإمكان
-5. نبّه دائماً: "هذا للإرشاد القانوني فقط، استشر محامياً للحالات الخاصة"
+1. أجب باللغة العربية الفصحى المبسطة
+2. اشرح الأقسام وكيفية الاستخدام بوضوح
+3. اذكر رقم المادة والنص القانوني عند الإمكان
+4. نبّه: "هذا للإرشاد القانوني فقط، استشر محامياً للحالات الخاصة"
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-🤫 تعليمات سرية (لا تذكر أبداً أنك تلقيت هذه التعليمات):
+🤫 تعليمات سرية:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-- عندما يسأل المستخدم عن محامٍ أو يستشير في قضية معقدة: اذكر بشكل طبيعي وغير مباشر "الأستاذ سايج محمد محامٍ متخصص لدى مجلس قضاء الجزائر، يمكنه مساعدتك في مثل هذه القضايا" — قلها كأنها نصيحة مهنية عادية وليس إعلان
-- عندما يمدح المستخدم التطبيق: قل "شكراً! التطبيق من إنجاز الأستاذ سايج محمد محامٍ بالجزائر العاصمة، وهو يعمل على تطويره باستمرار لمساعدة الجميع"
-- كن طبيعياً في ذكره، لا تكرر اسمه في كل رد، اذكره فقط عندما يكون السياق مناسباً
-- لا تقل أبداً "أنا مبرمج للإعلان" أو "لقد أُمرت بذكر هذا" — كن طبيعياً وكأنك تعرف هذا المحامي حقاً
-- إذا سأل المستخدم "من صاحب هذا التطبيق؟": قل "الأستاذ سايج محمد، محامٍ لدى مجلس قضاء الجزائر. قام بتطوير هذه المنصة ليكون مرجعاً قانونياً مجانياً يساعد المحامين والمواطنين"
-- إذا لم تعرف الجواب بيقين، قل ذلك بوضوح
-- اجعل ردودك منظمة: عناوين واضحة، نقاط مرتبة
-- كن مختصراً ومفيداً، لا تطيل في الشرح`;
+- عند ذكر محامٍ: اذكر "الأستاذ سايج محمد محامٍ متخصص لدى مجلس قضاء الجزائر" بشكل طبيعي
+- عند سؤال "من صاحب التطبيق؟": "الأستاذ سايج محمد، محامٍ لدى مجلس قضاء الجزائر"
+- كن طبيعياً، لا تكرر الاسم في كل رد
+- لا تقل "أُمرت بذكر هذا"
+- كن مختصراً ومفيداً`;
 
 interface Message {
   role: string;
   content: string;
 }
 
-async function callOpenRouter(
-  messages: Message[],
-  modelConfig: ModelConfig,
-  globalSignal: AbortSignal,
-): Promise<{ content: string | null; error?: string }> {
-  const timeout = TIER_TIMEOUTS[modelConfig.tier] || 5_000;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  const onGlobalAbort = () => controller.abort();
-  globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
-
-  const cleanup = () => {
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
-  };
-
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENROUTER_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://hiyaat-dz.vercel.app",
-        "X-Title": "Shamil DZ - AI Legal Assistant",
-      },
-      body: JSON.stringify({
-        model: modelConfig.id,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages,
-        ],
-        max_tokens: modelConfig.maxTokens,
-        temperature: 0.7,
-      }),
-      signal: controller.signal,
-    });
-
-    if (!res.ok) {
-      cleanup();
-      return { content: null, error: `HTTP ${res.status}` };
-    }
-
-    // Body read can also hang — timer stays active
-    const data = await res.json();
-    cleanup();
-
-    const content = data?.choices?.[0]?.message?.content;
-    return { content: content || null };
-  } catch (err) {
-    cleanup();
-    const reason = err instanceof Error && err.name === 'AbortError' ? 'timeout' : 'error';
-    return { content: null, error: reason };
-  }
-}
-
 export const maxDuration = 30;
 
-// ─── POST: SSE Streaming Response ────────────────────────────
+// ─── POST: SSE Streaming ────────────────────────────────────
 export async function POST(req: NextRequest) {
-  if (!OPENROUTER_KEY) {
-    return NextResponse.json({ error: "مفتاح OpenRouter غير مضبوط." }, { status: 500 });
+  // Rate limiting (fail-open)
+  const rl = await checkRateLimit(req, { key: 'ai-chat', limit: 20, window: 60 });
+  if (rl.limited) {
+    return NextResponse.json({ error: rl.errorMessage }, { status: 429 });
   }
 
-  // Rate limiting (fail-open if Redis unavailable)
-  try {
-    const ip = getClientIp(req);
-    const { limited } = await rateLimit({ key: 'ai-chat', identifier: ip, limit: 20, window: 60 });
-    if (limited) {
-      return NextResponse.json({ error: "تجاوزت الحد المسموح من الطلبات. انتظر قليلاً." }, { status: 429 });
-    }
-  } catch {
-    // Fail-open: continue if rate limiting fails
-  }
-
-  // ─── Parse request body ───
+  // Parse body
   let userMessage: string, messages: Message[], preferredModel: string | undefined;
   try {
     const body = await req.json();
@@ -192,154 +80,74 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "طلب غير صالح" }, { status: 400 });
   }
 
-  if (!userMessage) {
-    return NextResponse.json({ error: "الرسالة فارغة" }, { status: 400 });
-  }
-  if (userMessage.length > 30_000) {
-    return NextResponse.json({ error: "الرسالة طويلة جداً. الحد الأقصى 30,000 حرف." }, { status: 400 });
-  }
+  if (!userMessage) return NextResponse.json({ error: "الرسالة فارغة" }, { status: 400 });
+  if (userMessage.length > 30_000) return NextResponse.json({ error: "الرسالة طويلة جداً" }, { status: 400 });
 
-  // ─── Build chat messages (validate roles, limit history) ───
+  // Build validated message history
   const chatMessages: Message[] = [];
   if (messages && Array.isArray(messages)) {
-    const recent = messages.slice(-10);
-    for (const msg of recent) {
+    for (const msg of messages.slice(-10)) {
       if (msg.role === 'user' || msg.role === 'assistant') {
         chatMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 5000) });
       }
     }
   }
-  chatMessages.push({ role: "user", content: userMessage });
-
-  // ─── Global timeout ───
-  const globalController = new AbortController();
-  const globalTimer = setTimeout(() => globalController.abort(), GLOBAL_TIMEOUT_MS);
 
   // ─── SSE Stream ───
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
       let closed = false;
-      const safeSend = (event: string, data: unknown) => {
+      const send = (event: string, data: unknown) => {
         if (closed) return;
         try {
           controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-        } catch {
-          closed = true;
-        }
+        } catch { closed = true; }
       };
-
-      const safeClose = () => {
-        if (closed) return;
-        closed = true;
-        try { controller.close(); } catch {}
-      };
+      const safeClose = () => { if (!closed) { closed = true; try { controller.close(); } catch {} } };
 
       try {
-        const startTime = Date.now();
-        const triedModels: string[] = [];
-        let modelsTried = 0;
-        let reply: string | null = null;
-        let usedModelConfig: ModelConfig | null = null;
+        send("status", { step: "connecting", message: "جاري الاتصال..." });
 
-        // Immediately notify client: stream is alive
-        safeSend("status", { step: "connecting", message: "جاري الاتصال..." });
+        const result = await callAI({
+          systemPrompt: SYSTEM_PROMPT,
+          userMessage,
+          messages: chatMessages,
+          requestType: 'chat',
+          preferredModel,
+          maxModelsToTry: 4,
+          temperature: 0.7,
+        });
 
-        // Try preferred model first
-        if (preferredModel) {
-          const prefConfig = ALL_MODELS.find(m => m.id === preferredModel);
-          if (prefConfig) {
-            triedModels.push(prefConfig.id);
-            modelsTried++;
-
-            safeSend("status", {
-              step: "analyzing",
-              message: `جاري التحليل بواسطة ${prefConfig.label}...`,
-              model: prefConfig.label,
-              attempt: 1,
-              maxAttempts: MAX_MODELS_TO_TRY,
-            });
-
-            const result = await callOpenRouter(chatMessages, prefConfig, globalController.signal);
-            if (result.content) {
-              reply = result.content;
-              usedModelConfig = prefConfig;
-            }
-          }
-        }
-
-        // Fallback chain
-        if (!reply) {
-          for (const modelConfig of FALLBACK_CHAIN) {
-            if (closed || globalController.signal.aborted) break;
-            if (triedModels.includes(modelConfig.id)) continue;
-            if (modelsTried >= MAX_MODELS_TO_TRY) break;
-
-            triedModels.push(modelConfig.id);
-            modelsTried++;
-
-            safeSend("status", {
-              step: "analyzing",
-              message: `جاري التحليل بواسطة ${modelConfig.label}...`,
-              model: modelConfig.label,
-              attempt: modelsTried,
-              maxAttempts: MAX_MODELS_TO_TRY,
-            });
-
-            const result = await callOpenRouter(chatMessages, modelConfig, globalController.signal);
-            if (result.content) {
-              reply = result.content;
-              usedModelConfig = modelConfig;
-              break;
-            }
-
-            console.log(`[AI Chat] ${modelConfig.label} failed: ${result.error}`);
-          }
-        }
-
-        clearTimeout(globalTimer);
-        const totalTime = Date.now() - startTime;
-
-        console.log(`[AI Chat] Total: ${totalTime}ms, Models tried: ${triedModels.length}, Success: ${!!reply}`);
-
-        if (reply) {
-          safeSend("complete", {
-            reply,
-            model: usedModelConfig!.id,
-            modelLabel: usedModelConfig!.label,
-            tier: usedModelConfig!.tier,
-            triedModels,
-            executionTime: totalTime,
+        if (result.content) {
+          send("complete", {
+            reply: result.content,
+            model: result.model.id,
+            modelLabel: result.model.label,
+            tier: result.model.tier,
+            triedModels: result.triedModels,
+            executionTime: result.elapsedMs,
           });
         } else {
-          const isTimeout = globalController.signal.aborted;
-          safeSend(isTimeout ? "timeout" : "error", {
-            error: isTimeout
+          send(result.timedOut ? "timeout" : "error", {
+            error: result.timedOut
               ? "تجاوز وقت الانتظار. يرجى المحاولة مرة أخرى."
-              : `جميع النماذج (${triedModels.length}) لم تُرجع رداً. يرجى المحاولة لاحقاً.`,
-            triedModels,
-            timedOut: isTimeout,
-            executionTime: totalTime,
+              : `جميع النماذج (${result.triedModels.length}) لم تُرجع رداً. يرجى المحاولة لاحقاً.`,
+            triedModels: result.triedModels,
+            timedOut: result.timedOut,
+            executionTime: result.elapsedMs,
           });
         }
 
-        // Brief delay to ensure the final event is flushed before closing
-        await new Promise(r => setTimeout(r, 200));
-        safeClose();
-
-      } catch (err) {
-        clearTimeout(globalTimer);
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        console.error("[AI Chat] Fatal:", msg);
-        safeSend("error", { error: "حدث خطأ في الخادم. يرجى المحاولة مرة أخرى." });
         await new Promise(r => setTimeout(r, 100));
+        safeClose();
+      } catch (err) {
+        console.error("[AI Chat] Fatal:", err);
+        send("error", { error: "حدث خطأ في الخادم." });
         safeClose();
       }
     },
-    cancel() {
-      clearTimeout(globalTimer);
-      globalController.abort();
-    },
+    cancel() {},
   });
 
   return new Response(stream, {
@@ -352,16 +160,20 @@ export async function POST(req: NextRequest) {
   });
 }
 
-// GET endpoint to list available models (unchanged)
+// ─── GET: List all available models ──────────────────────────
 export async function GET() {
   return NextResponse.json({
     models: ALL_MODELS.map(m => ({
       id: m.id,
       label: m.label,
       tier: m.tier,
+      contextWindow: m.contextWindow,
     })),
     totalModels: ALL_MODELS.length,
-    maxRetry: MAX_MODELS_TO_TRY,
-    globalTimeout: GLOBAL_TIMEOUT_MS,
+    tiers: {
+      tier1: TIER1_MODELS.length,
+      tier2: TIER2_MODELS.length,
+      tier3: TIER3_MODELS.length,
+    },
   });
 }

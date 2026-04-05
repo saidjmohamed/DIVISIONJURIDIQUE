@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { rateLimit, getClientIp } from "@/lib/rate-limit";
-
-const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const API_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ⚡ PERFORMANCE CONFIG — Tuned for sub-10s responses
-// ═══════════════════════════════════════════════════════════════════════════
-
-const GLOBAL_TIMEOUT_MS = 20_000;   // Hard cap on entire request
-const MAX_MODELS_TO_TRY = 2;        // Only 2 models (faster overall)
-const TIER_0_TIMEOUT = 12_000;      // Primary model: 12s
-const TIER_1_TIMEOUT = 8_000;       // Fallback: 8s
-const MAX_INPUT_CHARS = 8_000;      // Truncate long documents
+import {
+  callAI, checkRateLimit, extractJSON,
+} from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// نموذج الرد الصارم
+// فاحص العرائض القانونية — SSE Streaming v8
+// 🧠 Smart Model Routing: T1(legal)→T2→T3→Gemini fallback
 // ═══════════════════════════════════════════════════════════════════════════
+
+const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
+الأساس: قانون الإجراءات الجزائية 25-14 + ق.إ.م.إ 08-09.
+فحص شكلي فقط. لا تحلل الموضوع. لا تنشئ وقائع غير موجودة.
+أذكر المادة القانونية مع كل ملاحظة.
+أجب بـ JSON فقط. لا تضف أي نص قبل أو بعد JSON.`;
+
+const JSON_FORMAT = `{"result":"accepted أو rejected أو needs_review","score":0-100,"documentType":"نوع الوثيقة","court":"المحكمة","date":"التاريخ","summary":"ملخص 3-5 جمل","passedChecks":[{"label":"الشرط","article":"المادة"}],"failedChecks":[{"label":"الشرط","article":"المادة","critical":true,"details":"السبب"}],"pendingChecks":[{"label":"العنصر","reason":"السبب"}],"suggestions":[{"label":"العنصر","suggestion":"الاقتراح"}]}`;
 
 interface PetitionCheckResult {
   result: "accepted" | "rejected" | "needs_review";
@@ -37,31 +35,6 @@ function createEmptyResult(): PetitionCheckResult {
     summary: "", passedChecks: [], failedChecks: [], pendingChecks: [], suggestions: [],
   };
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// النماذج — فقط الأسرع والأكثر موثوقية (3 نماذج كحد أقصى)
-// ═══════════════════════════════════════════════════════════════════════════
-
-interface PetitionModel { id: string; label: string; tier: number; maxTokens: number; }
-
-const MODELS: PetitionModel[] = [
-  // Tier 0: Primary
-  { id: "openai/gpt-oss-120b:free",               label: "GPT OSS 120B",          tier: 0, maxTokens: 1500 },
-  // Tier 1: Fallback
-  { id: "qwen/qwen3.6-plus:free",                 label: "Qwen 3.6 Plus",        tier: 1, maxTokens: 1500 },
-];
-
-// ═══════════════════════════════════════════════════════════════════════════
-// البروميبت — مُختصر لسرعة أسرع
-// ═══════════════════════════════════════════════════════════════════════════
-
-// Minimal English prompt — Arabic causes some models to hang
-const SYSTEM_PROMPT = `Check this legal document formally. Output JSON only.
-{"result":"accepted|rejected|needs_review","score":75,"documentType":"type","court":"court","date":"date","summary":"3 sentence summary","passedChecks":[],"failedChecks":[],"pendingChecks":[],"suggestions":[]}`;
-
-// ═══════════════════════════════════════════════════════════════════════════
-// أنواع الوثائق
-// ═══════════════════════════════════════════════════════════════════════════
 
 const TYPE_LABELS: Record<string, string> = {
   civil_opening: "عريضة افتتاح دعوى مدنية",
@@ -85,44 +58,6 @@ const TYPE_LABELS: Record<string, string> = {
   crim_indictment_appeal: "تظلم غرفة الاتهام",
   crim_incidental_memo: "مذكرة عارضة",
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// JSON Parser — خفيف وسريع
-// ═══════════════════════════════════════════════════════════════════════════
-
-function extractJSON(raw: string): string | null {
-  const trimmed = raw.trim();
-  // Step 1: Direct parse
-  try { JSON.parse(trimmed); return trimmed; } catch {}
-
-  // Step 2: Code block extraction
-  const cb = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (cb) { try { JSON.parse(cb[1].trim()); return cb[1].trim(); } catch {} }
-
-  // Step 3: Find outermost balanced {...}
-  let depth = 0, start = -1;
-  for (let i = 0; i < trimmed.length; i++) {
-    if (trimmed[i] === '{') { if (depth === 0) start = i; depth++; }
-    else if (trimmed[i] === '}') {
-      depth--;
-      if (depth === 0 && start !== -1) {
-        const c = trimmed.substring(start, i + 1);
-        try { JSON.parse(c); return c; } catch { start = -1; }
-      }
-    }
-  }
-
-  // Step 4: Fix truncated JSON
-  if (start !== -1) {
-    let t = trimmed.substring(start);
-    t = t.replace(/,\s*"[^"]*"\s*:?\s*$/, '').replace(/,\s*$/, '');
-    const ob = (t.match(/\{/g) || []).length - (t.match(/\}/g) || []).length;
-    const oa = (t.match(/\[/g) || []).length - (t.match(/\]/g) || []).length;
-    t += ']'.repeat(Math.max(0, oa)) + '}'.repeat(Math.max(0, ob));
-    try { JSON.parse(t); return t; } catch {}
-  }
-  return null;
-}
 
 function parseAndValidate(raw: string): PetitionCheckResult | null {
   const jsonStr = extractJSON(raw);
@@ -184,18 +119,12 @@ function parseAndValidate(raw: string): PetitionCheckResult | null {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Report Generator
-// ═══════════════════════════════════════════════════════════════════════════
-
 function makeReport(r: PetitionCheckResult): string {
   const verdict = r.result === 'accepted' ? '✅ مقبول شكلاً'
     : r.result === 'rejected' ? '❌ مرفوض شكلاً'
     : '⚠️ ناقص شكلاً ويحتاج استكمال';
 
-  let s = `════════════════════════════════════════\n`;
-  s += `        تقرير الفحص الشكلي\n`;
-  s += `════════════════════════════════════════\n\n`;
+  let s = `════════════════════════════════════════\n        تقرير الفحص الشكلي\n════════════════════════════════════════\n\n`;
   s += `📄 نوع الوثيقة: ${r.documentType || 'غير محدد'}\n`;
   s += `⚖️ الجهة القضائية: ${r.court || 'غير ظاهرة'}\n`;
   s += `📅 التاريخ: ${r.date || 'غير مذكور'}\n\n`;
@@ -234,100 +163,16 @@ function makeReport(r: PetitionCheckResult): string {
   return s;
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// AI Call — with per-model timeout + global abort signal
-// ═══════════════════════════════════════════════════════════════════════════
-
-async function callModel(
-  systemPrompt: string,
-  userMessage: string,
-  model: PetitionModel,
-  globalSignal: AbortSignal,
-): Promise<{ content: string | null; model: PetitionModel; elapsed: number }> {
-  const timeout = model.tier === 0 ? TIER_0_TIMEOUT : TIER_1_TIMEOUT;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeout);
-
-  // Link global abort to per-model abort
-  const onGlobalAbort = () => { controller.abort(); };
-  globalSignal.addEventListener("abort", onGlobalAbort, { once: true });
-
-  const startMs = Date.now();
-
-  const cleanup = () => {
-    clearTimeout(timer);
-    globalSignal.removeEventListener("abort", onGlobalAbort);
-  };
-
-  try {
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENROUTER_KEY}`,
-        "Content-Type": "application/json",
-        "HTTP-Referer": "https://hiyaat-dz.vercel.app",
-        "X-Title": "Shamil DZ - Legal Checker",
-      },
-      body: JSON.stringify({
-        model: model.id,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: model.maxTokens,
-        temperature: 0.4,
-      }),
-      signal: controller.signal,
-    });
-
-    // DON'T clear timer here — body read (res.json) can also hang
-    const elapsed = Date.now() - startMs;
-    console.log(`[PetitionCheck] ${model.label}: ${res.status} headers in ${elapsed}ms`);
-
-    if (!res.ok) {
-      cleanup();
-      return { content: null, model, elapsed };
-    }
-
-    // Body read — this is where models can hang generating tokens
-    const data = await res.json();
-    cleanup();
-
-    const totalElapsed = Date.now() - startMs;
-    const content = data?.choices?.[0]?.message?.content?.trim();
-    const contentLen = content?.length || 0;
-    console.log(`[PetitionCheck] ${model.label}: ${contentLen} chars in ${totalElapsed}ms, first100: ${content?.slice(0, 100) || 'EMPTY'}`);
-    return { content: content && contentLen > 5 ? content : null, model, elapsed: totalElapsed };
-  } catch (err) {
-    cleanup();
-    const elapsed = Date.now() - startMs;
-    const reason = err instanceof Error && err.name === 'AbortError'
-      ? 'TIMEOUT' : err instanceof Error ? err.message : 'ERROR';
-    console.log(`[PetitionCheck] ${model.label}: ${reason} in ${elapsed}ms`);
-    return { content: null, model, elapsed };
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// API Route — Streaming SSE for real-time progress
-// ═══════════════════════════════════════════════════════════════════════════
-
-export const maxDuration = 30; // Reduced from 60 — we don't need more
+export const maxDuration = 30;
 
 export async function POST(req: NextRequest) {
-  if (!OPENROUTER_KEY) {
-    return NextResponse.json({ error: "مفتاح OpenRouter غير مضبوط" }, { status: 500 });
-  }
-
   // Rate limiting
-  const ip = getClientIp(req);
-  const { limited } = await rateLimit({ key: 'petition-check', identifier: ip, limit: 10, window: 60 });
-  if (limited) {
-    return NextResponse.json({ error: "تجاوزت الحد المسموح. انتظر دقيقة ثم حاول." }, { status: 429 });
+  const rl = await checkRateLimit(req, { key: 'petition-check', limit: 10, window: 60 });
+  if (rl.limited) {
+    return NextResponse.json({ error: rl.errorMessage }, { status: 429 });
   }
 
-  // ─── Parse request body ───
+  // Parse body
   let text: string, documentType: string, documentCategory: string;
   try {
     const body = await req.json();
@@ -340,157 +185,135 @@ export async function POST(req: NextRequest) {
 
   if (!text) return NextResponse.json({ error: "النص فارغ" }, { status: 400 });
   if (!documentType) return NextResponse.json({ error: "اختر نوع الوثيقة" }, { status: 400 });
-  if (text.length > 15000) {
-    return NextResponse.json({ error: "النص طويل جداً. الحد الأقصى 15000 حرف." }, { status: 400 });
-  }
-
-  // ─── Global timeout — hard cap ───
-  const globalController = new AbortController();
-  const globalTimer = setTimeout(() => globalController.abort(), GLOBAL_TIMEOUT_MS);
+  if (text.length > 15000) return NextResponse.json({ error: "النص طويل جداً (حد أقصى 15000 حرف)" }, { status: 400 });
 
   const docLabel = TYPE_LABELS[documentType] || documentType;
   const cat = { civil: "مدني", admin: "إداري", criminal: "جزائي" }[documentCategory] || "";
+  const truncatedText = text.length > 8000 ? text.slice(0, 8000) : text;
 
-  // Truncate input to max chars for speed
-  const truncatedText = text.length > MAX_INPUT_CHARS
-    ? text.slice(0, MAX_INPUT_CHARS)
-    : text;
+  const userMsg = `نوع الوثيقة: ${docLabel} (${cat})
 
-  const userMsg = `Type: ${docLabel} (${cat})
+${truncatedText}
 
-${truncatedText}`;
+أجب بهذا التنسيق JSON بالضبط:
+${JSON_FORMAT}`;
 
   // ─── SSE Stream ───
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
+      let closed = false;
       const send = (event: string, data: unknown) => {
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (closed) return;
+        try { controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); }
+        catch { closed = true; }
       };
-
-      const sendError = (message: string) => {
-        send("error", { error: message });
-        controller.close();
-      };
+      const safeClose = () => { if (!closed) { closed = true; try { controller.close(); } catch {} } };
 
       try {
-        const startTime = Date.now();
-        const tried: string[] = [];
-        let parsedResult: PetitionCheckResult | null = null;
-        let usedModel = MODELS[0];
+        send("status", { step: "connecting", message: "جاري الاتصال..." });
 
-        // Notify: analysis started
-        send("status", { step: "connecting", message: "جاري الاتصال بنموذج الذكاء الاصطناعي..." });
+        // Call AI with legal_analysis routing (uses T1→T2 models)
+        const result = await callAI({
+          systemPrompt: SYSTEM_PROMPT,
+          userMessage: userMsg,
+          requestType: 'legal_analysis',
+          maxModelsToTry: 4,
+          temperature: 0.4,
+          globalTimeoutMs: 20_000,
+        });
 
-        // Try models with limit
-        for (let i = 0; i < MODELS.length && i < MAX_MODELS_TO_TRY; i++) {
-          if (globalController.signal.aborted) {
-            send("status", { step: "timeout", message: "تجاوز الوقت المسموح" });
-            break;
-          }
+        const parsed = result.content ? parseAndValidate(result.content) : null;
 
-          const m = MODELS[i];
-          tried.push(m.id);
-
-          send("status", {
-            step: "analyzing",
-            message: `جاري التحليل بواسطة ${m.label}...`,
-            model: m.label,
-            attempt: i + 1,
-            maxAttempts: MAX_MODELS_TO_TRY,
-          });
-
-          const { content, model, elapsed } = await callModel(
-            SYSTEM_PROMPT, userMsg, m, globalController.signal,
-          );
-
-          if (!content) continue;
-
-          console.log(`[PetitionCheck] ${m.id} → ${content.length} chars in ${elapsed}ms`);
-
-          // Try to parse
-          const parsed = parseAndValidate(content);
-          if (parsed) {
-            parsedResult = parsed;
-            usedModel = model;
-            break;
-          }
-
-          // Retry Tier 0 once with stricter instruction
-          if (m.tier === 0) {
-            console.log(`[PetitionCheck] Retrying ${m.id}...`);
-            send("status", { step: "retrying", message: "إعادة المحاولة بتعليمات أوضح..." });
-
-            const retryMsg = userMsg + "\n\nمهم: ردك السابق لم يكن JSON صالح. أعد الإجابة بنفس تنسيق JSON بالضبط بدون أي نص إضافي.";
-            const retry = await callModel(SYSTEM_PROMPT, retryMsg, m, globalController.signal);
-
-            if (retry.content) {
-              const retryParsed = parseAndValidate(retry.content);
-              if (retryParsed) {
-                parsedResult = retryParsed;
-                usedModel = model;
-                break;
-              }
-            }
-          }
-        }
-
-        clearTimeout(globalTimer);
-        const totalTime = Date.now() - startTime;
-
-        console.log(`[PetitionCheck] Total: ${totalTime}ms, Models tried: ${tried.length}, Parsed: ${!!parsedResult}`);
-
-        // Build result
-        if (parsedResult) {
-          const report = makeReport(parsedResult);
+        if (parsed) {
+          const report = makeReport(parsed);
           send("complete", {
-            ...parsedResult,
+            ...parsed,
             report,
             rawReport: report,
             aiPowered: true,
-            model: usedModel.id,
-            modelLabel: usedModel.label,
-            tier: usedModel.tier,
-            triedModels: tried,
+            model: result.model.id,
+            modelLabel: result.model.label,
+            tier: result.model.tier,
+            triedModels: result.triedModels,
             parseFailed: false,
-            executionTime: totalTime,
+            executionTime: result.elapsedMs,
           });
+        } else if (result.content) {
+          // Got content but couldn't parse JSON — retry with stricter instruction
+          send("status", { step: "retrying", message: "إعادة المحاولة بتعليمات أوضح..." });
+
+          const retryResult = await callAI({
+            systemPrompt: SYSTEM_PROMPT,
+            userMessage: userMsg + "\n\n⚠️ ردك السابق لم يكن JSON صالح. أعد الإجابة بكائن JSON واحد فقط.",
+            requestType: 'legal_analysis',
+            maxModelsToTry: 2,
+            temperature: 0.3,
+            globalTimeoutMs: 12_000,
+          });
+
+          const retryParsed = retryResult.content ? parseAndValidate(retryResult.content) : null;
+
+          if (retryParsed) {
+            const report = makeReport(retryParsed);
+            send("complete", {
+              ...retryParsed,
+              report,
+              rawReport: report,
+              aiPowered: true,
+              model: retryResult.model.id,
+              modelLabel: retryResult.model.label,
+              tier: retryResult.model.tier,
+              triedModels: [...result.triedModels, ...retryResult.triedModels],
+              parseFailed: false,
+              executionTime: result.elapsedMs + retryResult.elapsedMs,
+            });
+          } else {
+            const empty = createEmptyResult();
+            empty.summary = "تم الاتصال بالذكاء الاصطناعي لكن تعذّر تنسيق النتائج. يرجى المحاولة مرة أخرى.";
+            send("complete", {
+              ...empty,
+              report: `⚠️ ${empty.summary}`,
+              aiPowered: true,
+              model: result.model.id,
+              modelLabel: result.model.label,
+              tier: result.model.tier,
+              triedModels: result.triedModels,
+              parseFailed: true,
+              executionTime: result.elapsedMs,
+            });
+          }
         } else {
-          // Timeout or all models failed
-          const isTimeout = globalController.signal.aborted;
+          // No content at all
+          const isTimeout = result.timedOut;
           const empty = createEmptyResult();
           empty.summary = isTimeout
-            ? "استغرق التحليل وقتاً أطول من المتوقع. يرجى تقصير النص والمحاولة مرة أخرى."
-            : "تم الاتصال بالذكاء الاصطناعي لكن تعذّر تنسيق النتائج. يرجى المحاولة مرة أخرى.";
+            ? "استغرق التحليل وقتاً أطول من المتوقع. يرجى المحاولة مرة أخرى."
+            : "جميع النماذج لم تُرجع رداً. يرجى المحاولة لاحقاً.";
 
-          send(isTimeout ? "timeout" : "complete", {
+          send(isTimeout ? "timeout" : "error", {
             ...empty,
             report: `⚠️ ${empty.summary}`,
-            aiPowered: !isTimeout,
-            model: usedModel.id,
-            modelLabel: usedModel.label,
-            tier: usedModel.tier,
-            triedModels: tried,
+            aiPowered: false,
+            model: result.model.id,
+            modelLabel: result.model.label,
+            tier: result.model.tier,
+            triedModels: result.triedModels,
             parseFailed: true,
-            executionTime: totalTime,
+            executionTime: result.elapsedMs,
             timedOut: isTimeout,
           });
         }
 
-        controller.close();
+        await new Promise(r => setTimeout(r, 100));
+        safeClose();
       } catch (err) {
-        clearTimeout(globalTimer);
-        const msg = err instanceof Error ? err.message : "Unknown error";
-        console.error(`[PetitionCheck] Fatal: ${msg}`);
-        sendError("حدث خطأ في التحليل. يرجى المحاولة مرة أخرى.");
-        controller.close();
+        console.error("[PetitionCheck] Fatal:", err);
+        send("error", { error: "حدث خطأ في التحليل. يرجى المحاولة مرة أخرى." });
+        safeClose();
       }
     },
-    cancel() {
-      // Clean up resources when client disconnects mid-stream
-      clearTimeout(globalTimer);
-      globalController.abort();
-    },
+    cancel() {},
   });
 
   return new Response(stream, {
@@ -498,7 +321,7 @@ ${truncatedText}`;
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       "Connection": "keep-alive",
-      "X-Accel-Buffering": "no", // Disable nginx buffering (for proxy setups)
+      "X-Accel-Buffering": "no",
     },
   });
 }
