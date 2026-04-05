@@ -4,6 +4,9 @@ import { useState } from 'react';
 import SmartPetitionChecker from './SmartPetitionChecker';
 import FormChecklist from './FormChecklist';
 import DeadlineCalculatorTool from './DeadlineCalculatorTool';
+import PetitionChecker from './PetitionChecker';
+import ComplaintChecker from './ComplaintChecker';
+import DeadlinesFullView from './DeadlinesFullView';
 import PetitionTemplates from './PetitionTemplates';
 import JudgmentAnalyzer from './JudgmentAnalyzer';
 import ContractReviewer from './ContractReviewer';
@@ -21,7 +24,9 @@ const tools = [
   { id: 'judgment-analyzer', title: 'استخراج بيانات الأحكام', icon: '⚖️', desc: 'استخراج المعلومات الأساسية من الأحكام القضائية وعرض طرق الطعن المتاحة', color: '#1a3a5c' },
   { id: 'contract-reviewer', title: 'فحص العقود', icon: '📑', desc: 'فحص البنود الأساسية للعقود للكشف عن الإشكاليات والمخاطر وفق القانون المدني', color: '#059669' },
   { id: 'memo-drafter', title: 'قوالب المذكرات القانونية', icon: '✍️', desc: 'قوالب جاهزة للمذكرات (جوابية، ختامية، استئناف، نقض، معارضة، افتتاحية)', color: '#6d28d9' },
-  { id: 'deadline', title: 'حاسبة الآجال القضائية', icon: '⏰', desc: 'حساب آجال الطعون والإجراءات القضائية', color: '#059669' },
+  { id: 'petition', title: 'التحقق الشكلي للعرائض', icon: '📋', desc: 'التأكد من استيفاء العريضة لكل الشروط الشكلية وفق ق.إ.م.إ', color: '#2563eb' },
+  { id: 'complaint', title: 'التحقق من الشكاوى', icon: '🔍', desc: 'التحقق من صحة الشكاوى المقدمة للنيابة وفق ق.إ.ج', color: '#dc2626' },
+  { id: 'deadlines-full', title: 'الآجال القضائية', icon: '📅', desc: 'حاسبة الآجال الكاملة — حوسبة المواعيد، عرض مزدوج، وجدول الآجال الشائع', color: '#059669' },
   { id: 'compensation', title: 'حاسبة التعويضات والفوائد', icon: '💰', desc: 'حساب التعويضات عن الأضرار الجسدية والفوائد القانونية وفق القانون المدني', color: '#059669' },
   { id: 'procedures', title: 'مقارنة الإجراءات ومسار القضية', icon: '🔄', desc: 'مقارنة بين الإجراءات القضائية وعرض مسار الدعوى بصرياً', color: '#0891b2' },
   { id: 'ai-prompts', title: 'دليل برومبتات الذكاء الاصطناعي', icon: '💡', desc: '20 برومبت جاهز للنسخ — تحليل قضايا، صياغة، بحث، استراتيجية، ترجمة', color: '#8b5cf6' },
@@ -38,7 +43,9 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'judgment-analyzer') return <JudgmentAnalyzer onBack={() => setActiveTool(null)} />;
   if (activeTool === 'contract-reviewer') return <ContractReviewer onBack={() => setActiveTool(null)} />;
   if (activeTool === 'memo-drafter') return <MemoDrafter onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'deadline') return <DeadlineCalculatorTool onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'petition') return <PetitionChecker onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'complaint') return <ComplaintChecker onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'deadlines-full') return <DeadlinesFullView onBack={() => setActiveTool(null)} />;
   if (activeTool === 'templates') return <PetitionTemplates onBack={() => setActiveTool(null)} />;
   if (activeTool === 'compensation') return <CompensationCalculator onBack={() => setActiveTool(null)} />;
   if (activeTool === 'procedures') return <ProceduresComparison onBack={() => setActiveTool(null)} />;

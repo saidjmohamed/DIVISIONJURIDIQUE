@@ -14,10 +14,7 @@ const AiAssistant = dynamic(() => import('@/components/AiAssistant'), {
   ssr: false,
   loading: () => <div className="fixed bottom-6 left-6 w-14 h-14 bg-gray-200 animate-pulse rounded-full shadow-lg z-50" />
 });
-
-const DeadlineCalculator = dynamic(() => import('@/components/deadlines/DeadlineCalculator'), { ssr: false });
-const DeadlinesTable = dynamic(() => import('@/components/deadlines/DeadlinesTable'), { ssr: false });
-const DualDeadlineView = dynamic(() => import('@/components/deadlines/DualDeadlineView'), { ssr: false });
+const ElectronicLitigationTab = dynamic(() => import('@/components/ElectronicLitigationTab'), { ssr: false });
 const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
@@ -25,7 +22,7 @@ const LegalUpdatesTab = dynamic(() => import('@/components/LegalUpdatesTab'), { 
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState<'search' | 'deadlines' | 'jurisprudence' | 'lawyer-tools' | 'judicial' | 'legal-updates'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'jurisprudence' | 'lawyer-tools' | 'judicial' | 'e-litigation' | 'legal-updates'>('search');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
 
@@ -53,8 +50,8 @@ export default function HomePage() {
 
   const tabs = useMemo(() => [
     { id: 'search', label: 'القوانين', icon: '📜', description: 'تصفح وابحث في 116 قانوناً جزائرياً محدثاً مع إمكانية البحث الشامل في كافة المواد.' },
-    { id: 'deadlines', label: 'الآجال', icon: '📅', description: 'احسب المواعيد القانونية والطعون بدقة بناءً على التقويم الجزائري والعطل الرسمية.' },
     { id: 'judicial', label: 'الجهات', icon: '🏛️', description: 'حدد الاختصاص الإقليمي (المحاكم والمجالس) لكل بلديات الوطن بدقة متناهية.' },
+    { id: 'e-litigation', label: 'التقاضي', icon: '💻', description: 'منصات التقاضي الإلكتروني التابعة لوزارة العدل الجزائرية والمواقع الرسمية.' },
     { id: 'jurisprudence', label: 'الاجتهاد', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني وتوحيد القضاء.' },
     { id: 'lawyer-tools', label: 'الأدوات', icon: '💼', description: 'أدوات مهنية متخصصة للتحقق من العرائض، صياغة المذكرات، وتحليل الأحكام.' },
     { id: 'legal-updates', label: 'مستجدات', icon: '📡', description: 'آخر القوانين والمراسيم والاجتهادات الجديدة — مراقبة يومية تلقائية للجريدة الرسمية ومجلس الدولة.' },
@@ -141,23 +138,9 @@ export default function HomePage() {
               </div>
 
               {activeTab === 'search' && <GlobalLawSearch />}
-              
-              {activeTab === 'deadlines' && (
-                <div className="space-y-6 sm:space-y-12">
-                  <div className="grid lg:grid-cols-2 gap-6">
-                    <DeadlineCalculator />
-                    <DualDeadlineView />
-                  </div>
-                  <div className="pt-6 border-t border-gray-100 dark:border-gray-800">
-                    <h4 className="text-base sm:text-xl font-bold text-[#1a3a5c] dark:text-white mb-4 text-center">جدول الآجال الشائع</h4>
-                    <div className="overflow-x-auto -mx-3 px-3">
-                      <DeadlinesTable />
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {activeTab === 'judicial' && <JudicialHierarchy />}
+              {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
               {activeTab === 'jurisprudence' && <JurisprudenceTab />}
               {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('search')} />}
               {activeTab === 'legal-updates' && <LegalUpdatesTab />}
