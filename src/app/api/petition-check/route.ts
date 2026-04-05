@@ -5,7 +5,7 @@ import {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // فاحص العرائض القانونية — SSE Streaming v9
-// 🧠 Qwen 3.6 Plus Free — النموذج الوحيد
+// 🧠 Qwen 3.6 Plus → Gemini 2.5 Flash → Gemini 2.0 Flash → Groq
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SYSTEM_PROMPT = `أنت فاحص شكلي للعرائض القانونية الجزائرية.
@@ -213,7 +213,7 @@ ${JSON_FORMAT}`;
       try {
         send("status", { step: "connecting", message: "جاري الاتصال..." });
 
-        // Qwen 3.6 Plus — النموذج الوحيد
+        // Qwen 3.6 Plus → Gemini 2.5 Flash → Gemini 2.0 Flash → Groq
         const result = await callAI({
           systemPrompt: SYSTEM_PROMPT,
           userMessage: userMsg,
