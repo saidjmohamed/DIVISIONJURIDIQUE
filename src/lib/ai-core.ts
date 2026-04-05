@@ -212,7 +212,8 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   try {
     // ── Track OpenRouter chain ──
     const orDone = new Promise<string | null>(async (resolve) => {
-      // 1. Try PRIMARY model first (Qwen 3.6 Plus) — with generous 15s timeout
+      // 1. Try PRIMARY model — use nearly the full global timeout
+      //    Free tier is slow (10-25s), so primary needs max time
       if (!resolved && !globalController.signal.aborted) {
         const primaryModel = preferredModel
           ? ALL_MODELS.find(m => m.id === preferredModel) || PRIMARY_MODEL
@@ -220,20 +221,33 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
         tried.push(primaryModel.id);
         modelsTried++;
-        console.log(`[AI Core] Trying primary: ${primaryModel.label} (timeout: ${TIMEOUT_CONFIG.primary}ms)...`);
+
+        // Use global timeout - 1s for primary (gives it maximum chance)
+        const primaryTimeout = Math.min(TIMEOUT_CONFIG.primary, globalTimeout - 1000);
+        console.log(`[AI Core] Trying primary: ${primaryModel.label} (timeout: ${primaryTimeout}ms)...`);
 
         const result = await callOpenRouter(
           systemPrompt, userMessage, messages, primaryModel, temperature, globalController.signal,
-          TIMEOUT_CONFIG.primary,
+          primaryTimeout,
         );
         if (result) { resolved = true; resolve(result); return; }
-        console.log(`[AI Core] Primary failed, trying backups...`);
+        console.log(`[AI Core] Primary failed after ${primaryTimeout}ms`);
+
+        // If global timeout is almost up, skip backups
+        const elapsed = Date.now() - startTime;
+        if (elapsed >= globalTimeout - 3000) {
+          console.log(`[AI Core] Skipping backups (only ${globalTimeout - elapsed}ms left)`);
+          resolve(null);
+          return;
+        }
       }
 
-      // 2. Quick backup fallback (2 models × 5s each)
+      // 2. Quick backup fallback (only if time remains)
+      const remainingBackups = Math.max(0, Math.floor((globalTimeout - (Date.now() - startTime)) / TIMEOUT_CONFIG.backup));
       for (const model of BACKUP_MODELS) {
         if (resolved || globalController.signal.aborted) break;
         if (modelsTried >= maxModelsToTry) break;
+        if (modelsTried - 1 >= remainingBackups) break; // Not enough time
 
         tried.push(model.id);
         modelsTried++;
