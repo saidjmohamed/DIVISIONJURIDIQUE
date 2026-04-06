@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 
 // ══════════════════════════════════════════════════════
 // أنواع البيانات
@@ -377,7 +377,7 @@ export default function LegalQuizGame({ onBack }: { onBack: () => void }) {
           <div className="p-4 space-y-2">
             {q.options.map((opt, i) => {
               let style = 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-[#1a3a5c] dark:hover:border-[#f0c040] hover:bg-[#1a3a5c]/5';
-              let icon = null;
+              let icon: React.ReactNode = null;
 
               if (answered) {
                 if (i === q.correct) {
