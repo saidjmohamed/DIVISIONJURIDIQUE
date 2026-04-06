@@ -5,10 +5,13 @@ const nextConfig: NextConfig = {
     // نتجاهل أخطاء TypeScript مؤقتاً حتى تكتمل التحديثات
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   reactStrictMode: true,
+  // Turbopack resolve aliases for pdfjs-dist (no canvas native module in browser)
+  turbopack: {
+    resolveAlias: {
+      canvas: { browser: '' },
+    },
+  },
 };
 
 export default nextConfig;

@@ -4,6 +4,13 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { PDFDocument } from 'pdf-lib';
 
+// Dynamic import for pdfjs-dist — avoids SSR/canvas issues on server
+async function loadPdfjs() {
+  const pdfjsLib = await import('pdfjs-dist');
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  return pdfjsLib;
+}
+
 const platforms = [
   { title: 'منصة التقاضي الإلكتروني', desc: 'خاصة بالسادة المحامين', url: 'https://tadjrib.mjustice.dz/login.php', icon: '💻', bgColor: 'bg-blue-100', hoverColor: 'group-hover:text-blue-500' },
   { title: 'سحب الأحكام الإلكترونية', desc: 'من طرف السادة المحامين', url: 'https://ejugement.mjustice.dz/login', icon: '📋', bgColor: 'bg-green-100', hoverColor: 'group-hover:text-green-500' },
@@ -43,72 +50,96 @@ const LEVELS: { id: CompLevel; label: string; desc: string; icon: string; qualit
   { id: 'extreme', label: 'ضغط شديد', desc: 'جودة 40% — أقصى تقليل', icon: '🗜️', quality: 0.40 },
 ];
 
-// ===== Client-side PDF compression using Canvas =====
+// ===== Client-side PDF compression using pdfjs-dist + Canvas =====
+let pdfjsModule: typeof import('pdfjs-dist') | null = null;
+
 async function compressPdfInBrowser(
   file: File,
   quality: number,
+  onProgress?: (page: number, total: number) => void,
 ): Promise<{ blob: Blob; compressedBytes: number }> {
   const originalBuffer = await file.arrayBuffer();
-  const originalPdf = await PDFDocument.load(originalBuffer, { ignoreEncryption: true });
-
-  // Create a canvas to re-render and compress images
-  const canvas = document.createElement('canvas');
-  const ctx = canvas.getContext('2d')!;
-
-  // Extract all images from the PDF, compress them, and rebuild
-  const compressedPdf = await PDFDocument.create();
-  const copiedPages = await compressedPdf.copyPages(originalPdf, originalPdf.getPageIndices());
-  copiedPages.forEach(page => compressedPdf.addPage(page));
-
-  // Save with optimization flags — this actually works for structure optimization
-  const optimizedBytes = await compressedPdf.save({
-    useObjectStreams: true,
-    addDefaultPage: false,
-    // Remove metadata to save space
-  });
-
-  // Now do image-based compression: render pages to canvas and rebuild PDF
-  // This gives real size reduction
-  const imgQual = quality;
-  const newPdf = await PDFDocument.create();
-
-  // Use the pages we already copied (structural optimization)
-  for (let i = 0; i < originalPdf.getPageCount(); i++) {
-    const [page] = await newPdf.copyPages(originalPdf, [i]);
-    newPdf.addPage(page);
-  }
-
-  // If the original PDF was large and the structural optimization didn't help much,
-  // use a heavier approach: extract embedded images and recompress
-  const structSize = optimizedBytes.byteLength;
   const originalSize = originalBuffer.byteLength;
 
-  if (structSize >= originalSize * 0.95) {
-    // Structural compression wasn't effective - try image stripping approach
-    // Parse the PDF raw bytes and strip image streams, replacing with lower quality
-    let pdfText = new TextDecoder('latin1').decode(optimizedBytes);
+  // === Stage 1: Structural optimization (preserves text selectability) ===
+  try {
+    const pdfDoc = await PDFDocument.load(originalBuffer, {
+      ignoreEncryption: true,
+      updateMetadata: false,
+    });
+    const newPdf = await PDFDocument.create();
+    newPdf.setTitle('');
+    newPdf.setAuthor('');
+    newPdf.setSubject('');
+    newPdf.setKeywords([]);
+    newPdf.setProducer('');
+    newPdf.setCreator('');
+    const pages = await newPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+    pages.forEach(p => newPdf.addPage(p));
+    const optimizedBytes = await newPdf.save({
+      useObjectStreams: true,
+      addDefaultPage: false,
+    });
 
-    // Find and reduce image quality in the PDF stream
-    // This regex approach modifies DCT (JPEG) quality parameters
-    const jpegQualityMap: Record<number, number> = {
-      0.85: 75,
-      0.65: 45,
-      0.40: 20,
-    };
-    const jpegQ = jpegQualityMap[quality] || 50;
-
-    // Remove unnecessary metadata streams
-    pdfText = pdfText.replace(/\/Type\s*\/Metadata\s*>>\s*stream[\s\S]*?endstream/g, '');
-    // Remove extra whitespace in streams (safe for PDF)
-    pdfText = pdfText.replace(/\n{3,}/g, '\n\n');
-
-    const finalBytes = new Uint8Array(new TextEncoder().encode(pdfText));
-    const blob = new Blob([finalBytes], { type: 'application/pdf' });
-    return { blob, compressedBytes: finalBytes.byteLength };
+    // If structural optimization achieved >= 10% reduction, use it
+    if (optimizedBytes.byteLength < originalSize * 0.90) {
+      const blob = new Blob([optimizedBytes], { type: 'application/pdf' });
+      return { blob, compressedBytes: optimizedBytes.byteLength };
+    }
+  } catch (e) {
+    console.warn('PDF structural optimization skipped:', e);
   }
 
-  const blob = new Blob([new Uint8Array(optimizedBytes)], { type: 'application/pdf' });
-  return { blob, compressedBytes: structSize };
+  // === Stage 2: Canvas-based rendering (real compression) ===
+  // Renders each page as JPEG image and rebuilds PDF
+  // This gives substantial size reduction but text becomes non-selectable
+
+  // Scale factor: higher quality = higher resolution
+  const scaleMap: Record<number, number> = { 0.85: 2.0, 0.65: 1.5, 0.40: 1.2 };
+  const jpegQualityMap: Record<number, number> = { 0.85: 0.85, 0.65: 0.65, 0.40: 0.40 };
+  const scale = scaleMap[quality] || 1.5;
+  const jpegQ = jpegQualityMap[quality] || 0.65;
+
+  // Load pdfjs-dist dynamically (client-side only)
+  if (!pdfjsModule) pdfjsModule = await loadPdfjs();
+
+  const pdfDoc = await pdfjsModule.getDocument({ data: originalBuffer.slice(0) }).promise;
+  const newPdf = await PDFDocument.create();
+
+  for (let i = 1; i <= pdfDoc.numPages; i++) {
+    const page = await pdfDoc.getPage(i);
+    const viewport = page.getViewport({ scale });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext('2d')!;
+
+    await page.render({ canvasContext: ctx, viewport }).promise;
+
+    const dataUrl = canvas.toDataURL('image/jpeg', jpegQ);
+    const base64 = dataUrl.split(',')[1];
+    const jpegBytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+
+    const image = await newPdf.embedJpg(jpegBytes);
+    const pdfPage = newPdf.addPage([viewport.width, viewport.height]);
+    pdfPage.drawImage(image, { x: 0, y: 0, width: viewport.width, height: viewport.height });
+
+    onProgress?.(i, pdfDoc.numPages);
+  }
+
+  const compressedBytes = await newPdf.save({
+    useObjectStreams: true,
+    addDefaultPage: false,
+  });
+
+  // If compressed is actually larger (tiny PDFs), return original
+  if (compressedBytes.byteLength >= originalSize) {
+    return { blob: new Blob([originalBuffer], { type: 'application/pdf' }), compressedBytes: originalSize };
+  }
+
+  const blob = new Blob([compressedBytes], { type: 'application/pdf' });
+  return { blob, compressedBytes: compressedBytes.byteLength };
 }
 
 // ===== PDF Compress Tool =====
