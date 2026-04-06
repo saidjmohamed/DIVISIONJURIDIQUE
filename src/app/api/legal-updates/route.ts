@@ -8,15 +8,14 @@ import {
 } from "@/lib/legal-cache";
 
 // ═══════════════════════════════════════════════════════════════════════════
-// API المستجدات القانونية — تخزين دائم في Upstash Redis
+// API المستجدات القانونية
 //
-// GET  → جلب المستجدات مع دعم التصنيف والتصفح (Pagination)
-// POST → إضافة مستجدات جديدة (للاستخدام الداخلي من الكرون)
+// GET  → جلب المستجدات مع دعم التصنيف والتصفح
+// POST → إضافة مستجدات جديدة (من الكرون أو Telegram agent)
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const dynamic = "force-dynamic";
 
-/** استجابة API متوافقة مع الواجهة الأمامية (LegalUpdatesTab.tsx) */
 interface LegalUpdatesResponse {
   entries: LegalEntry[];
   total: number;
@@ -25,39 +24,25 @@ interface LegalUpdatesResponse {
   message?: string;
 }
 
-// ─── GET: جلب المستجدات مع دعم الفلاتر والتصفح ────────────────────────
+// ─── GET ──────────────────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
-    const page = Math.max(0, parseInt(searchParams.get("page") || "0", 10));
-    const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "15", 10)));
+    const page     = Math.max(0, parseInt(searchParams.get("page")  || "0",  10));
+    const limit    = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "15", 10)));
     const category = searchParams.get("category") || "";
 
-    // جلب البيانات من Redis
+    // getAllEntries الآن دائماً تُرجع [] لا null
     let allEntries = await getAllEntries();
 
-    // إذا لم تكن بيانات في Redis، أرجع قائمة فارغة
-    if (!allEntries) {
-      return NextResponse.json({
-        entries: [],
-        total: 0,
-        hasMore: false,
-        lastUpdate: null,
-        message: "لم يتم جلب أي مستجدات بعد. سيتم التحديث تلقائياً يومياً.",
-      } satisfies LegalUpdatesResponse);
-    }
-
-    // فلتر التصنيف
     if (category) {
       allEntries = allEntries.filter((e) => e.category === category);
     }
 
-    const total = allEntries.length;
-    const start = page * limit;
-    const end = start + limit;
-    const entries = allEntries.slice(start, end);
-    const hasMore = end < total;
-
+    const total    = allEntries.length;
+    const start    = page * limit;
+    const entries  = allEntries.slice(start, start + limit);
+    const hasMore  = start + limit < total;
     const lastUpdate = await getLastUpdate();
 
     return NextResponse.json({
@@ -65,7 +50,11 @@ export async function GET(req: NextRequest) {
       total,
       hasMore,
       lastUpdate,
+      ...(total === 0 ? {
+        message: "سيتم التحديث تلقائياً كل يوم الساعة 07:00. إذا لم تظهر نتائج، تحقق من إعدادات Redis.",
+      } : {}),
     } satisfies LegalUpdatesResponse);
+
   } catch (error) {
     console.error("[Legal Updates GET] Error:", error);
     return NextResponse.json(
@@ -75,16 +64,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// ─── POST: إضافة مستجدات جديدة (من الكرون أو يدوياً) ─────────────────
+// ─── POST — يقبل الطلبات من: الكرون، Telegram agent، أو يدوياً ──────────
 export async function POST(req: NextRequest) {
   try {
-    // التحقق من المصادقة في بيئة الإنتاج
-    const cronSecret = process.env.CRON_SECRET;
-    const providedSecret = req.headers.get("x-cron-secret");
+    // التحقق من المصادقة في الإنتاج
+    const cronSecret      = process.env.CRON_SECRET;
+    const providedSecret  = req.headers.get("x-cron-secret")
+                         || req.headers.get("authorization")?.replace("Bearer ", "");
 
     if (process.env.NODE_ENV === "production" && cronSecret && providedSecret !== cronSecret) {
       return NextResponse.json(
-        { error: "غير مصرح. مطلوب رأس x-cron-secret صالح." },
+        { error: "غير مصرح. مطلوب CRON_SECRET صالح." },
         { status: 403 }
       );
     }
@@ -102,31 +92,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // التحقق من الحقول المطلوبة
-    for (const entry of entries) {
-      if (!entry.title || !entry.source || !entry.source_url) {
-        return NextResponse.json(
-          { error: "كل مستجد يجب أن يحتوي على عنوان ومصدر ورابط." },
-          { status: 400 }
-        );
-      }
+    // التحقق من الحقول المطلوبة — title فقط إلزامي (source_url اختياري)
+    const valid = entries.filter((e) => e.title && e.title.length > 3);
+    if (valid.length === 0) {
+      return NextResponse.json(
+        { error: "لم يتم العثور على مستجدات صالحة." },
+        { status: 400 }
+      );
     }
 
-    let total: number;
+    // تأكد من وجود source_url افتراضي
+    const normalized = valid.map((e) => ({
+      ...e,
+      source_url: e.source_url || `https://www.joradp.dz/search?q=${encodeURIComponent(e.title)}`,
+    }));
 
-    if (merge) {
-      total = await mergeEntries(entries);
-    } else {
-      await setEntries(entries);
-      total = entries.length;
-    }
+    const total = merge
+      ? await mergeEntries(normalized)
+      : (await setEntries(normalized), normalized.length);
 
     return NextResponse.json({
       success: true,
       total,
-      added: entries.length,
+      added:     normalized.length,
       updatedAt: new Date().toISOString(),
     });
+
   } catch (error) {
     console.error("[Legal Updates POST] Error:", error);
     return NextResponse.json(
