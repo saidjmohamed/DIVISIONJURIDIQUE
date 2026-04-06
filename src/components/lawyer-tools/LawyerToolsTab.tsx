@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import SmartPetitionChecker from './SmartPetitionChecker';
+import LegalQuizGame from './LegalQuizGame';
 import FormChecklist from './FormChecklist';
 import DeadlineCalculatorTool from './DeadlineCalculatorTool';
 import PetitionChecker from './PetitionChecker';
@@ -18,6 +19,7 @@ import AiPromptsGuide from './AiPromptsGuide';
 import SubjectMatterJurisdiction from './SubjectMatterJurisdiction';
 
 const tools = [
+  { id: 'quiz', title: 'الكويز القانوني الذكي', icon: '🧠', desc: 'أسئلة اختيار من متعدد تُولَّد بالذكاء الاصطناعي مع التعليل بنص القانون الجزائري — 8 قوانين، 3 مستويات', color: '#6366f1', badge: 'جديد' },
   { id: 'smart-petition', title: 'فحص العرائض بالذكاء الاصطناعي', icon: '🤖', desc: 'تحليل ذكي لـ 20 نوعاً من العرائض والشكاوى وفق القانون 25-14 وق.إ.م.إ 08-09', color: '#7c3aed' },
   { id: 'form-checklist', title: 'قائمة الفحص الشكلي', icon: '📋', desc: 'تحقق يدوي من الشروط الشكلية للعرائض المدنية والإدارية والشكاوى الجزائية', color: '#2563eb' },
   { id: 'jurisdiction', title: 'تحديد الاختصاص النوعي', icon: '🏛️', desc: 'تحديد القسم المختص والتشكيل القانوني وفق قانون الإجراءات المدنية والإدارية', color: '#1a3a5c' },
@@ -37,6 +39,7 @@ const tools = [
 export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   const [activeTool, setActiveTool] = useState<string | null>(null);
 
+  if (activeTool === 'quiz') return <LegalQuizGame onBack={() => setActiveTool(null)} />;
   if (activeTool === 'smart-petition') return <SmartPetitionChecker onBack={() => setActiveTool(null)} />;
   if (activeTool === 'form-checklist') return <FormChecklist onBack={() => setActiveTool(null)} />;
   if (activeTool === 'jurisdiction') return <SubjectMatterJurisdiction onBack={() => setActiveTool(null)} />;
@@ -64,11 +67,20 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
           <button
             key={tool.id}
             onClick={() => setActiveTool(tool.id)}
-            className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-right hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border text-right hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] ${
+              tool.id === 'quiz'
+                ? 'border-[#6366f1] dark:border-[#818cf8] ring-1 ring-[#6366f1]/30'
+                : 'border-gray-200 dark:border-gray-700'
+            }`}
           >
             <div className="flex items-center gap-3 mb-2">
               <span className="text-2xl">{tool.icon}</span>
               <h3 className="font-bold text-[#1a3a5c] dark:text-white text-sm leading-tight">{tool.title}</h3>
+              {(tool as { badge?: string }).badge && (
+                <span className="mr-auto text-[10px] px-2 py-0.5 bg-[#6366f1] text-white rounded-full font-bold">
+                  {(tool as { badge?: string }).badge}
+                </span>
+              )}
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">{tool.desc}</p>
             <div className="mt-3 flex justify-end">
