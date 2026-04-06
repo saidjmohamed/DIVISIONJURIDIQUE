@@ -1,13 +1,14 @@
 {
   "framework": "nextjs",
+  "buildCommand": "npx next build",
   "crons": [
     {
       "path": "/api/cron/fetch-updates",
-      "schedule": "0 7 * * *"
+      "schedule": "0 6 * * *"
     },
     {
       "path": "/api/telegram-sync",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 7 * * *"
     }
   ]
 }
