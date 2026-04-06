@@ -1,380 +1,478 @@
+/**
+ * /api/cron/fetch-updates
+ *
+ * كرون يومي يجلب المستجدات القانونية من 6 مصادر رسمية جزائرية:
+ *  1. الجريدة الرسمية  (JORADP)       — joradp.dz
+ *  2. مجلس الدولة      (CONSEIL)      — conseildetat.dz
+ *  3. وكالة الأنباء    (APS - سياسة)  — aps.dz/algerie/actualite-nationale
+ *  4. رئاسة الجمهورية (APS - رئاسة)  — aps.dz/presidence-news
+ *  5. وزارة العدل      (JUSTICE)      — mjustice.dz
+ *  6. قناة الشامل      (TELEGRAM)     — t.me/s/elshamill
+ *
+ * بدون أي SDK خارجي — fetch مباشر لكل مصدر
+ */
+
 import { NextRequest, NextResponse } from "next/server";
-import ZAI from "z-ai-web-dev-sdk";
-import type { LegalEntry } from "@/lib/legal-cache";
-import { mergeEntries, logCronExecution } from "@/lib/legal-cache";
+import { mergeEntries, logCronExecution, type LegalEntry } from "@/lib/legal-cache";
+
+export const dynamic     = "force-dynamic";
+export const maxDuration = 60;
+
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0";
+const TODAY = new Date().toISOString().split("T")[0];
+const YEAR  = new Date().getFullYear();
 
 // ═══════════════════════════════════════════════════════════════════════════
-// مسار Cron اليومي — جلب المستجدات القانونية من 3 مصادر رسمية
-//
-// يُستدعى كل يوم الساعة 07:00 UTC عبر Vercel Cron Jobs
-// يجلب البيانات بالتوازي → يحسنها بالذكاء الاصطناعي → يخزنها في Redis
+// مساعدات مشتركة
 // ═══════════════════════════════════════════════════════════════════════════
 
-export const dynamic = "force-dynamic";
-export const maxDuration = 120; // Vercel function timeout: 2 minutes
-
-const SOURCES = {
-  joradp: {
-    name: "الجريدة الرسمية الجزائرية",
-    url: "https://www.joradp.dz",
-    id: "joradp" as const,
-    label: "الجريدة الرسمية",
-  },
-  conseildetat: {
-    name: "مجلس الدولة",
-    url: "https://www.conseildetat.dz",
-    id: "conseildetat" as const,
-    label: "مجلس الدولة",
-  },
-  justice: {
-    name: "وزارة العدل",
-    url: "http://www.justice.gov.dz",
-    id: "justice" as const,
-    label: "وزارة العدل",
-  },
-};
-
-// ─── Helper: Generate a unique ID ───
-function generateId(title: string, source: string): string {
-  const hash = Buffer.from(`${source}-${title}-${Date.now()}`).toString("base64url").slice(0, 16);
-  return hash;
+function genId(source: string, title: string): string {
+  return Buffer.from(`${source}:${title.slice(0, 40)}`).toString("base64url").slice(0, 20);
 }
 
-// ─── Helper: Classify content type by keywords ───
-function classifyType(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes("قانون أساسي") || t.includes("قانون عضوي")) return "قانون";
-  if (t.includes("قانون")) return "قانون";
-  if (t.includes("مرسوم تنفيذي") || t.includes("décret exécutif")) return "مرسوم تنفيذي";
-  if (t.includes("مرسوم رئاسي") || t.includes("décret présidentiel")) return "مرسوم رئاسي";
-  if (t.includes("مرسوم")) return "مرسوم تنفيذي";
-  if (t.includes("قرار") || t.includes("arrêté") || t.includes("decision")) return "قرار";
-  if (t.includes("اجتهاد") || t.includes("قرار مجلس") || t.includes("قضاء")) return "اجتهاد";
-  if (t.includes("أمر") || t.includes("ordonnance")) return "نص تشريعي";
-  if (t.includes("منشور") || t.includes("circulaire")) return "منشور";
+function stripHtml(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, " ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#\d+;/g, "").replace(/&[a-z]+;/g, "")
+    .replace(/\s+/g, " ").trim();
+}
+
+function classifyType(text: string): string {
+  if (/قانون\s+أساسي|قانون\s+عضوي/.test(text))  return "قانون";
+  if (/قانون/.test(text))                          return "قانون";
+  if (/مرسوم\s+تنفيذي|décret\s+exécutif/i.test(text)) return "مرسوم تنفيذي";
+  if (/مرسوم\s+رئاسي|décret\s+présidentiel/i.test(text)) return "مرسوم رئاسي";
+  if (/مرسوم/.test(text))                          return "مرسوم تنفيذي";
+  if (/قرار|arrêté/i.test(text))                  return "قرار";
+  if (/اجتهاد|قضاء/.test(text))                  return "اجتهاد";
+  if (/منشور|circulaire/i.test(text))             return "منشور";
+  if (/أمر\s+رقم|ordonnance/i.test(text))        return "أمر";
   return "خبر رسمي";
 }
 
-// ─── Helper: Classify legal category ───
-function classifyCategory(title: string, summary: string): string {
-  const text = `${title} ${summary}`.toLowerCase();
-  if (text.includes("مدني") || text.includes("عقد") || text.includes("التزام") || text.includes("مسؤولية")) return "مدني";
-  if (text.includes("جزائي") || text.includes("جنائي") || text.includes("عقوب") || text.includes("جريمة")) return "جزائي";
-  if (text.includes("إداري") || text.includes("دوائر") || text.includes("تأديب") || text.includes("وظيف")) return "إداري";
-  if (text.includes("تجاري") || text.includes("شركة") || text.includes("تجار") || text.includes("أعمال")) return "تجاري";
-  if (text.includes("عمالي") || text.includes("عمل") || text.includes("شغل") || text.includes("نقاب") || text.includes("ضمان اجتماع")) return "عمالي";
-  if (text.includes("أسرة") || text.includes("زواج") || text.includes("طلاق") || text.includes("أحوال شخصية") || text.includes("نفقة") || text.includes("حضانة")) return "عائلي";
-  if (text.includes("عقار") || text.includes("ملكية") || text.includes("بناء") || text.includes("تعمير") || text.includes("أراضي")) return "عقاري";
-  if (text.includes("دستور") || text.includes("انتخاب") || text.includes("برلمان") || text.includes("رئاس")) return "دستوري";
-  return "مدني"; // افتراضي
+function classifyCategory(text: string): string {
+  const t = text;
+  if (/مدني|عقد|التزام|مسؤولية/.test(t))          return "مدني";
+  if (/جزائي|جنائي|عقوب|جريمة/.test(t))           return "جزائي";
+  if (/إداري|وظيف|تأديب|صفقات/.test(t))           return "إداري";
+  if (/تجاري|شركة|استثمار|أعمال/.test(t))          return "تجاري";
+  if (/عمل|شغل|أجر|نقابة|ضمان\s+اجتماعي/.test(t)) return "عمالي";
+  if (/أسرة|زواج|طلاق|نفقة|حضانة/.test(t))        return "عائلي";
+  if (/عقار|ملكية|بناء|تعمير|أراضي/.test(t))       return "عقاري";
+  if (/دستور|انتخاب|برلمان|رئاس|هيئة ناخبة/.test(t)) return "دستوري";
+  return "إداري";
 }
 
-// ─── Helper: Extract law number from title ───
-function extractLawNumber(title: string): string | undefined {
-  const patterns = [
-    /رقم\s+(\d{2,3}-\d{2,3})/i,
-    /n[°o]\s*(\d{2,3}-\d{2,3})/i,
-    /(\d{2,3}-\d{2,3})/,
-  ];
-  for (const p of patterns) {
-    const match = title.match(p);
-    if (match) return match[1];
-  }
-  return undefined;
+function extractLawNumber(text: string): string | undefined {
+  const m = text.match(/رقم\s+(\d{2,3}-\d{2,3})/i)
+         || text.match(/n[°o]\s*(\d{2,3}-\d{2,3})/i)
+         || text.match(/(\d{2,3}-\d{2,3})/);
+  return m ? m[1] : undefined;
 }
 
-// ─── Fetch from JORADP (Official Gazette) ───
-async function fetchJoradpUpdates(zai: Awaited<ReturnType<typeof ZAI.create>>): Promise<LegalEntry[]> {
+// فلتر: هل الخبر ذو طابع قانوني/تشريعي؟
+function isLegallyRelevant(text: string): boolean {
+  return /مرسوم|قانون|قرار|تشريع|انتخاب|دستور|تعديل|صادق|يوقع|مجلس\s+الوزراء|أمر\s+رقم|منشور|نظام|مرفق/.test(text);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 1. الجريدة الرسمية — JORADP
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchJoradp(): Promise<LegalEntry[]> {
   try {
-    const searchResult = await zai.functions.invoke("web_search", {
-      query: `site:joradp.dz journal officiel algérie 2025 ${new Date().getFullYear()} dernier numéro`,
-      num: 10,
+    const res = await fetch("https://www.joradp.dz/HAR/Index.htm", {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(10_000),
     });
+    if (!res.ok) return [];
+    const html = await res.text();
 
-    if (!searchResult || !Array.isArray(searchResult)) return [];
-
-    return searchResult.slice(0, 10).map((item: { url?: string; name?: string; snippet?: string; date?: string }) => ({
-      id: generateId(item.name || "", "joradp"),
-      title: item.name || "وثيقة من الجريدة الرسمية",
-      law_number: extractLawNumber(item.name || ""),
-      type: classifyType(item.name || ""),
-      date: item.date || new Date().toISOString().split("T")[0],
-      source: SOURCES.joradp.id,
-      source_url: item.url || SOURCES.joradp.url,
-      summary: item.snippet || "وثيقة رسمية من الجريدة الرسمية الجزائرية",
-      category: classifyCategory(item.name || "", item.snippet || ""),
+    // استخرج روابط الأعداد الأخيرة
+    const links = [...html.matchAll(/href="([^"]*A(?:rab|rab)\w*\.htm[^"]*)"/gi)];
+    const entries: LegalEntry[] = links.slice(0, 8).map((m) => ({
+      id:         genId("joradp", m[1]),
+      title:      `الجريدة الرسمية — ${m[1].match(/(\d+\w+)/)?.[1] || "عدد جديد"}`,
+      type:       "خبر رسمي",
+      date:       TODAY,
+      source:     "joradp",
+      source_url: `https://www.joradp.dz${m[1].startsWith("/") ? "" : "/HAR/"}${m[1]}`,
+      summary:    "عدد جديد من الجريدة الرسمية الجزائرية — يحتوي على قوانين ومراسيم رسمية",
+      category:   "إداري",
       created_at: new Date().toISOString(),
     }));
-  } catch (error) {
-    console.error("[Cron] Error fetching JORADP:", error);
-    return [];
-  }
+
+    return entries.filter(e => e.source_url.includes("joradp.dz"));
+  } catch { return []; }
 }
 
-// ─── Fetch from Conseil d'État (State Council) ───
-async function fetchConseilEtatUpdates(zai: Awaited<ReturnType<typeof ZAI.create>>): Promise<LegalEntry[]> {
+// ═══════════════════════════════════════════════════════════════════════════
+// 2. APS — الأخبار السياسية (قوانين ومراسيم)
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchApsPage(url: string, sourceId: string, sourceLabel: string): Promise<LegalEntry[]> {
   try {
-    const searchResult = await zai.functions.invoke("web_search", {
-      query: `site:conseildetat.dz قرارات أخبار مجلس الدولة الجزائر ${new Date().getFullYear()}`,
-      num: 10,
+    const res = await fetch(url, {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(12_000),
     });
+    if (!res.ok) return [];
+    const html = await res.text();
 
-    if (!searchResult || !Array.isArray(searchResult)) return [];
+    // استخرج العناوين والروابط والمقتطفات
+    const titleMatches = [...html.matchAll(
+      /class="text-lg font-bold[^"]*"[^>]*>([\s\S]*?)<\/[a-z]+>/gi
+    )];
+    const hrefMatches = [...html.matchAll(
+      /class="block w-full h-full"[^>]*href="([^"]+)"/gi
+    )];
+    const snippetMatches = [...html.matchAll(
+      /class="text-sm text-gray-700[^"]*">([\s\S]*?)<\/[a-z]+>/gi
+    )];
+    const dateMatches = [...html.matchAll(
+      /class="text-xs">([\s\S]*?)<\/[a-z]+>/gi
+    )];
 
-    return searchResult.slice(0, 10).map((item: { url?: string; name?: string; snippet?: string; date?: string }) => ({
-      id: generateId(item.name || "", "conseildetat"),
-      title: item.name || "قرار من مجلس الدولة",
-      law_number: extractLawNumber(item.name || ""),
-      type: classifyType(item.name || ""),
-      date: item.date || new Date().toISOString().split("T")[0],
-      source: SOURCES.conseildetat.id,
-      source_url: item.url || SOURCES.conseildetat.url,
-      summary: item.snippet || "قرار أو خبر من مجلس الدولة الجزائري",
-      category: classifyCategory(item.name || "", item.snippet || ""),
-      created_at: new Date().toISOString(),
-    }));
-  } catch (error) {
-    console.error("[Cron] Error fetching Conseil d'État:", error);
-    return [];
-  }
+    const entries: LegalEntry[] = [];
+
+    for (let i = 0; i < Math.min(titleMatches.length, 12); i++) {
+      const title   = stripHtml(titleMatches[i][1]);
+      const href    = hrefMatches[i]?.[1] || "";
+      const snippet = stripHtml(snippetMatches[i]?.[1] || "");
+      const rawDate = stripHtml(dateMatches[i]?.[1] || "");
+
+      if (!title || title.length < 15) continue;
+      if (!isLegallyRelevant(`${title} ${snippet}`)) continue;
+
+      // تحويل التاريخ من "الاثنين 06 أفريل 2026" إلى ISO
+      const dateIso = parseApsDate(rawDate) || TODAY;
+
+      entries.push({
+        id:         genId(sourceId, title),
+        title,
+        law_number: extractLawNumber(title),
+        type:       classifyType(title),
+        date:       dateIso,
+        source:     sourceId,
+        source_url: href.startsWith("http") ? href : `https://www.aps.dz${href}`,
+        summary:    snippet || title,
+        category:   classifyCategory(`${title} ${snippet}`),
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    return entries;
+  } catch { return []; }
 }
 
-// ─── Fetch from Ministry of Justice ───
-async function fetchJusticeUpdates(zai: Awaited<ReturnType<typeof ZAI.create>>): Promise<LegalEntry[]> {
+// تحليل تاريخ APS "الاثنين 06 أفريل 2026"
+function parseApsDate(raw: string): string {
+  const MONTHS: Record<string, string> = {
+    "جانفي":"01","فيفري":"02","مارس":"03","أفريل":"04","ماي":"05","جوان":"06",
+    "جويلية":"07","أوت":"08","سبتمبر":"09","أكتوبر":"10","نوفمبر":"11","ديسمبر":"12",
+  };
+  const m = raw.match(/(\d{1,2})\s+(\S+)\s+(\d{4})/);
+  if (!m) return TODAY;
+  const month = MONTHS[m[2]] || "01";
+  return `${m[3]}-${month}-${m[1].padStart(2, "0")}`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 3. مجلس الدولة
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchConseilEtat(): Promise<LegalEntry[]> {
   try {
-    const searchResult = await zai.functions.invoke("web_search", {
-      query: `site:justice.gov.dz عدالة جزائر مستجدات أخبار ${new Date().getFullYear()}`,
-      num: 10,
+    const res = await fetch("https://www.conseildetat.dz", {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(10_000),
     });
+    if (!res.ok) return [];
+    const html = await res.text();
 
-    if (!searchResult || !Array.isArray(searchResult)) return [];
+    const links = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)];
+    const entries: LegalEntry[] = [];
 
-    return searchResult.slice(0, 10).map((item: { url?: string; name?: string; snippet?: string; date?: string }) => ({
-      id: generateId(item.name || "", "justice"),
-      title: item.name || "خبر من وزارة العدل",
-      law_number: extractLawNumber(item.name || ""),
-      type: classifyType(item.name || ""),
-      date: item.date || new Date().toISOString().split("T")[0],
-      source: SOURCES.justice.id,
-      source_url: item.url || SOURCES.justice.url,
-      summary: item.snippet || "نشرة أو مستجد من وزارة العدل الجزائرية",
-      category: classifyCategory(item.name || "", item.snippet || ""),
-      created_at: new Date().toISOString(),
-    }));
-  } catch (error) {
-    console.error("[Cron] Error fetching Justice:", error);
-    return [];
-  }
+    for (const [, href, rawTitle] of links) {
+      const title = stripHtml(rawTitle);
+      if (title.length < 20) continue;
+      if (!isLegallyRelevant(title) && !/مجلس|قضاء|قرار|اجتهاد/.test(title)) continue;
+
+      entries.push({
+        id:         genId("conseildetat", title),
+        title,
+        type:       classifyType(title),
+        date:       TODAY,
+        source:     "conseildetat",
+        source_url: href.startsWith("http") ? href : `https://www.conseildetat.dz${href}`,
+        summary:    `خبر من مجلس الدولة الجزائري: ${title}`,
+        category:   classifyCategory(title),
+        created_at: new Date().toISOString(),
+      });
+
+      if (entries.length >= 8) break;
+    }
+
+    return entries;
+  } catch { return []; }
 }
 
-// ─── AI Enhancement: تلخيص وتحليل المستجدات ───
-async function enhanceWithAI(updates: LegalEntry[]): Promise<LegalEntry[]> {
-  if (updates.length === 0) return updates;
+// ═══════════════════════════════════════════════════════════════════════════
+// 4. وزارة العدل
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchJustice(): Promise<LegalEntry[]> {
+  try {
+    const res = await fetch("https://www.mjustice.dz", {
+      headers: { "User-Agent": UA },
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const titles = [...html.matchAll(/<(?:h[1-4]|strong)[^>]*>([\s\S]*?)<\/(?:h[1-4]|strong)>/gi)];
+    const hrefs  = [...html.matchAll(/<a[^>]+href="([^"]+)"[^>]*>/gi)];
+    const entries: LegalEntry[] = [];
+
+    for (let i = 0; i < Math.min(titles.length, 10); i++) {
+      const title = stripHtml(titles[i][1]);
+      if (title.length < 20) continue;
+      const href  = hrefs[i]?.[1] || "https://www.mjustice.dz";
+
+      entries.push({
+        id:         genId("justice", title),
+        title,
+        type:       classifyType(title),
+        date:       TODAY,
+        source:     "justice",
+        source_url: href.startsWith("http") ? href : `https://www.mjustice.dz${href}`,
+        summary:    `مستجد من وزارة العدل الجزائرية: ${title}`,
+        category:   classifyCategory(title),
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    return entries;
+  } catch { return []; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 5. قناة الشامل على Telegram
+// ═══════════════════════════════════════════════════════════════════════════
+async function fetchTelegram(): Promise<LegalEntry[]> {
+  try {
+    const res = await fetch("https://t.me/s/elshamill", {
+      headers: { "User-Agent": UA, "Accept-Language": "ar,en;q=0.9" },
+      signal: AbortSignal.timeout(12_000),
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+
+    const msgBlocks = html.split(/class="tgme_widget_message\s/);
+    const entries: LegalEntry[] = [];
+
+    for (const block of msgBlocks.slice(1)) {
+      const idM    = block.match(/data-post="elshamill\/(\d+)"/);
+      const dateM  = block.match(/datetime="([^"]+)"/);
+      const textM  = block.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+
+      if (!idM || !textM) continue;
+
+      const rawText = stripHtml(textM[1].replace(/<br\s*\/?>/gi, "\n"));
+      if (rawText.length < 40) continue;
+
+      const lines  = rawText.split("\n").filter(l => l.trim().length > 3);
+      const title  = lines[0].replace(/^[🤖🏛️📰⚖️✅📡━•\-*]+\s*/, "").trim().slice(0, 200);
+      if (title.length < 10) continue;
+
+      // تجاهل رسائل الاختبار
+      if (/اختبار الاتصال|تم تفعيل الوكيل/.test(title)) continue;
+
+      entries.push({
+        id:         `tg-${idM[1]}`,
+        title,
+        law_number: extractLawNumber(rawText),
+        type:       classifyType(rawText),
+        date:       dateM ? dateM[1].slice(0, 10) : TODAY,
+        source:     "telegram",
+        source_url: `https://t.me/elshamill/${idM[1]}`,
+        summary:    lines.slice(1, 4).join(" ").slice(0, 500) || title,
+        category:   classifyCategory(rawText),
+        created_at: new Date().toISOString(),
+      });
+
+      if (entries.length >= 15) break;
+    }
+
+    return entries;
+  } catch { return []; }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// تحسين بـ Groq (سريع + مجاني)
+// ═══════════════════════════════════════════════════════════════════════════
+async function enhanceWithGroq(entries: LegalEntry[]): Promise<LegalEntry[]> {
+  const GROQ_KEY = process.env.GROQ_API_KEY;
+  if (!GROQ_KEY || entries.length === 0) return entries;
 
   try {
-    const zai = await ZAI.create();
-    const batchSize = 8;
-    const enhanced: LegalEntry[] = [];
+    const list = entries
+      .slice(0, 15)
+      .map((e, i) => `${i + 1}. ${e.title} — ${e.summary.slice(0, 100)}`)
+      .join("\n");
 
-    for (let i = 0; i < updates.length; i += batchSize) {
-      const batch = updates.slice(i, i + batchSize);
-      const titlesList = batch
-        .map((u, idx) => `${idx + 1}. [${u.source}] ${u.title} — ${u.summary}`)
-        .join("\n");
-
-      const completion = await zai.chat.completions.create({
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${GROQ_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model:       "llama-3.3-70b-versatile",
+        temperature: 0.3,
+        max_tokens:  2000,
+        response_format: { type: "json_object" },
         messages: [
           {
             role: "system",
-            content:
-              "أنت محلل قانوني جزائري خبير. مهمتك: تحليل كل مستجد قانوني وإرجاع JSON array. " +
-              "كل عنصر يحتوي على: enhanced_summary (ملخص بجملة واحدة واضحة)، " +
-              "category (من: مدني، جزائي، إداري، تجاري، عمالي، عائلي، عقاري، دستوري)، " +
-              "impact (التأثير القانوني بجملة واحدة إن أمكن)، " +
-              "key_words (مصفوفة 3-5 كلمات مفتاحية). " +
-              "أجب بصيغة JSON array فقط بدون أي نص إضافي أو markdown.",
+            content: "أنت محلل قانوني جزائري. حلل كل مستجد وأعد JSON: {\"results\":[{\"summary\":\"ملخص واضح\",\"impact\":\"التأثير القانوني\",\"keywords\":[\"كلمة1\",\"كلمة2\",\"كلمة3\"]}]}. JSON فقط.",
           },
-          {
-            role: "user",
-            content: `حلل المستجدات التالية:\n${titlesList}`,
-          },
+          { role: "user", content: `حلل:\n${list}` },
         ],
-        temperature: 0.3,
-        max_tokens: 1200,
-      });
+      }),
+      signal: AbortSignal.timeout(20_000),
+    });
 
-      const content = completion.choices[0]?.message?.content;
-      if (content) {
-        try {
-          const cleanContent = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
-          const analysis = JSON.parse(cleanContent) as Array<{
-            enhanced_summary?: string;
-            category?: string;
-            impact?: string;
-            key_words?: string[];
-          }>;
+    if (!res.ok) return entries;
 
-          for (let j = 0; j < batch.length; j++) {
-            const ai = analysis[j];
-            if (ai) {
-              enhanced.push({
-                ...batch[j],
-                summary: ai.enhanced_summary || batch[j].summary,
-                category: ai.category || batch[j].category,
-                impact: ai.impact,
-                keywords: ai.key_words,
-              });
-            } else {
-              enhanced.push(batch[j]);
-            }
-          }
-        } catch {
-          // JSON parse failed — keep originals
-          enhanced.push(...batch);
-        }
-      } else {
-        enhanced.push(...batch);
-      }
-    }
+    const data    = await res.json();
+    const content = data?.choices?.[0]?.message?.content;
+    if (!content) return entries;
 
-    return enhanced;
-  } catch (error) {
-    console.error("[Cron] AI enhancement failed, using originals:", error);
-    return updates;
+    const parsed = JSON.parse(content) as { results?: Array<{ summary?: string; impact?: string; keywords?: string[] }> };
+    const results = parsed?.results || [];
+
+    return entries.map((entry, i) => {
+      const ai = results[i];
+      if (!ai) return entry;
+      return {
+        ...entry,
+        summary:  ai.summary  || entry.summary,
+        impact:   ai.impact   || undefined,
+        keywords: ai.keywords || undefined,
+      };
+    });
+  } catch {
+    return entries;
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Main Cron Handler
+// Handler الرئيسي
 // ═══════════════════════════════════════════════════════════════════════════
-
 export async function GET(req: NextRequest) {
-  // Verify cron secret in production
   if (process.env.NODE_ENV === "production") {
-    const cronSecret = process.env.CRON_SECRET;
-    const authHeader = req.headers.get("authorization");
+    const cronSecret  = process.env.CRON_SECRET;
+    const authHeader  = req.headers.get("authorization");
     const querySecret = req.nextUrl.searchParams.get("secret");
-
     if (!cronSecret || (authHeader !== `Bearer ${cronSecret}` && querySecret !== cronSecret)) {
-      return NextResponse.json(
-        { error: "غير مصرح. يتطلب CRON_SECRET صالح." },
-        { status: 403 }
-      );
+      return NextResponse.json({ error: "غير مصرح." }, { status: 403 });
     }
   }
 
-  const startTime = Date.now();
-  const allUpdates: LegalEntry[] = [];
+  const start   = Date.now();
   const errors: string[] = [];
 
-  try {
-    // Initialize AI SDK
-    const zai = await ZAI.create();
+  // ── جلب من كل المصادر بالتوازي ─────────────────────────────────────────
+  const [
+    joradpRes,
+    apsNatRes,
+    apsPrésRes,
+    conseilRes,
+    justiceRes,
+    telegramRes,
+  ] = await Promise.allSettled([
+    fetchJoradp(),
+    fetchApsPage(
+      "https://www.aps.dz/algerie/actualite-nationale",
+      "aps",
+      "وكالة الأنباء — أخبار وطنية"
+    ),
+    fetchApsPage(
+      "https://www.aps.dz/presidence-news",
+      "aps-presidence",
+      "وكالة الأنباء — أخبار الرئاسة"
+    ),
+    fetchConseilEtat(),
+    fetchJustice(),
+    fetchTelegram(),
+  ]);
 
-    // Fetch from all sources in parallel
-    const [joradpResults, conseilResults, justiceResults] = await Promise.allSettled([
-      fetchJoradpUpdates(zai),
-      fetchConseilEtatUpdates(zai),
-      fetchJusticeUpdates(zai),
-    ]);
+  const collect = (
+    res: PromiseSettledResult<LegalEntry[]>,
+    label: string
+  ): LegalEntry[] => {
+    if (res.status === "fulfilled") return res.value;
+    errors.push(`${label}: ${res.reason}`);
+    return [];
+  };
 
-    // Collect results
-    if (joradpResults.status === "fulfilled" && joradpResults.value.length > 0) {
-      allUpdates.push(...joradpResults.value);
-    } else if (joradpResults.status === "rejected") {
-      errors.push(`JORADP: ${joradpResults.reason}`);
-    }
+  const allRaw = [
+    ...collect(joradpRes,   "JORADP"),
+    ...collect(apsNatRes,   "APS-وطني"),
+    ...collect(apsPrésRes,  "APS-رئاسة"),
+    ...collect(conseilRes,  "مجلس الدولة"),
+    ...collect(justiceRes,  "وزارة العدل"),
+    ...collect(telegramRes, "Telegram"),
+  ];
 
-    if (conseilResults.status === "fulfilled" && conseilResults.value.length > 0) {
-      allUpdates.push(...conseilResults.value);
-    } else if (conseilResults.status === "rejected") {
-      errors.push(`مجلس الدولة: ${conseilResults.reason}`);
-    }
+  // ── إزالة المكررات ────────────────────────────────────────────────────
+  const seen    = new Set<string>();
+  const unique  = allRaw.filter(e => {
+    const key = e.title.trim().slice(0, 50).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
-    if (justiceResults.status === "fulfilled" && justiceResults.value.length > 0) {
-      allUpdates.push(...justiceResults.value);
-    } else if (justiceResults.status === "rejected") {
-      errors.push(`وزارة العدل: ${justiceResults.reason}`);
-    }
+  // ── تحسين بـ Groq ───────────────────────────────────────────────────
+  const enhanced = await enhanceWithGroq(unique);
 
-    // Deduplicate by title similarity
-    const seen = new Set<string>();
-    const uniqueUpdates = allUpdates.filter((u) => {
-      const key = u.title.trim().toLowerCase().slice(0, 60);
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
-
-    // Enhance with AI
-    const enhancedUpdates = uniqueUpdates.length > 0
-      ? await enhanceWithAI(uniqueUpdates)
-      : uniqueUpdates;
-
-    // Store in Redis via legal-cache module
-    let totalStored = 0;
-    if (enhancedUpdates.length > 0) {
-      totalStored = await mergeEntries(enhancedUpdates);
-    }
-
-    const elapsed = Date.now() - startTime;
-    const today = new Date().toISOString().split("T")[0];
-
-    // Log cron execution for monitoring
-    await logCronExecution(today, {
-      success: true,
-      joradp: joradpResults.status === "fulfilled" ? joradpResults.value.length : 0,
-      conseil: conseilResults.status === "fulfilled" ? conseilResults.value.length : 0,
-      justice: justiceResults.status === "fulfilled" ? justiceResults.value.length : 0,
-      total: enhancedUpdates.length,
-      elapsed: `${Math.round(elapsed / 1000)}s`,
-      errors: errors.length > 0 ? errors : undefined,
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: `تم جلب ${enhancedUpdates.length} مستجد قانوني من ${SOURCES.joradp.name} و${SOURCES.conseildetat.name} و${SOURCES.justice.name}`,
-      stats: {
-        joradp: joradpResults.status === "fulfilled" ? joradpResults.value.length : 0,
-        conseil: conseilResults.status === "fulfilled" ? conseilResults.value.length : 0,
-        justice: justiceResults.status === "fulfilled" ? justiceResults.value.length : 0,
-        total: enhancedUpdates.length,
-        duplicates: allUpdates.length - uniqueUpdates.length,
-        totalStored,
-        elapsed: `${Math.round(elapsed / 1000)}s`,
-      },
-      errors: errors.length > 0 ? errors : undefined,
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    const elapsed = Date.now() - startTime;
-
-    // Log failure
-    const today = new Date().toISOString().split("T")[0];
-    await logCronExecution(today, {
-      success: false,
-      joradp: 0,
-      conseil: 0,
-      justice: 0,
-      total: 0,
-      elapsed: `${Math.round(elapsed / 1000)}s`,
-      errors: [String(error)],
-    });
-
-    console.error("[Cron] Fatal error:", error);
-    return NextResponse.json(
-      {
-        success: false,
-        error: String(error),
-        elapsed: `${Math.round(elapsed / 1000)}s`,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 }
-    );
+  // ── حفظ في Redis ────────────────────────────────────────────────────
+  let totalStored = 0;
+  if (enhanced.length > 0) {
+    totalStored = await mergeEntries(enhanced);
   }
+
+  const elapsed = Date.now() - start;
+  const today   = TODAY;
+
+  await logCronExecution(today, {
+    success: true,
+    joradp:  collect(joradpRes,  "").length,
+    conseil: collect(conseilRes, "").length,
+    justice: collect(justiceRes, "").length,
+    total:   enhanced.length,
+    elapsed: `${Math.round(elapsed / 1000)}s`,
+    errors:  errors.length > 0 ? errors : undefined,
+  });
+
+  return NextResponse.json({
+    success: true,
+    stats: {
+      joradp:        joradpRes.status  === "fulfilled" ? joradpRes.value.length  : 0,
+      aps_national:  apsNatRes.status  === "fulfilled" ? apsNatRes.value.length  : 0,
+      aps_presidence:apsPrésRes.status === "fulfilled" ? apsPrésRes.value.length : 0,
+      conseil_etat:  conseilRes.status === "fulfilled" ? conseilRes.value.length : 0,
+      justice:       justiceRes.status === "fulfilled" ? justiceRes.value.length : 0,
+      telegram:      telegramRes.status=== "fulfilled" ? telegramRes.value.length: 0,
+      total_raw:     allRaw.length,
+      duplicates:    allRaw.length - unique.length,
+      total_stored:  totalStored,
+      elapsed_ms:    elapsed,
+    },
+    errors:    errors.length > 0 ? errors : undefined,
+    timestamp: new Date().toISOString(),
+  });
 }
 
-// Also support POST for external cron services
-export async function POST(req: NextRequest) {
-  return GET(req);
-}
+export const POST = GET;
