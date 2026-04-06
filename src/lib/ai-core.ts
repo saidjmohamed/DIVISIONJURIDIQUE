@@ -35,7 +35,7 @@ export const GEMINI_KEYS: string[] = [
 
 const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL      = "https://api.groq.com/openai/v1/chat/completions";
-const GEMINI_FLASH_25   = "gemini-2.5-flash-preview-04-17";
+const GEMINI_FLASH_25   = "gemini-2.5-flash";
 const GEMINI_FLASH_20   = "gemini-2.0-flash";
 const GEMINI_API_BASE   = "https://generativelanguage.googleapis.com/v1beta/models";
 
