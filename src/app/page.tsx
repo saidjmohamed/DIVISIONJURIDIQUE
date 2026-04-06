@@ -10,7 +10,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 // Lazy load components with proper loading states
 const GlobalLawSearch = dynamic(() => import('@/components/GlobalLawSearch'), { ssr: false });
-const AiAssistant = dynamic(() => import('@/components/AiAssistant'), { 
+const AiAssistant = dynamic(() => import('@/components/AiAssistant'), {
   ssr: false,
   loading: () => <div className="fixed bottom-6 left-6 w-14 h-14 bg-gray-200 animate-pulse rounded-full shadow-lg z-50" />
 });
@@ -51,7 +51,7 @@ export default function HomePage() {
   const tabs = useMemo(() => [
     { id: 'search', label: 'القوانين', icon: '📜', description: 'تصفح وابحث في 116 قانوناً جزائرياً محدثاً مع إمكانية البحث الشامل في كافة المواد.' },
     { id: 'judicial', label: 'الجهات', icon: '🏛️', description: 'حدد الاختصاص الإقليمي (المحاكم والمجالس) لكل بلديات الوطن بدقة متناهية.' },
-    { id: 'e-litigation', label: 'التقاضي', icon: '💻', description: 'منصات التقاضي الإلكتروني التابعة لوزارة العدل الجزائرية والمواقع الرسمية.' },
+    { id: 'e-litigation', label: 'التقاضي', icon: '💻', description: 'منصات التقاضي الإلكتروني وضغط ملفات PDF للرفع على المنصة.' },
     { id: 'jurisprudence', label: 'الاجتهاد', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني وتوحيد القضاء.' },
     { id: 'lawyer-tools', label: 'الأدوات', icon: '💼', description: 'أدوات مهنية متخصصة للتحقق من العرائض، صياغة المذكرات، وتحليل الأحكام.' },
     { id: 'legal-updates', label: 'مستجدات', icon: '📰', description: 'مراقبة يومية تلقائية للمستجدات القانونية من الجريدة الرسمية ومجلس الدولة ووزارة العدل.' },
