@@ -105,12 +105,18 @@ export default function LegalQuizGame({ onBack }: { onBack: () => void }) {
     setShowExplanation(false);
     setReviewIdx(null);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 55_000);
+
     try {
       const res = await fetch('/api/quiz/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -125,7 +131,11 @@ export default function LegalQuizGame({ onBack }: { onBack: () => void }) {
       setQuestionStartMs(Date.now());
       setPhase('playing');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'حدث خطأ غير متوقع');
+      clearTimeout(timeoutId);
+      const msg = e instanceof Error
+        ? (e.name === 'AbortError' ? 'انتهت مهلة الاتصال، حاول مرة أخرى' : e.message)
+        : 'حدث خطأ غير متوقع';
+      setError(msg);
       setPhase('config');
     }
   }, [config]);

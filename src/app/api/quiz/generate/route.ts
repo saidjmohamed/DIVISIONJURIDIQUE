@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callAI, parseJSON, checkRateLimit } from '@/lib/ai-core';
 
-export const maxDuration = 45;
+export const maxDuration = 60;
 
 // قائمة القوانين المتاحة مع وصفها
 const LAW_REGISTRY: Record<string, { name: string; shortName: string; number: string }> = {
@@ -61,37 +61,12 @@ export async function POST(req: NextRequest) {
     ? 'وزّع الأسئلة بين سهل ومتوسط وصعب'
     : `جميع الأسئلة من مستوى: ${DIFFICULTY_LABELS[difficulty] || difficulty}`;
 
-  const systemPrompt = `أنت خبير في القانون الجزائري ومتخصص في إعداد أسئلة الكويز القانوني.
-مهمتك: إنشاء أسئلة اختيار من متعدد دقيقة ومعللة بنص قانوني صريح.
+  const systemPrompt = `أنت خبير في القانون الجزائري. أجب بـ JSON صالح فقط، بدون أي نص قبله أو بعده، بدون markdown.`;
 
-قواعد صارمة:
-1. كل سؤال يجب أن يكون مستنداً إلى مادة قانونية محددة من التشريع الجزائري
-2. التعليل يجب أن يتضمن نص المادة أو مضمونها الدقيق
-3. الخيارات الأربعة يجب أن تكون متقاربة لتزيد من صعوبة الاختيار
-4. لا تكرر الأسئلة ولا تستعمل نفس المادة مرتين
-5. الأسئلة تغطي مواضيع متنوعة (اختصاص، آجال، إجراءات، جزاءات، حقوق، تعريفات...)`;
+  const userMessage = `أنشئ ${count} سؤال كويز حول: ${lawContext}. ${difficultyHint}.
 
-  const userMessage = `أنشئ بالضبط ${count} سؤال كويز قانوني حول: ${lawContext}.
-${difficultyHint}.
-
-أعد JSON فقط بالتنسيق التالي (بدون أي نص إضافي):
-{
-  "questions": [
-    {
-      "id": "q1",
-      "law": "الاسم المختصر للقانون مثل ق.إ.ج",
-      "lawNumber": "رقم القانون مثل 25-14",
-      "question": "نص السؤال",
-      "options": ["الخيار أ", "الخيار ب", "الخيار ج", "الخيار د"],
-      "correct": 0,
-      "article": "رقم المادة مثل م.37",
-      "articleText": "نص المادة القانونية الدقيق أو مضمونها",
-      "explanation": "شرح مفصل لماذا الإجابة صحيحة مع الاستشهاد بنص القانون",
-      "difficulty": "easy أو medium أو hard",
-      "category": "موضوع السؤال مثل: الاختصاص، الآجال، الحبس المؤقت..."
-    }
-  ]
-}`;
+JSON فقط:
+{"questions":[{"id":"q1","law":"ق.إ.ج","lawNumber":"25-14","question":"...","options":["أ","ب","ج","د"],"correct":0,"article":"م.1","articleText":"نص المادة","explanation":"التعليل مع رقم المادة","difficulty":"easy","category":"الاختصاص"}]}`;
 
   const result = await callAI({
     systemPrompt,
