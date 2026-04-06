@@ -7,7 +7,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { callAI, parseJSON, checkRateLimit } from '@/lib/ai-core';
 
-export const runtime = 'edge';
 export const maxDuration = 45;
 
 // قائمة القوانين المتاحة مع وصفها
