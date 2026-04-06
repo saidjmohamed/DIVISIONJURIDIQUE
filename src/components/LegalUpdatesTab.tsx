@@ -53,6 +53,12 @@ const TYPE_CONFIG: Record<string, { emoji: string; color: string }> = {
 
 const CATEGORIES = ['مدني', 'جزائي', 'إداري', 'تجاري', 'عمالي', 'عائلي', 'عقاري', 'دستوري'];
 
+const SOURCE_LABELS: Record<string, string> = {
+  joradp: 'الجريدة الرسمية',
+  conseildetat: 'مجلس الدولة',
+  justice: 'وزارة العدل',
+};
+
 // ─── بطاقة النص القانوني ────────────────────────────────────────────────────
 function LegalCard({ entry }: { entry: LegalEntry }) {
   const [expanded, setExpanded] = useState(false);
@@ -121,7 +127,7 @@ function LegalCard({ entry }: { entry: LegalEntry }) {
               {/* المعلومات الثانوية */}
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
                 {entry.date && <span>📅 {entry.date}</span>}
-                <span className="truncate max-w-[160px]">📌 {entry.source}</span>
+                <span className="truncate max-w-[160px]">📌 {SOURCE_LABELS[entry.source] || entry.source}</span>
               </div>
             </div>
           </div>
