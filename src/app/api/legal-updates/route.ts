@@ -1,164 +1,142 @@
-/**
- * API Route: /api/legal-updates
- * وكيل التحديث القانوني التلقائي — تطبيق الشامل
- * يستقبل ويخزن النصوص القانونية الجديدة في Upstash Redis
- */
+import { NextRequest, NextResponse } from "next/server";
 
-import { NextRequest, NextResponse } from 'next/server';
+// ═══════════════════════════════════════════════════════════════════════════
+// API المستجدات القانونية — ذاكرة تخزين مؤقت مع TTL 6 ساعات
+// ═══════════════════════════════════════════════════════════════════════════
 
-// ─── Upstash Redis Client (بدون مكتبة خارجية — HTTP فقط) ────────────────────
-async function redisCommand(command: string[], method: 'GET' | 'POST' = 'POST') {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) throw new Error('Upstash Redis غير مُعَدّ');
-
-  const res = await fetch(`${url}/${command.map(encodeURIComponent).join('/')}`, {
-    method,
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
-  const data = await res.json();
-  return data.result;
+export interface LegalUpdate {
+  id: string;
+  title: string;
+  date: string;
+  source: "joradp" | "conseildetat" | "justice";
+  sourceLabel: string;
+  category: "قانون جديد" | "مرسوم" | "قرار" | "أخبار" | "نص تشريعي";
+  summary: string;
+  link: string;
+  fetchedAt: string;
 }
 
-async function redisSet(key: string, value: unknown) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) throw new Error('Upstash Redis غير مُعَدّ');
-
-  await fetch(`${url}/set/${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(JSON.stringify(value)),
-  });
+interface CachedData {
+  updates: LegalUpdate[];
+  updatedAt: string;
+  expiresAt: number;
 }
 
-async function redisGet(key: string) {
-  const result = await redisCommand([`get`, key]);
-  if (!result) return null;
-  try { return JSON.parse(result); } catch { return result; }
-}
+// In-memory cache with 6-hour TTL
+let cachedData: CachedData | null = null;
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
-async function redisLPush(key: string, value: string) {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return;
-  await fetch(`${url}/lpush/${encodeURIComponent(key)}`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(value),
-  });
-}
+export const dynamic = "force-dynamic";
 
-async function redisLRange(key: string, start: number, stop: number): Promise<string[]> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return [];
-  const res = await fetch(`${url}/lrange/${encodeURIComponent(key)}/${start}/${stop}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  return data.result || [];
-}
-
-async function redisLLen(key: string): Promise<number> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return 0;
-  const res = await fetch(`${url}/llen/${encodeURIComponent(key)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  const data = await res.json();
-  return data.result || 0;
-}
-
-// ─── مفتاح الأمان ────────────────────────────────────────────────────────────
-const AGENT_KEY = process.env.AGENT_API_KEY || 'alshamil-agent-2026';
-const REDIS_KEY = 'shamil:legal_updates';
-const REDIS_META_KEY = 'shamil:legal_meta';
-
-// ─── POST: حفظ نص قانوني جديد من الوكيل ─────────────────────────────────────
-export async function POST(req: NextRequest) {
-  // التحقق من المفتاح
-  const auth = req.headers.get('authorization') || '';
-  if (!auth.includes(AGENT_KEY)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+// GET: Retrieve cached legal updates
+export async function GET() {
+  // Return cached data if still valid
+  if (cachedData && Date.now() < cachedData.expiresAt) {
+    return NextResponse.json({
+      updates: cachedData.updates,
+      updatedAt: cachedData.updatedAt,
+      cached: true,
+      total: cachedData.updates.length,
+    });
   }
 
+  // Cache expired or empty — return what we have with expired flag
+  if (cachedData) {
+    return NextResponse.json({
+      updates: cachedData.updates,
+      updatedAt: cachedData.updatedAt,
+      cached: false,
+      expired: true,
+      total: cachedData.updates.length,
+    });
+  }
+
+  // No data yet
+  return NextResponse.json({
+    updates: [],
+    updatedAt: null,
+    cached: false,
+    expired: false,
+    total: 0,
+    message: "لم يتم جلب أي مستجدات بعد. سيتم التحديث تلقائياً يومياً.",
+  });
+}
+
+// POST: Add new legal updates (for internal use by cron job)
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
-    if (!body.title || !body.source) {
-      return NextResponse.json({ error: 'title و source مطلوبان' }, { status: 400 });
+    // Validate request with internal secret
+    const cronSecret = process.env.CRON_SECRET;
+    const providedSecret = req.headers.get("x-cron-secret");
+
+    if (!cronSecret || providedSecret !== cronSecret) {
+      // Also allow if called directly (no secret required for local dev)
+      if (process.env.NODE_ENV === "production" && !providedSecret) {
+        return NextResponse.json(
+          { error: "غير مصرح. مطلوب رأس x-cron-secret صالح." },
+          { status: 403 }
+        );
+      }
     }
 
-    // إضافة معرّف فريد وطابع زمني
-    const entry = {
-      id: `le_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      ...body,
-      saved_at: new Date().toISOString(),
+    const { updates, merge = true } = body as {
+      updates: LegalUpdate[];
+      merge?: boolean;
     };
 
-    // حفظ في القائمة (LPUSH = الأحدث أولاً)
-    await redisLPush(REDIS_KEY, JSON.stringify(entry));
+    if (!updates || !Array.isArray(updates) || updates.length === 0) {
+      return NextResponse.json(
+        { error: "بيانات المستجدات غير صالحة أو فارغة." },
+        { status: 400 }
+      );
+    }
 
-    // تحديث الإحصاءات
-    const meta = (await redisGet(REDIS_META_KEY)) || { total: 0, lastUpdate: null };
-    meta.total = (meta.total || 0) + 1;
-    meta.lastUpdate = new Date().toISOString();
-    await redisSet(REDIS_META_KEY, meta);
+    // Validate each update
+    for (const update of updates) {
+      if (!update.title || !update.source || !update.link) {
+        return NextResponse.json(
+          { error: "كل مستجد يجب أن يحتوي على عنوان ومصدر ورابط." },
+          { status: 400 }
+        );
+      }
+    }
 
-    return NextResponse.json({ success: true, id: entry.id }, { status: 201 });
+    if (merge && cachedData) {
+      // Merge with existing data, avoiding duplicates by link
+      const existingLinks = new Set(cachedData.updates.map((u) => u.link));
+      const newUpdates = updates.filter((u) => !existingLinks.has(u.link));
 
-  } catch (err) {
-    console.error('Legal Update POST Error:', err);
-    return NextResponse.json({ error: 'خطأ داخلي في الخادم' }, { status: 500 });
-  }
-}
-
-// ─── GET: استرجاع التحديثات القانونية ────────────────────────────────────────
-export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const page = parseInt(searchParams.get('page') || '0');
-  const limit = parseInt(searchParams.get('limit') || '15');
-  const category = searchParams.get('category') || '';
-
-  try {
-    const start = page * limit;
-    const stop = start + limit - 1;
-
-    // جلب الإدخالات من Redis
-    const rawItems = await redisLRange(REDIS_KEY, start, stop);
-    const total = await redisLLen(REDIS_KEY);
-    const meta = await redisGet(REDIS_META_KEY);
-
-    // تحويل من string إلى object
-    let entries = rawItems.map(item => {
-      try { return JSON.parse(item); } catch { return null; }
-    }).filter(Boolean);
-
-    // فلتر حسب التصنيف
-    if (category) {
-      entries = entries.filter((e: {category?: string}) => e.category === category);
+      if (newUpdates.length > 0) {
+        cachedData = {
+          updates: [...newUpdates, ...cachedData.updates].slice(0, 100), // Keep max 100
+          updatedAt: new Date().toISOString(),
+          expiresAt: Date.now() + CACHE_TTL_MS,
+        };
+      }
+    } else {
+      // Replace all data
+      cachedData = {
+        updates: updates.slice(0, 100),
+        updatedAt: new Date().toISOString(),
+        expiresAt: Date.now() + CACHE_TTL_MS,
+      };
     }
 
     return NextResponse.json({
-      entries,
-      total,
-      page,
-      hasMore: start + limit < total,
-      lastUpdate: meta?.lastUpdate || null,
+      success: true,
+      total: cachedData.updates.length,
+      added: merge
+        ? updates.length - (cachedData ? cachedData.updates.length - updates.length : 0)
+        : updates.length,
+      updatedAt: cachedData.updatedAt,
     });
-
-  } catch (err) {
-    console.error('Legal GET Error:', err);
-    // إذا Redis غير متاح، أرجع قائمة فارغة بدلاً من خطأ
-    return NextResponse.json({
-      entries: [],
-      total: 0,
-      page: 0,
-      hasMore: false,
-      lastUpdate: null,
-      _note: 'Redis غير متاح حالياً',
-    });
+  } catch (error) {
+    console.error("Legal Updates POST Error:", error);
+    return NextResponse.json(
+      { error: "خطأ في معالجة البيانات." },
+      { status: 500 }
+    );
   }
 }
