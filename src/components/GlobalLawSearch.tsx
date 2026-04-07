@@ -473,23 +473,23 @@ function ArticleCard({
   );
 }
 
-// ─── Individual Law View (PDF-Like) ──────────────────────────────────────────
+// ─── Individual Law View — عرض ورقي متدفق ────────────────────────────────────
 
 function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }) {
   const [articles, setArticles] = useState<LawArticle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const topRef = useRef<HTMLDivElement>(null);
+  const [activeArticleId, setActiveArticleId] = useState<string | null>(null);
   const [jumpInput, setJumpInput] = useState('');
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ── مهم: scroll للأعلى فور فتح القانون
+  // Scroll للأعلى فور فتح القانون
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, []);
 
+  // تحميل مواد القانون
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
@@ -507,12 +507,14 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
     return () => { cancelled = true; };
   }, [law.file]);
 
+  // Debounce البحث
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 250);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [searchQuery]);
 
+  // فلترة المواد عند البحث
   const filteredArticles = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
     if (!q) return articles;
@@ -533,225 +535,483 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
     });
   }, [articles, debouncedQuery]);
 
-  const handleCopy = useCallback(
-    (article: LawArticle) => {
-      const text = `${law.icon} ${law.name}\nالمادة ${article.number || article.num}\n\n${article.text}`;
-      navigator.clipboard.writeText(text);
-      const id = `${law.id}-${article.num}`;
-      setCopiedId(id);
-      setTimeout(() => setCopiedId(null), 2000);
-    },
-    [law]
-  );
+  // نسخ مادة
+  const handleCopy = useCallback((article: LawArticle) => {
+    const text = `${law.icon} ${law.name}\nالمادة ${article.number || article.num}\n\n${article.text}`;
+    navigator.clipboard.writeText(text);
+    const id = `${law.id}-${article.num}`;
+    setActiveArticleId(id);
+    setTimeout(() => setActiveArticleId(null), 2000);
+  }, [law]);
 
-  const handleWhatsApp = useCallback(
-    (article: LawArticle) => {
-      const text = `*${law.icon} ${law.name}*\n*المادة ${article.number || article.num}*\n\n${article.text}`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-    },
-    [law]
-  );
+  // مشاركة واتساب
+  const handleWhatsApp = useCallback((article: LawArticle) => {
+    const text = `*${law.icon} ${law.name}*\n*المادة ${article.number || article.num}*\n\n${article.text}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  }, [law]);
 
+  // الانتقال لمادة محددة
   const handleJump = () => {
     const n = parseInt(jumpInput);
     if (!n) return;
-    // البحث عن المادة بـ num أو number
     const target = articles.find((a) => a.num === n || String(a.number) === String(n));
     const el = target
-      ? document.getElementById(`article-${target.num}`)
-      : document.getElementById(`article-${n}`);
+      ? document.getElementById(`art-${target.num}`)
+      : document.getElementById(`art-${n}`);
     if (el) {
-      const navbarOffset = 130;
-      const top = el.getBoundingClientRect().top + window.scrollY - navbarOffset;
+      const top = el.getBoundingClientRect().top + window.scrollY - 130;
       window.scrollTo({ top, behavior: 'smooth' });
-      el.style.outline = '3px solid #f59e0b';
-      el.style.outlineOffset = '4px';
-      el.style.borderRadius = '16px';
-      setTimeout(() => {
-        el.style.outline = '';
-        el.style.outlineOffset = '';
-      }, 2500);
+      el.classList.add('law-jump-highlight');
+      setTimeout(() => el.classList.remove('law-jump-highlight'), 2500);
     }
     setJumpInput('');
   };
 
   const cat = getCategoryForLaw(law.id);
   const matchCount = debouncedQuery ? filteredArticles.length : 0;
+  const displayArticles = debouncedQuery ? filteredArticles : articles;
 
   return (
-    <div ref={topRef}>
-      {/* Back + Header */}
-      <div className="mb-6 space-y-4">
+    <div dir="rtl">
+
+      {/* ── شريط التحكم العلوي ── */}
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
         <button
           onClick={onBack}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-black text-gray-600 dark:text-gray-300 transition-all group"
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-black text-gray-600 dark:text-gray-300 transition-all group flex-shrink-0"
         >
           <span className="group-hover:translate-x-1 transition-transform">→</span>
-          <span>العودة إلى قائمة القوانين</span>
+          <span>القوانين</span>
         </button>
-
-        {/* Law Banner */}
-        <div
-          className="relative rounded-3xl p-6 sm:p-8 text-white overflow-hidden shadow-xl"
-          style={{ background: `linear-gradient(135deg, ${law.color}, ${hexToRgba(law.color, 0.65)})` }}
-        >
-          <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
-          <div className="absolute -bottom-16 -right-16 w-56 h-56 rounded-full bg-white/5 blur-3xl" />
-          <div className="relative z-10">
-            <div className="flex items-start gap-5">
-              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-inner flex-shrink-0">
-                {law.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <h2 className="font-black text-xl sm:text-3xl leading-tight">{law.name}</h2>
-                <div className="flex flex-wrap items-center gap-3 mt-3">
-                  {law.number && (
-                    <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-black">
-                      رقم {law.number}
-                    </span>
-                  )}
-                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-black">
-                    {law.count} مادة
-                  </span>
-                  {cat && (
-                    <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-black">
-                      {cat.icon} {cat.label}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Search + Jump */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-        <div className="sm:col-span-2 relative">
+        <div className="flex-1 relative min-w-0">
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={`ابحث في ${law.name}... (كلمة، عبارة، أو رقم المادة)`}
-            className="w-full p-4 pr-12 rounded-2xl border-2 border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none transition-all shadow-sm text-sm font-bold"
+            placeholder={`🔍  ابحث في ${law.name}...`}
+            className="w-full px-4 py-2 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none text-sm font-bold transition-all"
           />
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl">🔍</span>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery('')}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl font-black"
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-100 text-lg font-black leading-none"
             >
               ×
             </button>
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 flex-shrink-0">
           <input
             type="number"
             value={jumpInput}
             onChange={(e) => setJumpInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleJump()}
-            placeholder="انتقل لمادة رقم..."
-            className="flex-1 p-4 rounded-2xl border-2 border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-amber-400 outline-none transition-all shadow-sm text-sm font-bold text-center"
+            placeholder="م. رقم"
+            className="w-20 px-3 py-2 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-amber-400 outline-none text-sm font-bold text-center"
           />
           <button
             onClick={handleJump}
-            className="px-4 py-2 rounded-2xl bg-amber-400 hover:bg-amber-500 text-white font-black text-sm shadow-sm transition-all"
+            className="px-3 py-2 rounded-xl bg-amber-400 hover:bg-amber-500 text-white font-black text-sm shadow-sm transition-all"
+            title="انتقل للمادة"
           >
-            ←
+            ⤵
           </button>
         </div>
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="flex-shrink-0 px-3 py-2 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 text-sm font-black transition-all"
+          title="العودة للأعلى"
+        >
+          ↑
+        </button>
       </div>
 
-      {/* Results info banner */}
-      {debouncedQuery && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: 'auto' }}
-          className="mb-4 flex items-center gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700"
-        >
-          <span className="text-2xl">🔍</span>
-          <div>
-            <p className="font-black text-amber-800 dark:text-amber-300 text-sm">
-              {matchCount > 0 ? (
-                <>تم العثور على <span className="text-xl">{matchCount}</span> مادة تتضمن &quot;{debouncedQuery}&quot;</>
-              ) : (
-                <>لا توجد نتائج لـ &quot;{debouncedQuery}&quot; في هذا القانون</>
-              )}
-            </p>
-          </div>
-          {matchCount > 0 && (
-            <span className="mr-auto px-3 py-1 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded-full text-xs font-black">
-              مُمَيَّزة بالأصفر
-            </span>
-          )}
-        </motion.div>
-      )}
+      {/* ── ورقة القانون ── */}
+      <div className="law-paper" dir="rtl">
 
-      {/* Articles */}
-      {isLoading ? (
-        <div className="text-center py-20">
-          <div
-            className="text-5xl mb-4 animate-bounce inline-block"
-          >
-            {law.icon}
+        {/* غلاف القانون — كصفحة العنوان */}
+        <div className="law-cover" style={{ borderColor: law.color }}>
+          <div className="law-cover-icon" style={{ color: law.color }}>{law.icon}</div>
+          <div className="law-cover-emblem">الجمهورية الجزائرية الديمقراطية الشعبية</div>
+          <h1 className="law-cover-title">{law.name}</h1>
+          <div className="law-cover-meta">
+            {law.number && <span>رقم {law.number}</span>}
+            {law.number && <span className="law-cover-dot">•</span>}
+            <span>{law.count} مادة</span>
+            {cat && <><span className="law-cover-dot">•</span><span>{cat.icon} {cat.label}</span></>}
           </div>
-          <p className="text-gray-500 font-black text-lg">جاري تحميل القانون كاملاً...</p>
-          <p className="text-gray-400 text-sm mt-1">{law.count} مادة</p>
+          {debouncedQuery && (
+            <div className="law-search-badge">
+              {matchCount > 0
+                ? `🔍 ${matchCount} مادة تتضمن «${debouncedQuery}»`
+                : `🔍 لا توجد نتائج لـ «${debouncedQuery}»`}
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          {/* Article count header */}
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-black text-gray-700 dark:text-gray-200 text-sm">
-              {debouncedQuery
-                ? `${filteredArticles.length} مادة مطابقة`
-                : `جميع المواد — ${articles.length} مادة`}
-            </h3>
-            <button
-              onClick={() => topRef.current?.scrollIntoView({ behavior: 'smooth' })}
-              className="text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
-            >
-              ↑ الأعلى
-            </button>
-          </div>
 
-          {filteredArticles.length === 0 ? (
-            <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/40 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-              <p className="text-4xl mb-3">🔍</p>
-              <p className="text-gray-500 font-black">لم يُعثر على نتائج لـ &quot;{debouncedQuery}&quot;</p>
-              <button onClick={() => setSearchQuery('')} className="mt-3 text-sm text-[#1a3a5c] dark:text-[#f0c040] font-black underline">
-                مسح البحث
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredArticles.map((article) => (
-                <ArticleCard
-                  key={article.num}
-                  article={article}
-                  lawMeta={law}
-                  onCopy={() => handleCopy(article)}
-                  onWhatsApp={() => handleWhatsApp(article)}
-                  copiedId={copiedId}
-                  highlightQuery={debouncedQuery || undefined}
-                  isSearchResult={!!debouncedQuery}
-                />
-              ))}
-            </div>
-          )}
-
-          {/* Back to top floater */}
-          <div className="sticky bottom-6 flex justify-center mt-8 pointer-events-none">
-            <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="pointer-events-auto px-5 py-2.5 rounded-2xl bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-gray-900 font-black text-sm shadow-xl hover:shadow-2xl transition-all opacity-80 hover:opacity-100"
-            >
-              ↑ العودة للأعلى
-            </button>
+        {/* حالة التحميل */}
+        {isLoading ? (
+          <div className="law-loading">
+            <span className="law-loading-icon">{law.icon}</span>
+            <p>جاري فتح القانون...</p>
           </div>
-        </>
-      )}
+        ) : displayArticles.length === 0 ? (
+          <div className="law-no-results">
+            <p>لم يُعثر على نتائج لـ «{debouncedQuery}»</p>
+            <button onClick={() => setSearchQuery('')}>مسح البحث</button>
+          </div>
+        ) : (
+          /* ── قائمة المواد — متدفقة كالورق ── */
+          <div className="law-body">
+            {displayArticles.map((article) => {
+              const artId = `art-${article.num}`;
+              const copyId = `${law.id}-${article.num}`;
+              const isCopied = activeArticleId === copyId;
+              const isHighlighted = debouncedQuery
+                ? article.text.toLowerCase().includes(debouncedQuery.toLowerCase())
+                : false;
+
+              return (
+                <div
+                  key={`${law.id}-${article.num}`}
+                  id={artId}
+                  className={`law-article${
+                    isHighlighted ? ' law-article--match' : ''
+                  }`}
+                >
+                  {/* رقم المادة */}
+                  <div className="law-article-header">
+                    <span
+                      className="law-article-number"
+                      style={{ color: law.color }}
+                    >
+                      المادة {article.number || article.num}
+                    </span>
+                    {isHighlighted && (
+                      <span className="law-article-match-badge">نتيجة البحث</span>
+                    )}
+                    {/* أزرار سريعة تظهر عند hover */}
+                    <div className="law-article-actions">
+                      <button
+                        onClick={() => handleCopy(article)}
+                        className={`law-btn${ isCopied ? ' law-btn--copied' : '' }`}
+                        title="نسخ المادة"
+                      >
+                        {isCopied ? '✅' : '📋'}
+                      </button>
+                      <button
+                        onClick={() => handleWhatsApp(article)}
+                        className="law-btn law-btn--whatsapp"
+                        title="مشاركة عبر واتساب"
+                      >
+                        📲
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* نص المادة كاملاً */}
+                  <p className="law-article-text">
+                    {debouncedQuery ? (
+                      <HighlightedText text={article.text} query={debouncedQuery} />
+                    ) : (
+                      article.text
+                    )}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ذيل الورقة */}
+        {!isLoading && displayArticles.length > 0 && (
+          <div className="law-footer">
+            <span>— نهاية {law.name} —</span>
+          </div>
+        )}
+      </div>
+
+      {/* زر العودة للأعلى عائم */}
+      <div className="law-fab">
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="law-fab-btn"
+        >
+          ↑ أعلى
+        </button>
+      </div>
+
+      {/* ── CSS القانون الورقي ── */}
+      <style jsx global>{`
+        /* ورقة القانون الرئيسية */
+        .law-paper {
+          background: #fff;
+          color: #1a1a1a;
+          font-family: 'Amiri', 'Scheherazade New', 'Traditional Arabic', serif;
+          border-radius: 12px;
+          box-shadow: 0 4px 32px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+          border: 1px solid #e5e7eb;
+          overflow: hidden;
+          margin-bottom: 24px;
+        }
+        .dark .law-paper {
+          background: #1e293b;
+          color: #f1f5f9;
+          border-color: #334155;
+          box-shadow: 0 4px 32px rgba(0,0,0,0.40);
+        }
+
+        /* صفحة الغلاف */
+        .law-cover {
+          text-align: center;
+          padding: 48px 32px 36px;
+          border-bottom: 3px solid;
+          background: linear-gradient(180deg, #f8fafc 0%, #fff 100%);
+        }
+        .dark .law-cover {
+          background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+        }
+        .law-cover-icon {
+          font-size: 56px;
+          margin-bottom: 16px;
+          line-height: 1;
+        }
+        .law-cover-emblem {
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          color: #6b7280;
+          margin-bottom: 12px;
+          text-transform: uppercase;
+        }
+        .dark .law-cover-emblem { color: #94a3b8; }
+        .law-cover-title {
+          font-size: 26px;
+          font-weight: 900;
+          line-height: 1.4;
+          margin-bottom: 16px;
+          color: #0f172a;
+        }
+        .dark .law-cover-title { color: #f1f5f9; }
+        @media (max-width: 640px) {
+          .law-cover-title { font-size: 18px; }
+          .law-cover { padding: 32px 20px 24px; }
+        }
+        .law-cover-meta {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          font-size: 13px;
+          font-weight: 700;
+          color: #4b5563;
+        }
+        .dark .law-cover-meta { color: #94a3b8; }
+        .law-cover-dot { color: #d1d5db; }
+        .law-search-badge {
+          margin-top: 16px;
+          display: inline-block;
+          padding: 6px 16px;
+          border-radius: 999px;
+          background: #fef3c7;
+          color: #92400e;
+          font-size: 13px;
+          font-weight: 800;
+        }
+        .dark .law-search-badge { background: #451a03; color: #fcd34d; }
+
+        /* متن القانون */
+        .law-body {
+          padding: 0 32px 32px;
+        }
+        @media (max-width: 640px) {
+          .law-body { padding: 0 16px 24px; }
+        }
+
+        /* مادة واحدة */
+        .law-article {
+          padding: 20px 0;
+          border-bottom: 1px solid #f1f5f9;
+          position: relative;
+          transition: background 0.15s;
+        }
+        .dark .law-article {
+          border-bottom-color: #1e293b;
+        }
+        .law-article:last-child {
+          border-bottom: none;
+        }
+        .law-article--match {
+          background: #fffbeb;
+          margin: 0 -32px;
+          padding: 20px 32px;
+          border-right: 4px solid #f59e0b;
+        }
+        .dark .law-article--match {
+          background: #1c1505;
+          border-right-color: #d97706;
+        }
+        @media (max-width: 640px) {
+          .law-article--match {
+            margin: 0 -16px;
+            padding: 16px 16px;
+          }
+        }
+
+        /* تمييز بالـ jump */
+        .law-jump-highlight {
+          outline: 3px solid #f59e0b !important;
+          outline-offset: 4px;
+          border-radius: 8px;
+          transition: outline 0.3s;
+        }
+
+        /* رأس المادة (رقم + أزرار) */
+        .law-article-header {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+        .law-article-number {
+          font-size: 14px;
+          font-weight: 900;
+          flex-shrink: 0;
+        }
+        .law-article-match-badge {
+          font-size: 10px;
+          font-weight: 800;
+          padding: 2px 8px;
+          border-radius: 999px;
+          background: #fef3c7;
+          color: #92400e;
+        }
+        .dark .law-article-match-badge {
+          background: #451a03;
+          color: #fcd34d;
+        }
+        /* أزرار الإجراءات — مخفية افتراضياً وتظهر عند hover على الجهاز */
+        .law-article-actions {
+          display: flex;
+          gap: 6px;
+          margin-right: auto; /* يدفعها لليسار في RTL = يمين الشاشة */
+          opacity: 0;
+          transition: opacity 0.15s;
+        }
+        .law-article:hover .law-article-actions {
+          opacity: 1;
+        }
+        /* على الموبايل: دائماً ظاهرة */
+        @media (max-width: 768px) {
+          .law-article-actions { opacity: 1; }
+        }
+        .law-btn {
+          width: 30px;
+          height: 30px;
+          border-radius: 8px;
+          border: none;
+          cursor: pointer;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f3f4f6;
+          color: #6b7280;
+          transition: background 0.15s;
+        }
+        .dark .law-btn { background: #374151; color: #9ca3af; }
+        .law-btn:hover { background: #e5e7eb; }
+        .dark .law-btn:hover { background: #4b5563; }
+        .law-btn--copied { background: #d1fae5 !important; color: #065f46 !important; }
+        .law-btn--whatsapp:hover { background: #dcfce7; color: #15803d; }
+
+        /* نص المادة */
+        .law-article-text {
+          font-size: 15px;
+          line-height: 2;
+          color: #1f2937;
+          white-space: pre-line;
+          text-align: justify;
+        }
+        .dark .law-article-text { color: #e2e8f0; }
+        @media (max-width: 640px) {
+          .law-article-text { font-size: 14px; line-height: 1.9; }
+        }
+
+        /* التحميل */
+        .law-loading {
+          text-align: center;
+          padding: 64px 32px;
+          color: #6b7280;
+          font-weight: 800;
+        }
+        .law-loading-icon {
+          font-size: 48px;
+          display: block;
+          margin-bottom: 16px;
+          animation: pulse 1.5s ease-in-out infinite;
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+
+        /* لا نتائج */
+        .law-no-results {
+          text-align: center;
+          padding: 48px 32px;
+          color: #6b7280;
+          font-weight: 800;
+        }
+        .law-no-results button {
+          margin-top: 12px;
+          color: #1a3a5c;
+          font-weight: 900;
+          text-decoration: underline;
+          background: none;
+          border: none;
+          cursor: pointer;
+        }
+
+        /* ذيل الورقة */
+        .law-footer {
+          text-align: center;
+          padding: 24px 32px;
+          font-size: 12px;
+          font-weight: 700;
+          color: #9ca3af;
+          border-top: 1px solid #f1f5f9;
+          letter-spacing: 0.05em;
+        }
+        .dark .law-footer { border-top-color: #1e293b; }
+
+        /* زر عائم */
+        .law-fab {
+          position: sticky;
+          bottom: 24px;
+          display: flex;
+          justify-content: center;
+          pointer-events: none;
+          margin-top: -8px;
+        }
+        .law-fab-btn {
+          pointer-events: all;
+          padding: 10px 24px;
+          border-radius: 999px;
+          background: #1a3a5c;
+          color: #fff;
+          font-weight: 900;
+          font-size: 13px;
+          border: none;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(26,58,92,0.35);
+          transition: all 0.2s;
+          opacity: 0.85;
+        }
+        .dark .law-fab-btn { background: #f0c040; color: #1a1a1a; }
+        .law-fab-btn:hover { opacity: 1; transform: translateY(-2px); box-shadow: 0 6px 24px rgba(26,58,92,0.45); }
+      `}</style>
     </div>
   );
 }
