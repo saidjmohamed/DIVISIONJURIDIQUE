@@ -31,13 +31,172 @@ interface ScoredArticle extends LawArticleWithLaw {
   _score: number;
 }
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── تصنيفات القوانين ────────────────────────────────────────────────────────
 
-const FEATURED_LAW_IDS = ['civil', 'commercial', 'family', 'penal', 'qij', 'qima', 'fiscal'];
-
-const ARTICLES_PER_PAGE = 30;
-
-const LAWS_GRID_PER_PAGE = 24;
+const CATEGORIES: { id: string; label: string; icon: string; color: string; ids: string[] }[] = [
+  {
+    id: 'main',
+    label: 'القوانين الأساسية',
+    icon: '⚖️',
+    color: '#1a3a5c',
+    ids: ['civil', 'commercial', 'family', 'penal', 'qij', 'qima', 'maritime', 'fiscal'],
+  },
+  {
+    id: 'civil_status',
+    label: 'الأحوال الشخصية',
+    icon: '👨‍👩‍👧',
+    color: '#ec4899',
+    ids: [
+      'قانون_2_قانون_النفقة',
+      'قانون_6_قانون_الحالة_المدني_ة',
+      'قانون_7_تغيير_اللقب',
+      'قانون_الجنسية',
+      'قانون_58_قانون_حماية_الاشخاص_المسنين',
+      'قانون_59_قانون_حماية_الطّفْل',
+      'قانون_1_شروط_إنشاء_مؤسسات_استقبال_الطف',
+    ],
+  },
+  {
+    id: 'penal_special',
+    label: 'القانون الجزائي الخاص',
+    icon: '🔒',
+    color: '#dc2626',
+    ids: [
+      'قانون_55_قانون_الوقاية_من_الفساد_ومكافح',
+      'قانون_99_قانون_الوقاية_من_المخدرات_و_ال',
+      'قانون_98_الوقاية_من_جرائم_اختطاف_الأشخا',
+      'قانون_الاتجار_بالبشر',
+      'قانون_عصابات_الأحياء',
+      'قانون_54_قانون_الوقاية_من_التمييز',
+      'قانون_23_قانون_تنظيم_السجون_وإعادة_الإد',
+      'قانون_52_قانون_القضاء_العسكري',
+      'قانون_53_قانون_العتاد_الحربي_و_الأسلحة',
+      'قانون_50_قانون_الاعلام',
+    ],
+  },
+  {
+    id: 'administrative',
+    label: 'القانون الإداري',
+    icon: '🏛️',
+    color: '#0891b2',
+    ids: [
+      'قانون_68_قانون_11-10_في_22_يونيو_سنة_20',
+      'قانون_67_قانون_رقم_12-07_مؤرخ_في_28_ربي',
+      'قانون_87_القانون_الأساسي_العام_للوظيفة',
+      'قانون_88_قانون_مفتشية_العمل',
+      'قانون_51_قانون_المساعدة_القضائية',
+      'قانون_16_حماية_المعلومات_والوثائق_الإدا',
+      'قانون_24_شروط_دخول_الأجانب_الى_الجزائر',
+      'قانون_69_دستور_الجمهورية_الجزائرية_الدي',
+    ],
+  },
+  {
+    id: 'commercial_tax',
+    label: 'القانون التجاري والجبائي',
+    icon: '💰',
+    color: '#16a34a',
+    ids: [
+      'قانون_3_قانون_0804_يتعلق_بشروط_ممارسة',
+      'قانون_4_القواعد_المطبقة_على_الممارسات',
+      'قانون_26_قانون_الجمارك',
+      'قانون_28_قانون_الرسوم_على_رقم_الأعمال',
+      'قانون_29_قانون_الضرائب_غیر_المباشرة',
+      'قانون_30_قانون_الاجراءات_الجبائیة',
+      'قانون_18_قانون_التسجیل',
+      'قانون_74_قانون_الاستثمار_(ق_22-18)',
+      'قانون_المنافسة',
+      'قانون_73_قانون_مكافحة_المضاربة_غير_المش',
+      'قانون_71_​​​​​​​​​​​​_قانون_بورصة_القیم',
+      'قانون_72_القانون_06-05_مؤرخ_في_21_محرم',
+      'قانون_5_قانون_رقم_18-05_مؤرخ_في_24_شعب',
+      'قانون_56_قانون_حماية_المستهلك_و_قمع_الغ',
+    ],
+  },
+  {
+    id: 'real_estate',
+    label: 'قانون العقار',
+    icon: '🏠',
+    color: '#b45309',
+    ids: [
+      'قانون_75_قانون_التوجيه_العقاري',
+      'قانون_76_حيـازة_الملكيـة_العقـاريــة_ال',
+      'قانون_82_تأسيس_السجل_العقاري',
+      'قانون_83_اعداد_مسح_الأراضي_العام_و_تأسي',
+      'قانون_84_إعداد_مسح_الأراضي_العام',
+      'قانون_81_القواعد_المتعلقة_بنزع_الملكية',
+      'قانون_48_قانون_التهيئة_والتعمير',
+      'قانون_47_كيفيات_تحضير_عقود_التعمير_و_تس',
+      'قانون_79_قواعد_إحداث_وكالات_محلية_للتسي',
+      'قانون_80_الوكالة_الوطنية_للوساطة_والضبط',
+      'قانون_66_قانون_90-30_مؤرخ_في_14_جمادى_ا',
+      'قانون_85_أمر_رقم_76-106_مؤرخ_في_17_ذي_ا',
+    ],
+  },
+  {
+    id: 'labor',
+    label: 'قانون العمل',
+    icon: '👷',
+    color: '#7c3aed',
+    ids: [
+      'قانون_91_القانون_رقم_90_11_المؤرخ_في',
+      'قانون_86_قانون_التقاعد',
+      'قانون_89_قانون_81-10_یتعلق_بشروط_تشغیل',
+      'قانون_90_الحفاظ_على_الشغل_وحماية_الأجرا',
+      'قانون_93_قانون_رقم_83-13_يتعلق_بحوادث_ا',
+      'قانون_62_القانون_83-14_يتعلق_بالتزامات',
+      'قانون_63_القانون_83-11_يتعلق_بالتأمينات',
+      'قانون_تسوية_النزاعات_الفردية',
+      'قانون_تنصيب_العمال',
+      'قانون_92_أمر_رقم_03_-_12_مؤرخ_في_27_جما',
+    ],
+  },
+  {
+    id: 'environment',
+    label: 'البيئة والفلاحة',
+    icon: '🌿',
+    color: '#15803d',
+    ids: [
+      'قانون_60_قانون_حماية_البيئة_في_اطار_الت',
+      'قانون_32_قانون_تسيير_النفايات_ومراقبتها',
+      'قانون_31_تسيير_المساحات_الخضراء_وحمايته',
+      'قانون_45_حماية_الساحل_وتثمينه',
+      'قانون_44_النظام_العام_للغابا_ت',
+      'قانون_42_قانون_التوجيه_الفلاحي',
+      'قانون_40_قانون_يحدد_شروط_و_كيفيات_استغل',
+      'قانون_39_قانون_حماية_الصحة_النباتية',
+      'قانون_38_قانون_نشاطات_الطب_البيطري_وحما',
+      'قانون_37_حماية_بعض_الانواع_الحيوانية_ال',
+      'قانون_41_القواعد_التي_تطبق_على_التعاوني',
+      'قانون_43_كيفيات_تنظيم_وتنسيق_الأعمال_ال',
+    ],
+  },
+  {
+    id: 'transport',
+    label: 'النقل والمرور',
+    icon: '🚗',
+    color: '#0369a1',
+    ids: [
+      'قانون_المرور',
+      'قانون_96_قواعد_حركة_المرور_عبر_الطرق',
+      'قانون_97_قانون_14-01_المتعلق_بتنظیم_حرك',
+      'قانون_95_قانون_یتضمن_توجیه_النقل_البري',
+      'قانون_94_أمر_رقم_74-15_مؤرخ_في_6_محرم_ع',
+    ],
+  },
+  {
+    id: 'health_social',
+    label: 'الصحة والضمان الاجتماعي',
+    icon: '🏥',
+    color: '#0f766e',
+    ids: [
+      'قانون_61_قانون_الصحة',
+      'قانون_64_قانون_التأمينا_ت',
+      'قانون_57_قانون_رقم_25-01_مؤرخ_في_21_شع',
+      'قانون_17_قانون_الوقاية_من_الاخطار_الكبر',
+      'قانون_8_القانون08-08',
+    ],
+  },
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -49,17 +208,17 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function truncateText(text: string, maxLen: number): string {
-  if (text.length <= maxLen) return text;
-  return text.substring(0, maxLen) + '...';
+function getCategoryForLaw(id: string): { label: string; icon: string; color: string } | null {
+  for (const cat of CATEGORIES) {
+    if (cat.ids.includes(id)) return { label: cat.label, icon: cat.icon, color: cat.color };
+  }
+  return null;
 }
 
-// ─── Text Highlighter ─────────────────────────────────────────────────────────
+// ─── HighlightedText ──────────────────────────────────────────────────────────
 
 function HighlightedText({ text, query }: { text: string; query: string }) {
-  if (!query || !query.trim()) {
-    return <>{text}</>;
-  }
+  if (!query || !query.trim()) return <>{text}</>;
   const q = query.trim();
   const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const regex = new RegExp(`(${escaped})`, 'gi');
@@ -68,7 +227,12 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, i) =>
         regex.test(part) ? (
-          <mark key={i} className="bg-green-400/40 dark:bg-green-500/50 text-green-900 dark:text-green-200 rounded px-0.5 font-bold">{part}</mark>
+          <mark
+            key={i}
+            className="bg-amber-300/70 dark:bg-amber-500/50 text-amber-900 dark:text-amber-100 rounded px-0.5 font-black not-italic"
+          >
+            {part}
+          </mark>
         ) : (
           <span key={i}>{part}</span>
         )
@@ -77,89 +241,137 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   );
 }
 
-// ─── Featured Carousel Card ──────────────────────────────────────────────────
+// ─── Stats Bar ────────────────────────────────────────────────────────────────
 
-function FeaturedCard({ law, onClick, preview }: { law: LawMeta; onClick: () => void; preview?: string }) {
+function StatsBar({ totalLaws, totalArticles }: { totalLaws: number; totalArticles: number }) {
   return (
-    <motion.div
-      whileHover={{ scale: 1.03, y: -4 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-      onClick={onClick}
-      className="relative flex-shrink-0 w-[300px] sm:w-[340px] h-[200px] sm:h-[220px] rounded-3xl cursor-pointer overflow-hidden group shadow-lg"
-      style={{
-        background: `linear-gradient(135deg, ${law.color}, ${hexToRgba(law.color, 0.6)})`,
-      }}
-    >
-      {/* Decorative circles */}
-      <div className="absolute -top-8 -left-8 w-32 h-32 rounded-full bg-white/10 blur-xl" />
-      <div className="absolute -bottom-10 -right-10 w-40 h-40 rounded-full bg-white/5 blur-2xl" />
-
-      {/* Border glow on hover */}
-      <div
-        className="absolute inset-0 rounded-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-        style={{
-          boxShadow: `inset 0 0 0 2px ${hexToRgba(law.color, 0.8)}, 0 0 30px ${hexToRgba(law.color, 0.4)}`,
-        }}
-      />
-
-      <div className="relative z-10 h-full flex flex-col justify-between p-5 sm:p-6 text-white">
-        {/* Top row */}
-        <div className="flex items-start justify-between">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-2xl sm:text-3xl shadow-inner">
-            {law.icon}
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+      {[
+        { label: 'قانون', value: totalLaws, icon: '📚', color: '#1a3a5c' },
+        { label: 'مادة قانونية', value: totalArticles.toLocaleString('ar-DZ'), icon: '📋', color: '#16a34a' },
+        { label: 'تصنيف', value: CATEGORIES.length, icon: '🗂️', color: '#7c3aed' },
+        { label: 'بحث فوري', value: '✓', icon: '⚡', color: '#dc2626' },
+      ].map((s, i) => (
+        <div
+          key={i}
+          className="bg-white dark:bg-gray-800/60 rounded-2xl p-3 sm:p-4 border border-gray-100 dark:border-gray-700/50 shadow-sm flex items-center gap-3"
+        >
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+            style={{ backgroundColor: hexToRgba(s.color, 0.12) }}
+          >
+            {s.icon}
           </div>
-          <span className="px-3 py-1 rounded-full bg-white/20 backdrop-blur-sm text-[10px] sm:text-xs font-bold">
-            {law.number ? `ر.ق ${law.number}` : ''}
-          </span>
-        </div>
-
-        {/* Bottom row */}
-        <div>
-          <h3 className="font-black text-base sm:text-lg leading-tight mb-1">{law.name}</h3>
-          <div className="flex items-center gap-2">
-            <span className="text-xs sm:text-sm font-bold text-white/80">{law.count} مادة</span>
-            {preview && (
-              <span className="text-[10px] text-white/50 line-clamp-1 hidden sm:inline">— {truncateText(preview, 40)}</span>
-            )}
+          <div>
+            <p className="font-black text-lg text-gray-800 dark:text-gray-100 leading-none">{s.value}</p>
+            <p className="text-xs text-gray-400 font-medium mt-0.5">{s.label}</p>
           </div>
         </div>
-      </div>
-    </motion.div>
+      ))}
+    </div>
   );
 }
 
-// ─── Small Law Grid Card ─────────────────────────────────────────────────────
+// ─── Category Filter ──────────────────────────────────────────────────────────
+
+function CategoryFilter({
+  activeCategory,
+  onChange,
+  lawsMeta,
+}: {
+  activeCategory: string;
+  onChange: (id: string) => void;
+  lawsMeta: LawMeta[];
+}) {
+  return (
+    <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+      <button
+        onClick={() => onChange('all')}
+        className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap ${
+          activeCategory === 'all'
+            ? 'bg-[#1a3a5c] text-white shadow-md'
+            : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-400'
+        }`}
+      >
+        <span>🗂️</span>
+        <span>الكل ({lawsMeta.length})</span>
+      </button>
+      {CATEGORIES.map((cat) => {
+        const count = cat.ids.filter((id) => lawsMeta.find((l) => l.id === id)).length;
+        if (count === 0) return null;
+        return (
+          <button
+            key={cat.id}
+            onClick={() => onChange(cat.id)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-black transition-all whitespace-nowrap ${
+              activeCategory === cat.id
+                ? 'text-white shadow-md'
+                : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:border-gray-400'
+            }`}
+            style={activeCategory === cat.id ? { backgroundColor: cat.color } : {}}
+          >
+            <span>{cat.icon}</span>
+            <span>
+              {cat.label} ({count})
+            </span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Law Grid Card ────────────────────────────────────────────────────────────
 
 function LawGridCard({ law, onClick }: { law: LawMeta; onClick: () => void }) {
+  const cat = getCategoryForLaw(law.id);
   return (
     <motion.div
-      whileHover={{ scale: 1.02, y: -2 }}
+      whileHover={{ scale: 1.02, y: -3 }}
       whileTap={{ scale: 0.98 }}
       onClick={onClick}
-      className="bg-white dark:bg-gray-800/60 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600 transition-all shadow-sm hover:shadow-md cursor-pointer group"
+      className="bg-white dark:bg-gray-800/60 p-4 rounded-2xl border border-gray-100 dark:border-gray-700/50 hover:border-gray-300 dark:hover:border-gray-500 transition-all shadow-sm hover:shadow-lg cursor-pointer group relative overflow-hidden"
     >
-      <div className="flex items-center gap-3">
+      {/* top accent */}
+      <div
+        className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl opacity-80"
+        style={{ backgroundColor: law.color }}
+      />
+      <div className="flex items-start gap-3 pt-1">
         <div
-          className="w-11 h-11 rounded-xl flex items-center justify-center text-xl shadow-sm flex-shrink-0"
-          style={{ backgroundColor: hexToRgba(law.color, 0.12) }}
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl shadow-sm flex-shrink-0"
+          style={{ backgroundColor: hexToRgba(law.color, 0.13) }}
         >
           {law.icon}
         </div>
         <div className="flex-1 min-w-0">
-          <h4 className="font-bold text-gray-800 dark:text-gray-100 text-sm line-clamp-2 leading-tight">{law.name}</h4>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-[10px] text-gray-400 font-bold">{law.count} مادة</span>
+          <h4 className="font-black text-gray-800 dark:text-gray-100 text-sm leading-snug line-clamp-2">
+            {law.name}
+          </h4>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
             {law.number && (
-              <>
-                <span className="text-gray-300 dark:text-gray-600">•</span>
-                <span className="text-[10px] text-gray-400 font-bold">ر.ق {law.number}</span>
-              </>
+              <span
+                className="text-[10px] font-black px-2 py-0.5 rounded-full text-white"
+                style={{ backgroundColor: law.color }}
+              >
+                {law.number}
+              </span>
+            )}
+            <span className="text-[10px] text-gray-400 font-bold bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded-full">
+              {law.count} مادة
+            </span>
+            {cat && (
+              <span
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                style={{ backgroundColor: hexToRgba(cat.color, 0.1), color: cat.color }}
+              >
+                {cat.icon} {cat.label}
+              </span>
             )}
           </div>
         </div>
         <div
-          className="w-8 h-8 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-bold flex-shrink-0"
+          className="w-8 h-8 rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-white text-sm font-black flex-shrink-0 shadow-md"
           style={{ backgroundColor: law.color }}
         >
           ←
@@ -169,15 +381,16 @@ function LawGridCard({ law, onClick }: { law: LawMeta; onClick: () => void }) {
   );
 }
 
-// ─── Article Row ─────────────────────────────────────────────────────────────
+// ─── Article Card (Full Text) ─────────────────────────────────────────────────
 
-function ArticleRow({
+function ArticleCard({
   article,
   lawMeta,
   onCopy,
   onWhatsApp,
   copiedId,
   highlightQuery,
+  isSearchResult,
 }: {
   article: LawArticle;
   lawMeta: LawMeta;
@@ -185,238 +398,136 @@ function ArticleRow({
   onWhatsApp: () => void;
   copiedId: string | null;
   highlightQuery?: string;
+  isSearchResult?: boolean;
 }) {
   const id = `${lawMeta.id}-${article.num}`;
+  const isMatched = highlightQuery && article.text.toLowerCase().includes(highlightQuery.toLowerCase());
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
+      initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-gray-800/50 p-4 sm:p-5 rounded-2xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
+      id={`article-${article.num}`}
+      className={`rounded-2xl border transition-all group relative overflow-hidden ${
+        isSearchResult && isMatched
+          ? 'border-amber-300 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-900/10 shadow-md shadow-amber-100 dark:shadow-amber-900/20'
+          : 'border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
+      }`}
     >
-      {/* Accent bar */}
+      {/* Left accent */}
       <div
-        className="absolute top-0 right-0 w-1 h-full opacity-0 group-hover:opacity-100 transition-opacity"
-        style={{ backgroundColor: lawMeta.color }}
+        className="absolute top-0 right-0 w-1 h-full"
+        style={{ backgroundColor: isSearchResult && isMatched ? '#f59e0b' : hexToRgba(lawMeta.color, 0.7) }}
       />
 
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Article number badge */}
-          <span
-            className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black text-white shadow-sm"
-            style={{ backgroundColor: lawMeta.color }}
-          >
-            المادة {article.number || article.num}
-          </span>
-        </div>
-        <div className="flex gap-2 w-full sm:w-auto justify-end border-t sm:border-none pt-2 sm:pt-0 mt-1 sm:mt-0">
-          <button
-            onClick={onCopy}
-            className={`flex-1 sm:flex-none px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              copiedId === id
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-50 dark:bg-gray-900 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-            }`}
-          >
-            {copiedId === id ? (
-              <>
-                <span>تم النسخ</span>
-                <span>✅</span>
-              </>
-            ) : (
-              <>
-                <span>نسخ</span>
-                <span>📋</span>
-              </>
+      <div className="p-4 sm:p-5">
+        {/* Header row */}
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center px-3 py-1.5 rounded-xl text-xs font-black text-white shadow-sm"
+              style={{ backgroundColor: isSearchResult && isMatched ? '#f59e0b' : lawMeta.color }}
+            >
+              المادة {article.number || article.num}
+            </span>
+            {isSearchResult && isMatched && (
+              <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30 px-2 py-1 rounded-lg">
+                ✓ نتيجة البحث
+              </span>
             )}
-          </button>
-          <button
-            onClick={onWhatsApp}
-            className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-bold hover:bg-green-100 transition-all flex items-center justify-center gap-1.5"
-          >
-            <span>واتساب</span>
-            <span>📲</span>
-          </button>
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={onCopy}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                copiedId === id
+                  ? 'bg-green-500 text-white shadow-sm'
+                  : 'bg-gray-100 dark:bg-gray-900 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+            >
+              {copiedId === id ? (
+                <>✅ تم النسخ</>
+              ) : (
+                <>📋 نسخ</>
+              )}
+            </button>
+            <button
+              onClick={onWhatsApp}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-bold hover:bg-green-100 dark:hover:bg-green-900/40 transition-all"
+            >
+              📲 واتساب
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="bg-gray-50/50 dark:bg-gray-900/30 p-3 sm:p-4 rounded-xl border border-gray-100/50 dark:border-gray-800/50">
-        <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm sm:text-base whitespace-pre-line">
-          <HighlightedText text={article.text} query={highlightQuery || ''} />
-        </p>
+
+        {/* Article full text */}
+        <div className="bg-gray-50/60 dark:bg-gray-900/40 p-4 rounded-xl border border-gray-100/60 dark:border-gray-800/60">
+          <p className="text-gray-700 dark:text-gray-200 leading-loose text-sm sm:text-base whitespace-pre-line font-medium">
+            {highlightQuery ? (
+              <HighlightedText text={article.text} query={highlightQuery} />
+            ) : (
+              article.text
+            )}
+          </p>
+        </div>
       </div>
     </motion.div>
   );
 }
 
-// ─── Pagination Component ────────────────────────────────────────────────────
+// ─── Individual Law View (PDF-Like) ──────────────────────────────────────────
 
-function Pagination({
-  currentPage,
-  totalPages,
-  onPageChange,
-}: {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (p: number) => void;
-}) {
-  if (totalPages <= 1) return null;
-
-  const pages: (number | 'ellipsis')[] = [];
-  for (let i = 1; i <= totalPages; i++) {
-    if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
-      pages.push(i);
-    } else if (pages[pages.length - 1] !== 'ellipsis') {
-      pages.push('ellipsis');
-    }
-  }
-
-  return (
-    <div className="flex justify-center items-center gap-2 pt-6">
-      <button
-        disabled={currentPage === 1}
-        onClick={() => onPageChange(currentPage - 1)}
-        className="p-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-sm font-bold"
-      >
-        ➡️
-      </button>
-      {pages.map((page, idx) =>
-        page === 'ellipsis' ? (
-          <span key={`e-${idx}`} className="text-gray-400 px-1">
-            ...
-          </span>
-        ) : (
-          <button
-            key={page}
-            onClick={() => onPageChange(page)}
-            className={`w-10 h-10 rounded-xl font-bold text-sm transition-all ${
-              currentPage === page
-                ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-gray-900 shadow-md'
-                : 'bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800'
-            }`}
-          >
-            {page}
-          </button>
-        )
-      )}
-      <button
-        disabled={currentPage === totalPages}
-        onClick={() => onPageChange(currentPage + 1)}
-        className="p-2.5 rounded-xl bg-white dark:bg-gray-900 border border-gray-100 dark:border-gray-800 disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-sm font-bold"
-      >
-        ⬅️
-      </button>
-    </div>
-  );
-}
-
-// ─── Individual Law View ─────────────────────────────────────────────────────
-
-function IndividualLawView({
-  law,
-  onBack,
-}: {
-  law: LawMeta;
-  onBack: () => void;
-}) {
+function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }) {
   const [articles, setArticles] = useState<LawArticle[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [lawSearchQuery, setLawSearchQuery] = useState('');
-  const [debouncedLawQuery, setDebouncedLawQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const topRef = useRef<HTMLDivElement>(null);
+  const articleRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [jumpInput, setJumpInput] = useState('');
 
-  // Load law articles on mount
   useEffect(() => {
     let cancelled = false;
-    async function loadLawArticles() {
-      setIsLoading(true);
-      try {
-        const res = await fetch(`/laws-json/${law.file}`);
-        if (!res.ok) throw new Error('Failed to load law file');
-        const data: LawArticle[] = await res.json();
-        if (!cancelled) setArticles(data);
-      } catch (err) {
-        console.error('Failed to load law articles:', err);
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-    loadLawArticles();
+    setIsLoading(true);
+    fetch(`/laws-json/${law.file}`)
+      .then((r) => r.json())
+      .then((data: LawArticle[]) => { if (!cancelled) setArticles(data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
   }, [law.file]);
 
-  // Debounce law-specific search
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setDebouncedLawQuery(lawSearchQuery);
-    }, 300);
+    timerRef.current = setTimeout(() => setDebouncedQuery(searchQuery), 250);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [lawSearchQuery]);
+  }, [searchQuery]);
 
-  // Filter articles by search
   const filteredArticles = useMemo(() => {
-    const q = debouncedLawQuery.trim().toLowerCase();
+    const q = debouncedQuery.trim().toLowerCase();
     if (!q) return articles;
-    
-    // استخراج الأرقام من الاستعلام
-    const queryNumbers = q.match(/\d+/g);
-    
-    // الكلمات النصية بدون أرقام
-    const textWords = q.replace(/\d+/g, ' ').trim().split(/\s+/).filter(w => w.length > 0);
-    
+    const nums = q.match(/\d+/g);
+    const words = q.replace(/\d+/g, ' ').trim().split(/\s+/).filter((w) => w.length > 0);
     return articles.filter((a) => {
-      const textLower = a.text.toLowerCase();
+      const txt = a.text.toLowerCase();
       const artNum = String(a.num);
       const artNumber = String(a.number || a.num);
-      
-      // مطابقة كاملة للاستعلام (النص الكامل يطابق)
-      if (textLower.includes(q) || artNum.includes(q)) return true;
-      
-      // مطابقة رقم المادة إذا وُجد رقم في الاستعلام
-      if (queryNumbers && queryNumbers.length > 0) {
-        const matchesNumber = queryNumbers.some(n => 
-          artNum === n || artNum.includes(n) || artNumber.includes(n)
-        );
-        if (matchesNumber && textWords.length === 0) return true;
-        if (matchesNumber && textWords.length > 0) {
-          // إذا كان هناك كلمات نصية أيضاً، تحقق أنها موجودة في النص
-          const allTextWordsMatch = textWords.every(w => textLower.includes(w));
-          if (allTextWordsMatch) return true;
-        }
+      if (txt.includes(q) || artNum === q) return true;
+      if (nums && nums.length > 0) {
+        const numMatch = nums.some((n) => artNum === n || artNumber === n);
+        if (numMatch && words.length === 0) return true;
+        if (numMatch && words.every((w) => txt.includes(w))) return true;
       }
-      
-      // مطابقة جميع الكلمات النصية في نص المادة
-      if (textWords.length > 0) {
-        return textWords.every(w => textLower.includes(w));
-      }
-      
+      if (words.length > 0) return words.every((w) => txt.includes(w));
       return false;
     });
-  }, [articles, debouncedLawQuery]);
-
-  // Reset page when search changes
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedLawQuery]);
-
-  // Scroll to top when page changes
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [currentPage]);
-
-  const totalPages = Math.ceil(filteredArticles.length / ARTICLES_PER_PAGE);
-  const paginatedArticles = filteredArticles.slice(
-    (currentPage - 1) * ARTICLES_PER_PAGE,
-    currentPage * ARTICLES_PER_PAGE
-  );
+  }, [articles, debouncedQuery]);
 
   const handleCopy = useCallback(
     (article: LawArticle) => {
-      const text = `${law.icon} ${law.name} - المادة ${article.number || article.num}\n\n${article.text}`;
+      const text = `${law.icon} ${law.name}\nالمادة ${article.number || article.num}\n\n${article.text}`;
       navigator.clipboard.writeText(text);
       const id = `${law.id}-${article.num}`;
       setCopiedId(id);
@@ -427,124 +538,369 @@ function IndividualLawView({
 
   const handleWhatsApp = useCallback(
     (article: LawArticle) => {
-      const text = `*[${law.name}] - المادة ${article.number || article.num}*\n\n${article.text}`;
+      const text = `*${law.icon} ${law.name}*\n*المادة ${article.number || article.num}*\n\n${article.text}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
     },
     [law]
   );
 
+  const handleJump = () => {
+    const n = parseInt(jumpInput);
+    if (!n) return;
+    const el = document.getElementById(`article-${n}`);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      el.classList.add('ring-2', 'ring-amber-400');
+      setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400'), 2500);
+    }
+    setJumpInput('');
+  };
+
+  const cat = getCategoryForLaw(law.id);
+  const matchCount = debouncedQuery ? filteredArticles.length : 0;
+
   return (
     <motion.div
-      initial={{ opacity: 0, x: 30 }}
+      initial={{ opacity: 0, x: 40 }}
       animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -30 }}
+      exit={{ opacity: 0, x: -40 }}
       transition={{ duration: 0.3 }}
+      ref={topRef}
     >
-      {/* Back button + Law Header */}
-      <div className="mb-6">
+      {/* Back + Header */}
+      <div className="mb-6 space-y-4">
         <button
           onClick={onBack}
-          className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-base font-black text-gray-600 dark:text-gray-300 hover:text-[#1a3a5c] dark:hover:text-[#f0c040] transition-all mb-5 group shadow-sm"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-sm font-black text-gray-600 dark:text-gray-300 transition-all group"
         >
-          <span className="text-xl group-hover:translate-x-1 transition-transform">→</span>
-          <span>العودة إلى القوانين</span>
+          <span className="group-hover:translate-x-1 transition-transform">→</span>
+          <span>العودة إلى قائمة القوانين</span>
         </button>
 
+        {/* Law Banner */}
         <div
-          className="relative rounded-3xl p-5 sm:p-6 text-white overflow-hidden shadow-xl"
-          style={{
-            background: `linear-gradient(135deg, ${law.color}, ${hexToRgba(law.color, 0.7)})`,
-          }}
+          className="relative rounded-3xl p-6 sm:p-8 text-white overflow-hidden shadow-xl"
+          style={{ background: `linear-gradient(135deg, ${law.color}, ${hexToRgba(law.color, 0.65)})` }}
         >
-          {/* Decorative */}
-          <div className="absolute -top-10 -left-10 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
-          <div className="absolute -bottom-12 -right-12 w-48 h-48 rounded-full bg-white/5 blur-3xl" />
-
-          <div className="relative z-10 flex items-center gap-4">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-3xl sm:text-4xl shadow-inner">
-              {law.icon}
-            </div>
-            <div>
-              <h2 className="font-black text-lg sm:text-2xl leading-tight">{law.name}</h2>
-              <div className="flex items-center gap-3 mt-1 text-white/80 text-sm">
-                {law.number && <span className="font-bold">ر.ق {law.number}</span>}
-                <span>•</span>
-                <span className="font-bold">{law.count} مادة</span>
+          <div className="absolute -top-12 -left-12 w-48 h-48 rounded-full bg-white/10 blur-3xl" />
+          <div className="absolute -bottom-16 -right-16 w-56 h-56 rounded-full bg-white/5 blur-3xl" />
+          <div className="relative z-10">
+            <div className="flex items-start gap-5">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center text-4xl shadow-inner flex-shrink-0">
+                {law.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h2 className="font-black text-xl sm:text-3xl leading-tight">{law.name}</h2>
+                <div className="flex flex-wrap items-center gap-3 mt-3">
+                  {law.number && (
+                    <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-black">
+                      رقم {law.number}
+                    </span>
+                  )}
+                  <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-black">
+                    {law.count} مادة
+                  </span>
+                  {cat && (
+                    <span className="px-3 py-1 bg-white/20 backdrop-blur-sm rounded-full text-sm font-black">
+                      {cat.icon} {cat.label}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Law-specific search */}
-      <div className="relative mb-6">
-        <input
-          type="text"
-          value={lawSearchQuery}
-          onChange={(e) => setLawSearchQuery(e.target.value)}
-          placeholder={`ابحث في ${law.name} (مثلاً: طلاق، إيجار، سرقة...)`}
-          className="w-full p-4 pr-12 rounded-2xl border-2 border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none transition-all shadow-sm text-base font-bold"
-        />
-        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl">🔍</span>
+      {/* Search + Jump */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <div className="sm:col-span-2 relative">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={`ابحث في ${law.name}... (كلمة، عبارة، أو رقم المادة)`}
+            className="w-full p-4 pr-12 rounded-2xl border-2 border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none transition-all shadow-sm text-sm font-bold"
+          />
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xl">🔍</span>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl font-black"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        <div className="flex gap-2">
+          <input
+            type="number"
+            value={jumpInput}
+            onChange={(e) => setJumpInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleJump()}
+            placeholder="انتقل لمادة رقم..."
+            className="flex-1 p-4 rounded-2xl border-2 border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-amber-400 outline-none transition-all shadow-sm text-sm font-bold text-center"
+          />
+          <button
+            onClick={handleJump}
+            className="px-4 py-2 rounded-2xl bg-amber-400 hover:bg-amber-500 text-white font-black text-sm shadow-sm transition-all"
+          >
+            ←
+          </button>
+        </div>
       </div>
 
-      {/* Loading state */}
-      {isLoading ? (
-        <div className="text-center py-16">
-          <div className="animate-spin text-4xl mb-4">{law.icon}</div>
-          <p className="text-gray-500 font-bold">جاري تحميل مواد القانون...</p>
-        </div>
-      ) : (
-        <div ref={scrollRef} className="max-h-[70vh] overflow-y-auto space-y-3 pr-1 custom-scrollbar">
-          {/* Results count */}
-          {debouncedLawQuery && (
-            <p className="text-xs font-bold text-gray-400 mb-2">
-              تم العثور على {filteredArticles.length} مادة
+      {/* Results info banner */}
+      {debouncedQuery && (
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          className="mb-4 flex items-center gap-3 p-4 rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700"
+        >
+          <span className="text-2xl">🔍</span>
+          <div>
+            <p className="font-black text-amber-800 dark:text-amber-300 text-sm">
+              {matchCount > 0 ? (
+                <>تم العثور على <span className="text-xl">{matchCount}</span> مادة تتضمن &quot;{debouncedQuery}&quot;</>
+              ) : (
+                <>لا توجد نتائج لـ &quot;{debouncedQuery}&quot; في هذا القانون</>
+              )}
             </p>
+          </div>
+          {matchCount > 0 && (
+            <span className="mr-auto px-3 py-1 bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200 rounded-full text-xs font-black">
+              مُمَيَّزة بالأصفر
+            </span>
           )}
-
-          {paginatedArticles.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-              <p className="text-gray-500 font-bold">لم يتم العثور على نتائج تطابق بحثك</p>
-            </div>
-          ) : (
-            paginatedArticles.map((article) => (
-              <ArticleRow
-                key={article.num}
-                article={article}
-                lawMeta={law}
-                onCopy={() => handleCopy(article)}
-                onWhatsApp={() => handleWhatsApp(article)}
-                copiedId={copiedId}
-                highlightQuery={debouncedLawQuery}
-              />
-            ))
-          )}
-
-          <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
-        </div>
+        </motion.div>
       )}
 
-      <style jsx>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(100, 100, 100, 0.3);
-          border-radius: 999px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(100, 100, 100, 0.5);
-        }
-      `}</style>
+      {/* Articles */}
+      {isLoading ? (
+        <div className="text-center py-20">
+          <div
+            className="text-5xl mb-4 animate-bounce inline-block"
+          >
+            {law.icon}
+          </div>
+          <p className="text-gray-500 font-black text-lg">جاري تحميل القانون كاملاً...</p>
+          <p className="text-gray-400 text-sm mt-1">{law.count} مادة</p>
+        </div>
+      ) : (
+        <>
+          {/* Article count header */}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-black text-gray-700 dark:text-gray-200 text-sm">
+              {debouncedQuery
+                ? `${filteredArticles.length} مادة مطابقة`
+                : `جميع المواد — ${articles.length} مادة`}
+            </h3>
+            <button
+              onClick={() => topRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="text-xs font-bold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-all px-3 py-1.5 rounded-xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
+            >
+              ↑ الأعلى
+            </button>
+          </div>
+
+          {filteredArticles.length === 0 ? (
+            <div className="text-center py-16 bg-gray-50 dark:bg-gray-800/40 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+              <p className="text-4xl mb-3">🔍</p>
+              <p className="text-gray-500 font-black">لم يُعثر على نتائج لـ &quot;{debouncedQuery}&quot;</p>
+              <button onClick={() => setSearchQuery('')} className="mt-3 text-sm text-[#1a3a5c] dark:text-[#f0c040] font-black underline">
+                مسح البحث
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredArticles.map((article) => (
+                <ArticleCard
+                  key={article.num}
+                  article={article}
+                  lawMeta={law}
+                  onCopy={() => handleCopy(article)}
+                  onWhatsApp={() => handleWhatsApp(article)}
+                  copiedId={copiedId}
+                  highlightQuery={debouncedQuery || undefined}
+                  isSearchResult={!!debouncedQuery}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Back to top floater */}
+          <div className="sticky bottom-6 flex justify-center mt-8 pointer-events-none">
+            <button
+              onClick={() => topRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              className="pointer-events-auto px-5 py-2.5 rounded-2xl bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-gray-900 font-black text-sm shadow-xl hover:shadow-2xl transition-all opacity-80 hover:opacity-100"
+            >
+              ↑ العودة للأعلى
+            </button>
+          </div>
+        </>
+      )}
     </motion.div>
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+// ─── Global Search Results ────────────────────────────────────────────────────
+
+function GlobalSearchResults({
+  results,
+  lawsMeta,
+  query,
+  onSelectLaw,
+}: {
+  results: ScoredArticle[];
+  lawsMeta: LawMeta[];
+  query: string;
+  onSelectLaw: (law: LawMeta) => void;
+}) {
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [showAll, setShowAll] = useState(false);
+  const visible = showAll ? results : results.slice(0, 30);
+
+  const handleCopy = (article: ScoredArticle) => {
+    const meta = lawsMeta.find((l) => l.id === article.law);
+    const text = `${meta?.icon || '⚖️'} ${meta?.name || article.law}\nالمادة ${article.num}\n\n${article.text}`;
+    navigator.clipboard.writeText(text);
+    setCopiedId(`${article.law}-${article.num}`);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleWhatsApp = (article: ScoredArticle) => {
+    const meta = lawsMeta.find((l) => l.id === article.law);
+    const text = `*${meta?.icon || '⚖️'} ${meta?.name || article.law}*\n*المادة ${article.num}*\n\n${article.text}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  // Group by law
+  const grouped = useMemo(() => {
+    const map = new Map<string, ScoredArticle[]>();
+    for (const r of visible) {
+      if (!map.has(r.law)) map.set(r.law, []);
+      map.get(r.law)!.push(r);
+    }
+    return map;
+  }, [visible]);
+
+  return (
+    <div className="space-y-4">
+      {/* Results Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-2xl">🔍</span>
+          <div>
+            <h3 className="font-black text-[#1a3a5c] dark:text-[#f0c040] text-lg">
+              نتائج البحث الشامل
+            </h3>
+            <p className="text-gray-400 text-xs">
+              {results.length} نتيجة في {grouped.size} قانون لـ &quot;{query}&quot;
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          {results.length > 30 && (
+            <button
+              onClick={() => setShowAll((v) => !v)}
+              className="px-4 py-2 rounded-xl bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-gray-900 text-xs font-black shadow-sm"
+            >
+              {showAll ? 'عرض أقل' : `عرض الكل (${results.length})`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Grouped results */}
+      {Array.from(grouped.entries()).map(([lawId, articles]) => {
+        const meta = lawsMeta.find((l) => l.id === lawId);
+        const lawColor = meta?.color || '#2563eb';
+        return (
+          <div key={lawId} className="space-y-2">
+            {/* Law name header */}
+            <button
+              onClick={() => meta && onSelectLaw(meta)}
+              className="flex items-center gap-3 w-full text-right hover:opacity-80 transition-opacity"
+            >
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-lg shadow-sm flex-shrink-0"
+                style={{ backgroundColor: hexToRgba(lawColor, 0.15) }}
+              >
+                {meta?.icon || '⚖️'}
+              </div>
+              <span className="font-black text-sm" style={{ color: lawColor }}>
+                {meta?.name || lawId}
+              </span>
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full mr-auto">
+                {articles.length} مادة
+              </span>
+              <span className="text-gray-400 text-xs">فتح القانون →</span>
+            </button>
+
+            {articles.map((article) => {
+              const lawMeta: LawMeta = meta || {
+                id: article.law,
+                name: article.law,
+                file: '',
+                count: 0,
+                number: '',
+                icon: '⚖️',
+                color: '#2563eb',
+              };
+              const id = `${article.law}-${article.num}`;
+              return (
+                <motion.div
+                  key={id}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-white dark:bg-gray-800/40 rounded-2xl border border-amber-200/60 dark:border-amber-700/40 shadow-sm p-4 sm:p-5 relative overflow-hidden"
+                >
+                  <div
+                    className="absolute top-0 right-0 w-1 h-full"
+                    style={{ backgroundColor: lawMeta.color }}
+                  />
+                  <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                    <span
+                      className="inline-flex items-center px-3 py-1 rounded-xl text-xs font-black text-white"
+                      style={{ backgroundColor: lawMeta.color }}
+                    >
+                      المادة {article.number || article.num}
+                    </span>
+                    <div className="flex gap-2 mr-auto">
+                      <button
+                        onClick={() => handleCopy(article)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                          copiedId === id
+                            ? 'bg-green-500 text-white'
+                            : 'bg-gray-100 dark:bg-gray-900 text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {copiedId === id ? '✅ تم النسخ' : '📋 نسخ'}
+                      </button>
+                      <button
+                        onClick={() => handleWhatsApp(article)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-xs font-bold hover:bg-green-100 transition-all"
+                      >
+                        📲 واتساب
+                      </button>
+                    </div>
+                  </div>
+                  <div className="bg-gray-50/60 dark:bg-gray-900/40 p-4 rounded-xl">
+                    <p className="text-gray-700 dark:text-gray-200 leading-loose text-sm whitespace-pre-line font-medium">
+                      <HighlightedText text={article.text} query={query} />
+                    </p>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function GlobalLawSearch() {
   const [query, setQuery] = useState('');
@@ -554,393 +910,226 @@ export default function GlobalLawSearch() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [results, setResults] = useState<ScoredArticle[]>([]);
   const [isSearching, setIsSearching] = useState(false);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [selectedLaw, setSelectedLaw] = useState<LawMeta | null>(null);
-  const [allLawsPage, setAllLawsPage] = useState(1);
-  const [previews, setPreviews] = useState<Record<string, string>>({});
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [gridSearch, setGridSearch] = useState('');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const carouselRef = useRef<HTMLDivElement>(null);
+  const [totalArticles, setTotalArticles] = useState(0);
 
-  // Load laws metadata
+  // Load metadata
   useEffect(() => {
-    async function loadMeta() {
-      try {
-        const res = await fetch('/laws-json/index.json');
-        if (res.ok) {
-          const data = await res.json();
-          setLawsMeta(data);
-        }
-      } catch (err) {
-        console.error('Failed to load laws index', err);
-      }
-    }
-    loadMeta();
+    fetch('/laws-json/index.json')
+      .then((r) => r.json())
+      .then((data: LawMeta[]) => setLawsMeta(data))
+      .catch(() => {});
   }, []);
 
   // Load all articles for global search
   useEffect(() => {
     let cancelled = false;
-    async function loadArticles() {
-      try {
-        const res = await fetch('/laws-json/all.json');
-        if (!res.ok) throw new Error('Failed to load');
-        const data: LawArticleWithLaw[] = await res.json();
-        if (!cancelled) setAllArticles(data);
-      } catch (err) {
-        console.error('GlobalLawSearch: failed to load all.json', err);
-      } finally {
-        if (!cancelled) setIsLoadingData(false);
-      }
-    }
-    loadArticles();
+    fetch('/laws-json/all.json')
+      .then((r) => r.json())
+      .then((data: LawArticleWithLaw[]) => {
+        if (!cancelled) {
+          setAllArticles(data);
+          setTotalArticles(data.length);
+        }
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsLoadingData(false); });
     return () => { cancelled = true; };
   }, []);
-
-  // Load preview snippets for featured laws
-  useEffect(() => {
-    if (lawsMeta.length === 0) return;
-    FEATURED_LAW_IDS.forEach(async (id) => {
-      const law = lawsMeta.find((l) => l.id === id);
-      if (!law) return;
-      try {
-        const res = await fetch(`/laws-json/${law.file}`);
-        if (res.ok) {
-          const data: LawArticle[] = await res.json();
-          if (data.length > 0) {
-            setPreviews((prev) => ({ ...prev, [id]: truncateText(data[0].text, 50) }));
-          }
-        }
-      } catch {
-        // silently fail
-      }
-    });
-  }, [lawsMeta]);
 
   // Debounce query
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      setDebouncedQuery(query);
-    }, 300);
+    timerRef.current = setTimeout(() => setDebouncedQuery(query), 300);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [query]);
 
-  // Global search logic
+  // Global search
   useEffect(() => {
     const q = debouncedQuery.trim();
-    if (!q) {
-      setResults([]);
-      setIsSearching(false);
-      return;
-    }
-
+    if (!q) { setResults([]); setIsSearching(false); return; }
     setIsSearching(true);
     const raf = requestAnimationFrame(() => {
       const scored: ScoredArticle[] = [];
-      const queryLower = q.toLowerCase();
-      const queryNumbers = queryLower.match(/\d+/g);
-      const textWords = queryLower.replace(/\d+/g, ' ').trim().split(/\s+/).filter(w => w.length > 0);
-
-      for (const article of allArticles) {
-        const textLower = article.text.toLowerCase();
-        const artNum = String(article.num);
+      const ql = q.toLowerCase();
+      const nums = ql.match(/\d+/g);
+      const words = ql.replace(/\d+/g, ' ').trim().split(/\s+/).filter((w) => w.length > 0);
+      for (const a of allArticles) {
+        const tl = a.text.toLowerCase();
+        const an = String(a.num);
         let score = 0;
-
-        // مطابقة كاملة
-        if (textLower === queryLower) score = 100;
-        else if (textLower.startsWith(queryLower)) score = 80;
-        else if (textLower.includes(queryLower)) score = 50;
+        if (tl === ql) score = 100;
+        else if (tl.startsWith(ql)) score = 80;
+        else if (tl.includes(ql)) score = 50;
         else {
-          // مطابقة رقم المادة
-          const numMatch = queryNumbers && queryNumbers.some(n =>
-            artNum === n || artNum.includes(n)
-          );
-
-          // مطابقة الكلمات النصية (كلها يجب أن تتطابق)
-          const allWordsMatch = textWords.length > 0
-            ? textWords.every(w => textLower.includes(w))
-            : false;
-
-          if (numMatch && textWords.length === 0) score = 70;
-          else if (numMatch && allWordsMatch) score = 65;
-          else if (allWordsMatch) {
-            const matchCount = textWords.length;
-            score = (matchCount / Math.max(queryLower.split(/\s+/).length, 1)) * 45;
-          }
+          const nm = nums && nums.some((n) => an === n || an.includes(n));
+          const wm = words.length > 0 && words.every((w) => tl.includes(w));
+          if (nm && words.length === 0) score = 70;
+          else if (nm && wm) score = 65;
+          else if (wm) score = (words.length / Math.max(ql.split(/\s+/).length, 1)) * 45;
         }
-
-        if (score > 0) {
-          scored.push({ ...article, _score: score });
-        }
+        if (score > 0) scored.push({ ...a, _score: score });
       }
-
       scored.sort((a, b) => b._score - a._score);
-      setResults(scored.slice(0, 100));
+      setResults(scored.slice(0, 200));
       setIsSearching(false);
     });
-
     return () => cancelAnimationFrame(raf);
   }, [debouncedQuery, allArticles]);
 
-  const handleCopy = useCallback(
-    (article: LawArticleWithLaw) => {
-      const meta = lawsMeta.find((l) => l.id === article.law);
-      const text = `${meta?.icon || '⚖️'} ${meta?.name || article.law} - المادة ${article.num}\n\n${article.text}`;
-      navigator.clipboard.writeText(text);
-      setCopiedId(`${article.law}-${article.num}`);
-      setTimeout(() => setCopiedId(null), 2000);
-    },
-    [lawsMeta]
-  );
+  // Filtered laws for grid
+  const filteredLaws = useMemo(() => {
+    let list = lawsMeta;
+    if (activeCategory !== 'all') {
+      const cat = CATEGORIES.find((c) => c.id === activeCategory);
+      if (cat) list = list.filter((l) => cat.ids.includes(l.id));
+    }
+    if (gridSearch.trim()) {
+      const gs = gridSearch.trim().toLowerCase();
+      list = list.filter(
+        (l) => l.name.toLowerCase().includes(gs) || l.number?.toLowerCase().includes(gs)
+      );
+    }
+    return list;
+  }, [lawsMeta, activeCategory, gridSearch]);
 
-  const handleWhatsApp = useCallback(
-    (article: LawArticleWithLaw) => {
-      const meta = lawsMeta.find((l) => l.id === article.law);
-      const text = `*[${meta?.name || article.law}] - المادة ${article.num}*\n\n${article.text}`;
-      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-    },
-    [lawsMeta]
-  );
-
-  // Featured laws
-  const featuredLaws = useMemo(
-    () => FEATURED_LAW_IDS.map((id) => lawsMeta.find((l) => l.id === id)).filter(Boolean) as LawMeta[],
-    [lawsMeta]
-  );
-
-  // Non-featured laws for grid
-  const nonFeaturedLaws = useMemo(
-    () => lawsMeta.filter((l) => !FEATURED_LAW_IDS.includes(l.id)),
-    [lawsMeta]
-  );
-
-  // Grid pagination
-  const allLawsTotalPages = Math.ceil(nonFeaturedLaws.length / LAWS_GRID_PER_PAGE);
-  const paginatedGridLaws = useMemo(
-    () => nonFeaturedLaws.slice((allLawsPage - 1) * LAWS_GRID_PER_PAGE, allLawsPage * LAWS_GRID_PER_PAGE),
-    [nonFeaturedLaws, allLawsPage]
-  );
-
-  // Carousel scroll
-  const scrollCarousel = useCallback((direction: 'left' | 'right') => {
-    if (!carouselRef.current) return;
-    const scrollAmount = 360;
-    carouselRef.current.scrollBy({
-      left: direction === 'left' ? -scrollAmount : scrollAmount,
-      behavior: 'smooth',
-    });
-  }, []);
-
-  // When a law is selected, switch to law view
-  const handleSelectLaw = useCallback((law: LawMeta) => {
-    setSelectedLaw(law);
-  }, []);
-
-  // Back from law view
-  const handleBackToLaws = useCallback(() => {
-    setSelectedLaw(null);
-  }, []);
-
-  // ─── Individual Law View ───────────────────────────────────────────────────
+  // ─── Individual Law View
   if (selectedLaw) {
     return (
-      <div className="space-y-6" dir="rtl">
-        <IndividualLawView law={selectedLaw} onBack={handleBackToLaws} />
+      <div dir="rtl">
+        <IndividualLawView law={selectedLaw} onBack={() => setSelectedLaw(null)} />
       </div>
     );
   }
 
-  // ─── Main View: Cards + Search ─────────────────────────────────────────────
+  // ─── Main View
   return (
-    <div className="space-y-8" dir="rtl">
-      {/* Info Box */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800 text-sm text-blue-800 dark:text-blue-300 leading-relaxed">
-        <strong>💡 مبدأ العمل:</strong> توفر لك هذه الأداة وصولاً سريعاً إلى {lawsMeta.length} قانوناً جزائرياً محدثاً. يمكنك البحث في كافة القوانين دفعة واحدة أو تصفح أي قانون بالضغط على بطاقته.
-      </div>
+    <div className="space-y-6" dir="rtl">
+      {/* Stats */}
+      {!isLoadingData && (
+        <StatsBar totalLaws={lawsMeta.length} totalArticles={totalArticles} />
+      )}
 
-      {/* Global Search Input */}
+      {/* Global Search */}
       <div className="relative">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder={`ابحث في ${lawsMeta.length} قانوناً جزائرياً دفعة واحدة (مثلاً: طلاق، إيجار، سرقة...)`}
-          className="w-full p-4 pr-12 rounded-2xl border-2 border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none transition-all shadow-sm text-lg font-bold"
+          placeholder={`🔍  ابحث في ${lawsMeta.length} قانوناً جزائرياً دفعة واحدة... (كلمة، عبارة، أو رقم المادة)`}
+          className="w-full p-4 sm:p-5 pr-5 rounded-2xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none transition-all shadow-sm text-sm sm:text-base font-bold"
         />
-        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-2xl">🔍</span>
-      </div>
-
-      {/* Results or Laws Index */}
-      <div className="space-y-6">
-        {isSearching ? (
-          <div className="text-center py-12">
-            <div className="animate-spin text-4xl mb-4">⚖️</div>
-            <p className="text-gray-500 font-bold">جاري البحث في آلاف المواد القانونية...</p>
-          </div>
-        ) : results.length > 0 ? (
-          <div className="space-y-4">
-            <h3 className="text-lg font-black text-[#1a3a5c] dark:text-[#f0c040] flex items-center gap-2">
-              <span>نتائج البحث الشامل</span>
-              <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full text-gray-500">{results.length} نتيجة</span>
-            </h3>
-            {results.map((article, idx) => {
-              const meta = lawsMeta.find((l) => l.id === article.law);
-              const lawMetaForArticle: LawMeta = meta || {
-                id: article.law,
-                name: article.law,
-                file: '',
-                count: 0,
-                number: '',
-                icon: '⚖️',
-                color: '#2563eb',
-              };
-              return (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  key={`${article.law}-${article.num}-${idx}`}
-                  className="bg-white dark:bg-gray-800/50 p-4 sm:p-6 rounded-2xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-all group relative overflow-hidden"
-                >
-                  <div className="absolute top-0 right-0 w-1 h-full bg-[#1a3a5c] dark:bg-[#f0c040] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3 mb-4">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div
-                        className="w-10 h-10 bg-gray-50 dark:bg-gray-900 rounded-xl flex items-center justify-center text-xl shadow-inner cursor-pointer hover:scale-110 transition-transform"
-                        style={{ backgroundColor: meta ? hexToRgba(meta.color, 0.15) : undefined }}
-                        onClick={() => meta && handleSelectLaw(meta)}
-                        title="فتح القانون"
-                      >
-                        {meta?.icon || '⚖️'}
-                      </div>
-                      <div className="flex flex-col">
-                        <span
-                          className="font-black text-[#1a3a5c] dark:text-[#f0c040] text-sm sm:text-base cursor-pointer hover:underline"
-                          onClick={() => meta && handleSelectLaw(meta)}
-                          title={`فتح ${meta?.name || article.law}`}
-                        >{meta?.name || article.law}</span>
-                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">المادة {article.num}</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2 w-full sm:w-auto justify-end border-t sm:border-none pt-2 sm:pt-0 mt-1 sm:mt-0">
-                      <button
-                        onClick={() => handleCopy(article)}
-                        className={`flex-1 sm:flex-none px-3 py-2 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                          copiedId === `${article.law}-${article.num}`
-                            ? 'bg-green-500 text-white'
-                            : 'bg-gray-50 dark:bg-gray-900 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        <span>{copiedId === `${article.law}-${article.num}` ? 'تم النسخ' : 'نسخ'}</span>
-                        <span>{copiedId === `${article.law}-${article.num}` ? '✅' : '📋'}</span>
-                      </button>
-                      <button
-                        onClick={() => handleWhatsApp(article)}
-                        className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 text-sm font-bold hover:bg-green-100 transition-all flex items-center justify-center gap-2"
-                      >
-                        <span>واتساب</span>
-                        <span>📲</span>
-                      </button>
-                    </div>
-                  </div>
-                  <div className="bg-gray-50/50 dark:bg-gray-900/30 p-4 rounded-xl border border-gray-100/50 dark:border-gray-800/50">
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-sm sm:text-base whitespace-pre-line">
-                      <HighlightedText text={article.text} query={debouncedQuery} />
-                    </p>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        ) : debouncedQuery ? (
-          <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/50 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-            <p className="text-gray-500 font-bold">لم يتم العثور على نتائج تطابق بحثك</p>
-          </div>
-        ) : (
-          /* ─── Default: Show Featured + All Laws Grid ─── */
-          <AnimatePresence mode="wait">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="space-y-10"
-            >
-              {/* Featured Laws Carousel */}
-              {featuredLaws.length > 0 && (
-                <section>
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-black text-[#1a3a5c] dark:text-[#f0c040] flex items-center gap-2">
-                      <span className="text-xl">⭐</span>
-                      <span>القوانين الرئيسية</span>
-                    </h3>
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => scrollCarousel('left')}
-                        className="w-9 h-9 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
-                      >
-                        <span className="text-sm">→</span>
-                      </button>
-                      <button
-                        onClick={() => scrollCarousel('right')}
-                        className="w-9 h-9 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm"
-                      >
-                        <span className="text-sm">←</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div
-                    ref={carouselRef}
-                    className="flex gap-4 overflow-x-auto pb-4 no-scrollbar scroll-smooth"
-                    style={{ scrollSnapType: 'x mandatory' }}
-                  >
-                    {featuredLaws.map((law) => (
-                      <div key={law.id} style={{ scrollSnapAlign: 'start' }}>
-                        <FeaturedCard
-                          law={law}
-                          onClick={() => handleSelectLaw(law)}
-                          preview={previews[law.id]}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {/* All Laws Grid */}
-              {nonFeaturedLaws.length > 0 && (
-                <section>
-                  <h3 className="text-lg font-black text-[#1a3a5c] dark:text-[#f0c040] flex items-center gap-2 mb-4">
-                    <span className="text-xl">📚</span>
-                    <span>جميع القوانين</span>
-                    <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full text-gray-500">{nonFeaturedLaws.length} قانون</span>
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {paginatedGridLaws.map((law) => (
-                      <LawGridCard key={law.id} law={law} onClick={() => handleSelectLaw(law)} />
-                    ))}
-                  </div>
-
-                  <Pagination
-                    currentPage={allLawsPage}
-                    totalPages={allLawsTotalPages}
-                    onPageChange={setAllLawsPage}
-                  />
-                </section>
-              )}
-            </motion.div>
-          </AnimatePresence>
+        {query && (
+          <button
+            onClick={() => setQuery('')}
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-2xl font-black transition-all"
+          >
+            ×
+          </button>
         )}
       </div>
 
+      {/* Search Results or Grid */}
+      <AnimatePresence mode="wait">
+        {isSearching ? (
+          <motion.div key="searching" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-16">
+            <div className="text-5xl mb-4 animate-spin">⚖️</div>
+            <p className="text-gray-500 font-black text-lg">جاري البحث في {totalArticles.toLocaleString('ar-DZ')} مادة قانونية...</p>
+          </motion.div>
+        ) : results.length > 0 ? (
+          <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+            <GlobalSearchResults
+              results={results}
+              lawsMeta={lawsMeta}
+              query={debouncedQuery}
+              onSelectLaw={setSelectedLaw}
+            />
+          </motion.div>
+        ) : debouncedQuery ? (
+          <motion.div
+            key="no-results"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-16 bg-gray-50 dark:bg-gray-800/40 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700"
+          >
+            <p className="text-4xl mb-3">🔍</p>
+            <p className="text-gray-500 font-black">لم يُعثر على نتائج لـ &quot;{debouncedQuery}&quot;</p>
+            <p className="text-gray-400 text-sm mt-1">جرّب كلمات مختلفة أو تحقق من الإملاء</p>
+          </motion.div>
+        ) : (
+          <motion.div key="grid" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+            {/* Grid search + category filter */}
+            <div className="space-y-3">
+              <div className="relative">
+                <input
+                  type="text"
+                  value={gridSearch}
+                  onChange={(e) => setGridSearch(e.target.value)}
+                  placeholder="ابحث في أسماء القوانين..."
+                  className="w-full p-3.5 pr-10 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 focus:border-[#1a3a5c] dark:focus:border-[#f0c040] outline-none transition-all text-sm font-bold"
+                />
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400">🗂️</span>
+                {gridSearch && (
+                  <button
+                    onClick={() => setGridSearch('')}
+                    className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl font-black"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+              <CategoryFilter
+                activeCategory={activeCategory}
+                onChange={setActiveCategory}
+                lawsMeta={lawsMeta}
+              />
+            </div>
+
+            {/* Laws count */}
+            <div className="flex items-center justify-between">
+              <h3 className="font-black text-gray-600 dark:text-gray-300 text-sm">
+                {activeCategory === 'all' && !gridSearch
+                  ? `جميع القوانين — ${lawsMeta.length} قانون`
+                  : `${filteredLaws.length} قانون`}
+              </h3>
+              {(activeCategory !== 'all' || gridSearch) && (
+                <button
+                  onClick={() => { setActiveCategory('all'); setGridSearch(''); }}
+                  className="text-xs font-bold text-[#1a3a5c] dark:text-[#f0c040] hover:underline"
+                >
+                  مسح الفلتر
+                </button>
+              )}
+            </div>
+
+            {/* Grid */}
+            {isLoadingData ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="h-24 bg-gray-100 dark:bg-gray-800 rounded-2xl animate-pulse" />
+                ))}
+              </div>
+            ) : filteredLaws.length === 0 ? (
+              <div className="text-center py-12 bg-gray-50 dark:bg-gray-800/40 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
+                <p className="text-gray-500 font-black">لا توجد قوانين في هذا التصنيف</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {filteredLaws.map((law) => (
+                  <LawGridCard key={law.id} law={law} onClick={() => setSelectedLaw(law)} />
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <style jsx global>{`
-        .no-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .no-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );
