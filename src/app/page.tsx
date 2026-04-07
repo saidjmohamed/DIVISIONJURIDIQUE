@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { useTheme } from 'next-themes';
 import WelcomeScreen from '@/components/WelcomeScreen';
@@ -25,6 +25,7 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'search' | 'jurisprudence' | 'lawyer-tools' | 'judicial' | 'e-litigation' | 'legal-updates'>('search');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -47,6 +48,16 @@ export default function HomePage() {
       return () => clearTimeout(timer);
     }
   }, [activeTab, mounted, showWelcome]);
+
+  // Auto-scroll active tab into view
+  useEffect(() => {
+    if (tabsScrollRef.current) {
+      const activeBtn = tabsScrollRef.current.querySelector('[data-active="true"]') as HTMLElement;
+      if (activeBtn) {
+        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+      }
+    }
+  }, [activeTab]);
 
   const tabs = useMemo(() => [
     { id: 'search', label: 'القوانين', icon: '📜', description: 'تصفح وابحث في 116 قانوناً جزائرياً محدثاً مع إمكانية البحث الشامل في كافة المواد.' },
@@ -95,22 +106,44 @@ export default function HomePage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-24 flex-grow w-full pt-6">
-        {/* Tab Switcher */}
-        <div className="bg-white dark:bg-[#1e293b] p-1 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 mb-6 flex overflow-x-auto no-scrollbar gap-1 sticky top-[72px] z-40">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl font-bold transition-all duration-200 whitespace-nowrap flex-1 min-w-[90px] ${
-                activeTab === tab.id
-                  ? 'bg-[#1a3a5c] text-white shadow-md'
-                  : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-              }`}
+
+        {/* Tab Switcher — Mobile: horizontal scroll, Desktop: full row */}
+        <div className="sticky top-[64px] z-40 mb-6">
+          <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-1.5">
+            {/* Scroll container */}
+            <div
+              ref={tabsScrollRef}
+              className="flex gap-1 overflow-x-auto no-scrollbar"
             >
-              <span className="text-base">{tab.icon}</span>
-              <span className="text-xs sm:text-sm">{tab.label}</span>
-            </button>
-          ))}
+              {tabs.map((tab) => {
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    data-active={isActive}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`
+                      flex flex-col items-center justify-center gap-0.5
+                      px-3 py-2 rounded-xl font-bold transition-all duration-200
+                      flex-shrink-0
+                      sm:flex-row sm:gap-1.5 sm:flex-1
+                      ${isActive
+                        ? 'bg-[#1a3a5c] text-white shadow-md'
+                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+                      }
+                    `}
+                    style={{ minWidth: 'calc((100% - 5 * 4px) / 6)', maxWidth: '120px' }}
+                  >
+                    <span className="text-lg leading-none">{tab.icon}</span>
+                    <span className="text-[10px] sm:text-xs leading-tight text-center whitespace-nowrap">{tab.label}</span>
+                    {isActive && (
+                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white opacity-70 hidden" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Tab Content Container */}
@@ -138,7 +171,6 @@ export default function HomePage() {
               </div>
 
               {activeTab === 'search' && <GlobalLawSearch />}
-
               {activeTab === 'judicial' && <JudicialHierarchy />}
               {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
               {activeTab === 'jurisprudence' && <JurisprudenceTab />}
