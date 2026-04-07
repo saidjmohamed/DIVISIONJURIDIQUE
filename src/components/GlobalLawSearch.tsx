@@ -817,7 +817,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
         }
         .dark .law-cover-emblem { color: #94a3b8; }
         .law-cover-title {
-          font-size: 30px;
+          font-size: 34px;
           font-weight: 900;
           line-height: 1.4;
           margin-bottom: 16px;
@@ -825,7 +825,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
         }
         .dark .law-cover-title { color: #f1f5f9; }
         @media (max-width: 640px) {
-          .law-cover-title { font-size: 22px; }
+          .law-cover-title { font-size: 24px; }
           .law-cover { padding: 32px 20px 24px; }
         }
         .law-cover-meta {
@@ -834,7 +834,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           justify-content: center;
           gap: 8px;
           flex-wrap: wrap;
-          font-size: 15px;
+          font-size: 17px;
           font-weight: 700;
           color: #4b5563;
         }
@@ -906,7 +906,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           margin-bottom: 10px;
         }
         .law-article-number {
-          font-size: 17px;
+          font-size: 20px;
           font-weight: 900;
           flex-shrink: 0;
         }
@@ -959,15 +959,15 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
 
         /* نص المادة */
         .law-article-text {
-          font-size: 18px;
-          line-height: 2.1;
+          font-size: 22px;
+          line-height: 2.2;
           color: #1f2937;
           white-space: pre-line;
           text-align: justify;
         }
         .dark .law-article-text { color: #e2e8f0; }
         @media (max-width: 640px) {
-          .law-article-text { font-size: 16px; line-height: 2; }
+          .law-article-text { font-size: 18px; line-height: 2.1; }
         }
 
         /* ── شريط البحث الموحّد ── */
@@ -1154,8 +1154,8 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           border-bottom-color: #1e3a5f;
         }
         .law-preamble-text {
-          font-size: 16px;
-          line-height: 2;
+          font-size: 20px;
+          line-height: 2.1;
           color: #1e3a5f;
           white-space: pre-line;
           text-align: right;
