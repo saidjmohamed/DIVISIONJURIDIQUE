@@ -6,6 +6,9 @@ import { useTheme } from 'next-themes';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ShareBubble from '@/components/ShareBubble';
 import DeveloperInfo from '@/components/DeveloperInfo';
+import ModernTabs from '@/components/ModernTabs';
+import TabContent from '@/components/TabContent';
+import TabDescription from '@/components/TabDescription';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Lazy load components with proper loading states
@@ -68,6 +71,16 @@ export default function HomePage() {
     { id: 'legal-updates', label: 'مستجدات', icon: '📰', description: 'مراقبة يومية تلقائية للمستجدات القانونية من الجريدة الرسمية ومجلس الدولة ووزارة العدل.' },
   ], []);
 
+  // Convert tabs to ModernTabs format
+  const modernTabsData = useMemo(() => 
+    tabs.map(tab => ({
+      id: tab.id,
+      label: tab.label,
+      icon: tab.icon
+    })), 
+    [tabs]
+  );
+
   if (!mounted) return null;
 
   if (showWelcome) {
@@ -107,77 +120,34 @@ export default function HomePage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-24 flex-grow w-full pt-6">
 
-        {/* Tab Switcher — Mobile: horizontal scroll, Desktop: full row */}
+        {/* Modern Tab Navigation */}
         <div className="sticky top-[64px] z-40 mb-6">
-          <div className="bg-white dark:bg-[#1e293b] rounded-2xl shadow-lg border border-gray-100 dark:border-gray-800 p-1.5">
-            {/* Scroll container */}
-            <div
-              ref={tabsScrollRef}
-              className="flex gap-1 overflow-x-auto no-scrollbar"
-            >
-              {tabs.map((tab) => {
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    data-active={isActive}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`
-                      flex flex-col items-center justify-center gap-0.5
-                      px-3 py-2 rounded-xl font-bold transition-all duration-200
-                      flex-shrink-0
-                      sm:flex-row sm:gap-1.5 sm:flex-1
-                      ${isActive
-                        ? 'bg-[#1a3a5c] text-white shadow-md'
-                        : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'
-                      }
-                    `}
-                    style={{ minWidth: 'calc((100% - 5 * 4px) / 6)', maxWidth: '120px' }}
-                  >
-                    <span className="text-lg leading-none">{tab.icon}</span>
-                    <span className="text-[10px] sm:text-xs leading-tight text-center whitespace-nowrap">{tab.label}</span>
-                    {isActive && (
-                      <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white opacity-70 hidden" />
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <ModernTabs
+            tabs={modernTabsData}
+            activeTab={activeTab}
+            onTabChange={(tabId) => setActiveTab(tabId as any)}
+            variant="default"
+          />
         </div>
 
         {/* Tab Content Container */}
         <div className="bg-white dark:bg-[#1e293b] rounded-2xl sm:rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 p-3 sm:p-10 min-h-[400px]">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-            >
-              {/* Tool Description Header */}
-              <div className="mb-8 p-6 bg-gradient-to-r from-[#1a3a5c] to-[#2a4a6c] dark:from-[#1e293b] dark:to-[#0f172a] rounded-3xl text-white shadow-xl relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl" />
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-3xl">{activeTabData?.icon}</span>
-                    <h2 className="text-xl sm:text-2xl font-black">{activeTabData?.label}</h2>
-                  </div>
-                  <p className="text-blue-100 dark:text-gray-300 font-medium leading-relaxed max-w-2xl text-xs sm:text-sm">
-                    {activeTabData?.description}
-                  </p>
-                </div>
-              </div>
+          {/* Tab Description Header */}
+          <TabDescription
+            icon={activeTabData?.icon || '📋'}
+            title={activeTabData?.label || 'محتوى'}
+            description={activeTabData?.description || ''}
+          />
 
-              {activeTab === 'search' && <GlobalLawSearch />}
-              {activeTab === 'judicial' && <JudicialHierarchy />}
-              {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
-              {activeTab === 'jurisprudence' && <JurisprudenceTab />}
-              {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('search')} />}
-              {activeTab === 'legal-updates' && <LegalUpdatesTab />}
-            </motion.div>
-          </AnimatePresence>
+          {/* Tab Content with Smooth Transitions */}
+          <TabContent activeTab={activeTab}>
+            {activeTab === 'search' && <GlobalLawSearch />}
+            {activeTab === 'judicial' && <JudicialHierarchy />}
+            {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
+            {activeTab === 'jurisprudence' && <JurisprudenceTab />}
+            {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('search')} />}
+            {activeTab === 'legal-updates' && <LegalUpdatesTab />}
+          </TabContent>
         </div>
       </main>
 
