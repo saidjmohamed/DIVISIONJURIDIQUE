@@ -1,12 +1,6 @@
 {
   "framework": "nextjs",
   "buildCommand": "npx next build",
-  "domains": [
-    {
-      "domain": "hiyaat-dz.vercel.app",
-      "redirect": null
-    }
-  ],
   "crons": [
     {
       "path": "/api/cron/fetch-updates",
