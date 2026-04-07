@@ -482,13 +482,17 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [searchQuery]);
 
-  // فلترة المواد عند البحث
+  // فصل الديباجة عن المواد العادية
+  const preamble = useMemo(() => articles.find((a) => a.num === 0 || a.number === 'ديباجة'), [articles]);
+  const regularArticles = useMemo(() => articles.filter((a) => a.num !== 0 && a.number !== 'ديباجة'), [articles]);
+
+  // فلترة المواد عند البحث (المواد العادية فقط)
   const filteredArticles = useMemo(() => {
     const q = debouncedQuery.trim().toLowerCase();
-    if (!q) return articles;
+    if (!q) return regularArticles;
     const nums = q.match(/\d+/g);
     const words = q.replace(/\d+/g, ' ').trim().split(/\s+/).filter((w) => w.length > 0);
-    return articles.filter((a) => {
+    return regularArticles.filter((a) => {
       const txt = a.text.toLowerCase();
       const artNum = String(a.num);
       const artNumber = String(a.number || a.num);
@@ -501,7 +505,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
       if (words.length > 0) return words.every((w) => txt.includes(w));
       return false;
     });
-  }, [articles, debouncedQuery]);
+  }, [regularArticles, debouncedQuery]);
 
   // نسخ مادة
   const handleCopy = useCallback((article: LawArticle) => {
@@ -537,7 +541,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
 
   const cat = getCategoryForLaw(law);
   const matchCount = debouncedQuery ? filteredArticles.length : 0;
-  const displayArticles = debouncedQuery ? filteredArticles : articles;
+  const displayArticles = debouncedQuery ? filteredArticles : regularArticles;
 
   return (
     <div dir="rtl">
@@ -623,13 +627,23 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
             <span className="law-loading-icon">{law.icon}</span>
             <p>جاري فتح القانون...</p>
           </div>
-        ) : displayArticles.length === 0 ? (
-          <div className="law-no-results">
-            <p>لم يُعثر على نتائج لـ «{debouncedQuery}»</p>
-            <button onClick={() => setSearchQuery('')}>مسح البحث</button>
-          </div>
         ) : (
-          /* ── قائمة المواد — متدفقة كالورق ── */
+          <>
+            {/* ── الديباجة ── */}
+            {preamble && (
+              <div className="law-preamble">
+                <div className="law-preamble-header">📋 معلومات القانون</div>
+                <div className="law-preamble-text">{preamble.text}</div>
+              </div>
+            )}
+
+            {/* ── قائمة المواد ── */}
+            {displayArticles.length === 0 && debouncedQuery ? (
+              <div className="law-no-results">
+                <p>لم يُعثر على نتائج لـ «{debouncedQuery}»</p>
+                <button onClick={() => setSearchQuery('')}>مسح البحث</button>
+              </div>
+            ) : (
           <div className="law-body">
             {displayArticles.map((article) => {
               const artId = `art-${article.num}`;
@@ -689,6 +703,8 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
               );
             })}
           </div>
+            )}
+          </>
         )}
 
         {/* ذيل الورقة */}
@@ -745,7 +761,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           line-height: 1;
         }
         .law-cover-emblem {
-          font-size: 11px;
+          font-size: 14px;
           font-weight: 700;
           letter-spacing: 0.08em;
           color: #6b7280;
@@ -754,7 +770,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
         }
         .dark .law-cover-emblem { color: #94a3b8; }
         .law-cover-title {
-          font-size: 26px;
+          font-size: 30px;
           font-weight: 900;
           line-height: 1.4;
           margin-bottom: 16px;
@@ -762,7 +778,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
         }
         .dark .law-cover-title { color: #f1f5f9; }
         @media (max-width: 640px) {
-          .law-cover-title { font-size: 18px; }
+          .law-cover-title { font-size: 22px; }
           .law-cover { padding: 32px 20px 24px; }
         }
         .law-cover-meta {
@@ -771,7 +787,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           justify-content: center;
           gap: 8px;
           flex-wrap: wrap;
-          font-size: 13px;
+          font-size: 15px;
           font-weight: 700;
           color: #4b5563;
         }
@@ -843,12 +859,12 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           margin-bottom: 10px;
         }
         .law-article-number {
-          font-size: 14px;
+          font-size: 17px;
           font-weight: 900;
           flex-shrink: 0;
         }
         .law-article-match-badge {
-          font-size: 10px;
+          font-size: 12px;
           font-weight: 800;
           padding: 2px 8px;
           border-radius: 999px;
@@ -896,15 +912,57 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
 
         /* نص المادة */
         .law-article-text {
-          font-size: 15px;
-          line-height: 2;
+          font-size: 18px;
+          line-height: 2.1;
           color: #1f2937;
           white-space: pre-line;
           text-align: justify;
         }
         .dark .law-article-text { color: #e2e8f0; }
         @media (max-width: 640px) {
-          .law-article-text { font-size: 14px; line-height: 1.9; }
+          .law-article-text { font-size: 16px; line-height: 2; }
+        }
+
+        /* بلوك الديباجة */
+        .law-preamble {
+          margin: 28px 32px;
+          padding: 24px 28px;
+          background: #f0f7ff;
+          border-radius: 14px;
+          border-right: 5px solid #2563eb;
+          border: 1px solid #bfdbfe;
+          border-right: 5px solid #2563eb;
+        }
+        .dark .law-preamble {
+          background: #0f2040;
+          border-color: #1d4ed8;
+          border-right-color: #3b82f6;
+        }
+        .law-preamble-header {
+          font-size: 16px;
+          font-weight: 900;
+          color: #1d4ed8;
+          margin-bottom: 14px;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #bfdbfe;
+          letter-spacing: 0.03em;
+        }
+        .dark .law-preamble-header {
+          color: #93c5fd;
+          border-bottom-color: #1e3a5f;
+        }
+        .law-preamble-text {
+          font-size: 16px;
+          line-height: 2;
+          color: #1e3a5f;
+          white-space: pre-line;
+          text-align: right;
+          direction: rtl;
+        }
+        .dark .law-preamble-text { color: #bfdbfe; }
+        @media (max-width: 640px) {
+          .law-preamble { margin: 16px; padding: 18px 18px; }
+          .law-preamble-text { font-size: 15px; }
         }
 
         /* التحميل */
@@ -946,7 +1004,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
         .law-footer {
           text-align: center;
           padding: 24px 32px;
-          font-size: 12px;
+          font-size: 14px;
           font-weight: 700;
           color: #9ca3af;
           border-top: 1px solid #f1f5f9;
@@ -970,7 +1028,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           background: #1a3a5c;
           color: #fff;
           font-weight: 900;
-          font-size: 13px;
+          font-size: 15px;
           border: none;
           cursor: pointer;
           box-shadow: 0 4px 20px rgba(26,58,92,0.35);
