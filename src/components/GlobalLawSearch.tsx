@@ -404,14 +404,12 @@ function ArticleCard({
   const isMatched = highlightQuery && article.text.toLowerCase().includes(highlightQuery.toLowerCase());
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
+    <div
       id={`article-${article.num}`}
-      className={`rounded-2xl border transition-all group relative overflow-hidden ${
+      className={`rounded-2xl border transition-colors group relative overflow-hidden ${
         isSearchResult && isMatched
-          ? 'border-amber-300 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-900/10 shadow-md shadow-amber-100 dark:shadow-amber-900/20'
-          : 'border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-md'
+          ? 'border-amber-300 dark:border-amber-600 bg-amber-50/40 dark:bg-amber-900/10 shadow-md'
+          : 'border-gray-100 dark:border-gray-700/50 bg-white dark:bg-gray-800/40 hover:border-gray-300 dark:hover:border-gray-600'
       }`}
     >
       {/* Left accent */}
@@ -471,7 +469,7 @@ function ArticleCard({
           </p>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -485,15 +483,25 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
-  const articleRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [jumpInput, setJumpInput] = useState('');
+
+  // ── مهم: scroll للأعلى فور فتح القانون
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     setIsLoading(true);
+    setArticles([]);
     fetch(`/laws-json/${law.file}`)
       .then((r) => r.json())
-      .then((data: LawArticle[]) => { if (!cancelled) setArticles(data); })
+      .then((data: LawArticle[]) => {
+        if (!cancelled) {
+          setArticles(data);
+          window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
@@ -547,11 +555,22 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
   const handleJump = () => {
     const n = parseInt(jumpInput);
     if (!n) return;
-    const el = document.getElementById(`article-${n}`);
+    // البحث عن المادة بـ num أو number
+    const target = articles.find((a) => a.num === n || String(a.number) === String(n));
+    const el = target
+      ? document.getElementById(`article-${target.num}`)
+      : document.getElementById(`article-${n}`);
     if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      el.classList.add('ring-2', 'ring-amber-400');
-      setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400'), 2500);
+      const navbarOffset = 130;
+      const top = el.getBoundingClientRect().top + window.scrollY - navbarOffset;
+      window.scrollTo({ top, behavior: 'smooth' });
+      el.style.outline = '3px solid #f59e0b';
+      el.style.outlineOffset = '4px';
+      el.style.borderRadius = '16px';
+      setTimeout(() => {
+        el.style.outline = '';
+        el.style.outlineOffset = '';
+      }, 2500);
     }
     setJumpInput('');
   };
@@ -560,13 +579,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
   const matchCount = debouncedQuery ? filteredArticles.length : 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, x: 40 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -40 }}
-      transition={{ duration: 0.3 }}
-      ref={topRef}
-    >
+    <div ref={topRef}>
       {/* Back + Header */}
       <div className="mb-6 space-y-4">
         <button
@@ -731,7 +744,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           {/* Back to top floater */}
           <div className="sticky bottom-6 flex justify-center mt-8 pointer-events-none">
             <button
-              onClick={() => topRef.current?.scrollIntoView({ behavior: 'smooth' })}
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
               className="pointer-events-auto px-5 py-2.5 rounded-2xl bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-gray-900 font-black text-sm shadow-xl hover:shadow-2xl transition-all opacity-80 hover:opacity-100"
             >
               ↑ العودة للأعلى
@@ -739,7 +752,7 @@ function IndividualLawView({ law, onBack }: { law: LawMeta; onBack: () => void }
           </div>
         </>
       )}
-    </motion.div>
+    </div>
   );
 }
 
@@ -1000,7 +1013,7 @@ export default function GlobalLawSearch() {
   if (selectedLaw) {
     return (
       <div dir="rtl">
-        <IndividualLawView law={selectedLaw} onBack={() => setSelectedLaw(null)} />
+        <IndividualLawView law={selectedLaw} onBack={() => { setSelectedLaw(null); window.scrollTo({ top: 0, behavior: 'instant' }); }} />
       </div>
     );
   }
