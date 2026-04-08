@@ -151,10 +151,12 @@ export async function POST(req: NextRequest) {
         // ══════════════════════════════════════════════════════════
         // 🤖 إرسال للنموذج مع النتائج
         // ══════════════════════════════════════════════════════════
+        // عرض عدد المواد المحقونة فعلياً وليس totalFound
+        const injectedCount = retrievedLaws === "لا توجد نصوص قانونية مطابقة لهذا السؤال." ? 0 : (retrievedLaws.match(/📌 المادة/g) || []).length;
         send("status", {
           step: "connecting",
-          message: articlesFound > 0
-            ? `📚 تم العثور على ${articlesFound} مادة قانونية — جاري التحليل...`
+          message: injectedCount > 0
+            ? `📚 تم استرجاع ${injectedCount} مادة قانونية — جاري التحليل...`
             : "جاري الاتصال..."
         });
 
@@ -176,7 +178,7 @@ export async function POST(req: NextRequest) {
             tier: result.model.tier,
             triedModels: result.triedModels,
             executionTime: result.elapsedMs,
-            articlesFound,
+            articlesFound: injectedCount,
           });
         } else {
           send(result.timedOut ? "timeout" : "error", {
