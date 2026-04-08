@@ -12,6 +12,7 @@ interface Message {
   modelLabel?: string;
   tier?: number;
   executionTime?: number;
+  articlesFound?: number;
 }
 
 interface AvailableModel {
@@ -202,6 +203,7 @@ export default function AiAssistant() {
               modelLabel: data.modelLabel,
               tier: data.tier,
               executionTime: data.executionTime,
+              articlesFound: data.articlesFound,
             }]);
           } else if (eventType === "timeout") {
             streamSettled = true;
@@ -556,6 +558,12 @@ export default function AiAssistant() {
                             border: `1px solid ${TIER_COLORS[msg.tier]?.border}`,
                           }}>
                       {TIER_LABELS[msg.tier]} • {msg.modelLabel}
+                    </span>
+                  )}
+                  {msg.role === "assistant" && !msg.error && msg.articlesFound != null && msg.articlesFound > 0 && (
+                    <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold"
+                          style={{ background: "#f0fdf4", color: "#166534", border: "1px solid #bbf7d0" }}>
+                      📚 {msg.articlesFound} مادة قانونية
                     </span>
                   )}
                 </div>
