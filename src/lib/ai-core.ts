@@ -1,7 +1,7 @@
 /**
  * AI Core — محرك الذكاء الاصطناعي (v11 — Smart Fallback System)
  *
- * 🥇 المزود الأول:  OpenRouter → qwen/qwen3.6-plus:free
+ * 🥇 المزود الأول:  OpenRouter → qwen/qwen3-next-80b-a3b-instruct:free
  * 🥈 Fallback 1:    Google Gemini 2.5 Flash  (أسرع — مدفوع)
  * 🥉 Fallback 2:    Google Gemini 2.0 Flash  (مجاني — 4 مفاتيح بالتناوب)
  * 🏅 Fallback 3:    Groq → llama-3.3-70b-versatile (مجاني — سريع جداً)
@@ -23,7 +23,7 @@ import { NextRequest } from "next/server";
 // ═══════════════════════════════════════════════════════════════════════════
 
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
-const GROQ_KEY       = process.env.GROQ_API_KEY || "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";
+const GROQ_KEY       = process.env.GROQ_API_KEY || "";
 
 // ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
 export const GEMINI_KEYS: string[] = [
@@ -35,7 +35,7 @@ export const GEMINI_KEYS: string[] = [
 
 const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL      = "https://api.groq.com/openai/v1/chat/completions";
-const GEMINI_FLASH_25   = "gemini-2.5-flash";
+const GEMINI_FLASH_25   = "gemini-2.5-flash-preview-04-17";
 const GEMINI_FLASH_20   = "gemini-2.0-flash";
 const GEMINI_API_BASE   = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -54,11 +54,11 @@ export interface AIModel {
 }
 
 export const PRIMARY_MODEL: AIModel = {
-  id: "qwen/qwen3.6-plus:free",
-  label: "Qwen 3.6 Plus",
+  id: "qwen/qwen3-next-80b-a3b-instruct:free",
+  label: "Qwen3 Next 80B",
   tier: 0,
   maxTokens: 4096,
-  contextWindow: 1_000_000,
+  contextWindow: 262_144,
   provider: "openrouter",
 };
 

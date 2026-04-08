@@ -21,7 +21,7 @@ async function testOpenRouter(key: string): Promise<{ ok: boolean; status: numbe
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
       },
       body: JSON.stringify({
-        model: "qwen/qwen3.6-plus:free",
+        model: "qwen/qwen3-next-80b-a3b-instruct:free",
         messages: [{ role: "user", content: "OK" }],
         max_tokens: 3,
       }),
@@ -123,7 +123,7 @@ export async function GET() {
     openrouter: {
       configured: !!OR_KEY,
       keyPreview: OR_KEY ? `${OR_KEY.slice(0, 8)}...${OR_KEY.slice(-4)}` : null,
-      model: "qwen/qwen3.6-plus:free",
+      model: "qwen/qwen3-next-80b-a3b-instruct:free",
       ...orResult,
     },
     groq: {
