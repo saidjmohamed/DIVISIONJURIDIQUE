@@ -70,7 +70,7 @@ interface Message {
   content: string;
 }
 
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 // ─── POST: SSE Streaming + RAG ────────────────────────────────────
 export async function POST(req: NextRequest) {
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
           console.log(`[RAG] سؤال: "${userMessage}" → كلمات مفتاحية: [${keywords.join(", ")}]`);
 
           if (keywords.length > 0) {
-            const searchResults = await searchLaws(userMessage, 8);
+            const searchResults = await searchLaws(userMessage, 5);
             articlesFound = searchResults.totalFound;
 
             if (searchResults.articles.length > 0) {

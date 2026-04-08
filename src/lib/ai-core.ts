@@ -101,12 +101,12 @@ export type RequestType = 'chat' | 'legal_analysis' | 'json_extraction' | 'fast'
 
 export function getGlobalTimeout(type: RequestType): number {
   switch (type) {
-    case 'legal_analysis':  return 28_000;
-    case 'json_extraction': return 28_000;
-    case 'tools':           return 28_000;
-    case 'fast':            return 20_000;
+    case 'legal_analysis':  return 55_000;
+    case 'json_extraction': return 45_000;
+    case 'tools':           return 45_000;
+    case 'fast':            return 25_000;
     case 'chat':
-    default:                return 28_000;
+    default:                return 55_000;
   }
 }
 
@@ -189,7 +189,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   if (!geminiOnly && OPENROUTER_KEY) {
     triedModels.push(PRIMARY_MODEL.id);
     const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), Math.min(timeout, 20_000));
+    const timer = setTimeout(() => ctrl.abort(), Math.min(timeout, 30_000));
 
     try {
       const content = await callOpenRouter(
@@ -231,7 +231,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
     const key    = GEMINI_KEYS[i];
     const ctrl2  = new AbortController();
-    const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 15_000));
+    const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 25_000));
 
     try {
       console.log(`[AI Core] 🟡 Gemini 2.5 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
@@ -284,7 +284,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
     const key    = GEMINI_KEYS[i];
     const ctrl3  = new AbortController();
-    const timer3 = setTimeout(() => ctrl3.abort(), Math.min(timeLeft, 12_000));
+    const timer3 = setTimeout(() => ctrl3.abort(), Math.min(timeLeft, 20_000));
 
     try {
       console.log(`[AI Core] 🔵 Gemini 2.0 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);

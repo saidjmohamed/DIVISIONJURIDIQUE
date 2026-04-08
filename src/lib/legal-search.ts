@@ -302,13 +302,17 @@ export function formatSearchResultsForPrompt(results: SearchResult): string {
     return "لا توجد نصوص قانونية مطابقة لهذا السؤال.";
   }
 
+  const MAX_ARTICLE_TEXT = 500; // حرف كحد أقصى لكل مادة
   const lines: string[] = [];
   for (const art of results.articles) {
+    const truncatedText = art.text.length > MAX_ARTICLE_TEXT
+      ? art.text.slice(0, MAX_ARTICLE_TEXT) + "..."
+      : art.text;
     lines.push(
       `📌 المادة ${art.articleNumber} — ${art.lawName}` +
       (art.book ? ` [${art.book}]` : "") +
       (art.chapter ? ` [${art.chapter}]` : "") +
-      `\n${art.text}\n`
+      `\n${truncatedText}\n`
     );
   }
 
