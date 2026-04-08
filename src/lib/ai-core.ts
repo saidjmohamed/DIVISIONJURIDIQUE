@@ -1,7 +1,7 @@
 /**
  * AI Core — محرك الذكاء الاصطناعي (v11 — Smart Fallback System)
  *
- * 🥇 المزود الأول:  OpenRouter → qwen/qwen3-next-80b-a3b-instruct:free
+ * 🥇 المزود الأول:  OpenRouter → openai/gpt-oss-120b:free
  * 🥈 Fallback 1:    Google Gemini 2.5 Flash  (أسرع — مدفوع)
  * 🥉 Fallback 2:    Google Gemini 2.0 Flash  (مجاني — 4 مفاتيح بالتناوب)
  * 🏅 Fallback 3:    Groq → llama-3.3-70b-versatile (مجاني — سريع جداً)
@@ -35,7 +35,7 @@ export const GEMINI_KEYS: string[] = [
 
 const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL      = "https://api.groq.com/openai/v1/chat/completions";
-const GEMINI_FLASH_25   = "gemini-2.5-flash-preview-04-17";
+const GEMINI_FLASH_25   = "gemini-2.5-flash";
 const GEMINI_FLASH_20   = "gemini-2.0-flash";
 const GEMINI_API_BASE   = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -54,11 +54,11 @@ export interface AIModel {
 }
 
 export const PRIMARY_MODEL: AIModel = {
-  id: "qwen/qwen3-next-80b-a3b-instruct:free",
-  label: "Qwen3 Next 80B",
+  id: "openai/gpt-oss-120b:free",
+  label: "GPT-OSS 120B",
   tier: 0,
   maxTokens: 4096,
-  contextWindow: 262_144,
+  contextWindow: 131_072,
   provider: "openrouter",
 };
 
@@ -184,36 +184,49 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   const triedModels: string[] = [];
 
   // ══════════════════════════════════════════════════════════
-  // 🥇 المستوى الأول: OpenRouter (Qwen 3.6 Plus Free)
+  // 🥇 المستوى الأول: OpenRouter — يجرب 3 نماذج مجانية بالتتابع
   // ══════════════════════════════════════════════════════════
+  const OR_FREE_MODELS = [
+    PRIMARY_MODEL,
+    { ...PRIMARY_MODEL, id: "minimax/minimax-m2.5:free", label: "MiniMax M2.5" },
+    { ...PRIMARY_MODEL, id: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 3 Super" },
+  ];
+
   if (!geminiOnly && OPENROUTER_KEY) {
-    triedModels.push(PRIMARY_MODEL.id);
-    const ctrl  = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), Math.min(timeout, 30_000));
+    for (const orModel of OR_FREE_MODELS) {
+      const timeLeft = timeout - (Date.now() - startTime);
+      if (timeLeft < 5_000) break;
 
-    try {
-      const content = await callOpenRouter(
-        systemPrompt, userMessage, messages,
-        maxTokens || PRIMARY_MODEL.maxTokens,
-        temperature, ctrl.signal,
-      );
-      clearTimeout(timer);
+      triedModels.push(orModel.id);
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), Math.min(timeLeft, 30_000));
 
-      if (content) {
-        return {
-          content,
-          model: PRIMARY_MODEL,
-          triedModels,
-          elapsedMs: Date.now() - startTime,
-          timedOut: false,
-          usedFallback: false,
-        };
+      try {
+        console.log(`[AI Core] 🟢 OpenRouter (${orModel.label})...`);
+        const content = await callOpenRouter(
+          systemPrompt, userMessage, messages,
+          maxTokens || orModel.maxTokens,
+          temperature, ctrl.signal,
+          orModel.id,
+        );
+        clearTimeout(timer);
+
+        if (content) {
+          return {
+            content,
+            model: orModel,
+            triedModels,
+            elapsedMs: Date.now() - startTime,
+            timedOut: false,
+            usedFallback: orModel.id !== PRIMARY_MODEL.id,
+          };
+        }
+        console.warn(`[AI Core] ${orModel.label} رد فارغ → النموذج التالي`);
+      } catch (err) {
+        clearTimeout(timer);
+        const isAbort = err instanceof Error && err.name === 'AbortError';
+        console.warn(`[AI Core] ${orModel.label} ${isAbort ? 'TIMEOUT' : 'ERROR'} → النموذج التالي`);
       }
-      console.warn("[AI Core] OpenRouter رد فارغ → Gemini 2.5 Flash");
-    } catch (err) {
-      clearTimeout(timer);
-      const isAbort = err instanceof Error && err.name === 'AbortError';
-      console.warn(`[AI Core] OpenRouter ${isAbort ? 'TIMEOUT' : 'ERROR'} → Gemini 2.5 Flash`);
     }
   } else if (!geminiOnly) {
     console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط → Gemini مباشرة");
@@ -389,6 +402,7 @@ async function callOpenRouter(
   maxTokens: number,
   temperature: number,
   signal: AbortSignal,
+  modelId?: string,
 ): Promise<string | null> {
   if (!OPENROUTER_KEY) return null;
 
@@ -417,7 +431,7 @@ async function callOpenRouter(
         "X-Title": "Shamil DZ - Legal AI",
       },
       body: JSON.stringify({
-        model: PRIMARY_MODEL.id,
+        model: modelId || PRIMARY_MODEL.id,
         messages: apiMessages,
         max_tokens: maxTokens,
         temperature,

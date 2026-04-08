@@ -21,7 +21,7 @@ async function testOpenRouter(key: string): Promise<{ ok: boolean; status: numbe
         "HTTP-Referer": "https://hiyaat-dz.vercel.app",
       },
       body: JSON.stringify({
-        model: "qwen/qwen3-next-80b-a3b-instruct:free",
+        model: "openai/gpt-oss-120b:free",
         messages: [{ role: "user", content: "OK" }],
         max_tokens: 3,
       }),
@@ -108,7 +108,7 @@ export async function GET() {
     OR_KEY ? testOpenRouter(OR_KEY) : Promise.resolve({ ok: false, status: 0, latencyMs: 0, error: "KEY_MISSING" }),
     GROQ_K ? testGroq(GROQ_K) : Promise.resolve({ ok: false, status: 0, latencyMs: 0, error: "KEY_MISSING" }),
     // اختبار Gemini 2.5 Flash على جميع المفاتيح
-    ...GEMINI_KEYS.map(k => testGemini(k, "gemini-2.5-flash-preview-04-17")),
+    ...GEMINI_KEYS.map(k => testGemini(k, "gemini-2.5-flash")),
     // اختبار Gemini 2.0 Flash على جميع المفاتيح
     ...GEMINI_KEYS.map(k => testGemini(k, "gemini-2.0-flash")),
   ]);
@@ -123,7 +123,7 @@ export async function GET() {
     openrouter: {
       configured: !!OR_KEY,
       keyPreview: OR_KEY ? `${OR_KEY.slice(0, 8)}...${OR_KEY.slice(-4)}` : null,
-      model: "qwen/qwen3-next-80b-a3b-instruct:free",
+      model: "openai/gpt-oss-120b:free",
       ...orResult,
     },
     groq: {
@@ -133,7 +133,7 @@ export async function GET() {
       ...groqResult,
     },
     gemini25Flash: {
-      model: "gemini-2.5-flash-preview-04-17",
+      model: "gemini-2.5-flash",
       totalKeys: GEMINI_KEYS.length,
       keys: GEMINI_KEYS.map((k, i) => ({
         index: i + 1,

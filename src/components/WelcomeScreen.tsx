@@ -71,7 +71,7 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
     },
     {
       title: "الذكاء الاصطناعي القانوني",
-      description: "مساعد ذكي مدعم بنموذج Qwen3 Next 80B للإجابة على استفساراتك القانونية وتلخيص النصوص المعقدة بسرعة ودقة.",
+      description: "مساعد ذكي مدعم بنموذج GPT-OSS 120B للإجابة على استفساراتك القانونية وتلخيص النصوص المعقدة بسرعة ودقة.",
       icon: "🤖",
       color: "from-indigo-600 to-indigo-800"
     }
