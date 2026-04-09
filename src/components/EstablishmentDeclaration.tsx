@@ -539,7 +539,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
             </div>
             <div>
               <label className={labelClass}>المحكمة: <span className="text-red-500">*</span></label>
-              <input type="text" placeholder="مثال: محكمة بئر مراد رايس" value={penalData.court}
+              <input type="text" placeholder="مثال: بئر مراد رايس" value={penalData.court}
                 onChange={e => updatePenal('court', e.target.value)} className={inputClass('court')} />
             </div>
             <div>
@@ -638,7 +638,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
           </div>
           <div>
             <label className={labelClass}>المحكمة: <span className="text-red-500">*</span></label>
-            <input type="text" placeholder="مثال: محكمة بئر مراد رايس" value={civilData.court}
+            <input type="text" placeholder="مثال: بئر مراد رايس" value={civilData.court}
               onChange={e => updateCivil('court', e.target.value)} className={inputClass('court')} />
           </div>
           <div>
