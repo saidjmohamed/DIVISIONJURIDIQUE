@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { PDFDocument } from 'pdf-lib';
+import EstablishmentDeclaration from './EstablishmentDeclaration';
 
 // Dynamic import for pdfjs-dist — avoids SSR/canvas issues on server
 async function loadPdfjs() {
@@ -372,12 +373,13 @@ function PdfCompressTool() {
 
 // ===== Main =====
 export default function ElectronicLitigationTab() {
-  const [activeSection, setActiveSection] = useState<'platforms' | 'tools'>('platforms');
+  const [activeSection, setActiveSection] = useState<'platforms' | 'tools' | 'tasis'>('platforms');
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
       <div className="flex gap-2 mb-6">
         <button onClick={() => setActiveSection('platforms')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'platforms' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>🏛️ منصات التقاضي</button>
+        <button onClick={() => setActiveSection('tasis')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tasis' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>📋 إعلان تأسيس</button>
         <button onClick={() => setActiveSection('tools')} className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tools' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>📄 ضغط PDF</button>
       </div>
 
@@ -404,6 +406,8 @@ export default function ElectronicLitigationTab() {
           </div>
           <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 border border-blue-100 dark:border-blue-800"><p className="text-sm text-blue-700 dark:text-blue-300 text-center">💡 جميع هذه المنصات تابعة لوزارة العدل الجزائرية</p></div>
         </div>
+      ) : activeSection === 'tasis' ? (
+        <EstablishmentDeclaration onBack={() => setActiveSection('platforms')} />
       ) : (
         <PdfCompressTool />
       )}
