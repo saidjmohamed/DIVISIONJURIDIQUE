@@ -6,10 +6,16 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 
 type FormType = 'penal' | 'civil';
 
+// الجهة الموجه إليها — محكمة
+type CourtLevel = 'tribunal' | 'council';
+
 interface PenalFormData {
+  courtLevel: CourtLevel;
   courtCouncil: string;
   court: string;
   section: string;
+  // الجهة الموجه إليها
+  addressee: string; // حقل حر أو اختيار
   lawyerName: string;
   clientName: string;
   capacity: 'non_detained' | 'detained' | 'civil_party';
@@ -19,12 +25,13 @@ interface PenalFormData {
 }
 
 interface CivilFormData {
+  courtLevel: CourtLevel;
   courtCouncil: string;
   court: string;
   section: string;
+  addressee: string;
   caseNumber: string;
   sessionDate: string;
-  judgeName: string;
   lawyerName: string;
   clientName: string;
   opponent: string;
@@ -44,34 +51,76 @@ const REQUEST_OPTIONS = [
   { value: 'contact_institution' as const, label: 'الاتصال بالمؤسسة' },
 ];
 
-const LS_KEY_PENAL = 'tasis_penal_data';
-const LS_KEY_CIVIL = 'tasis_civil_data';
+// الجهات الموجه إليها — محكمة (جزائي)
+const TRIBUNAL_PENAL_ADDRESSEES = [
+  'السيد الرئيس الفاصل في قضايا الجنح',
+  'السيد الرئيس الفاصل في قضايا المخالفات',
+  'السيد الرئيس الفاصل في قضايا الأحداث',
+  'السيد قاضي التحقيق',
+];
+
+// الجهات الموجه إليها — مجلس (جزائي)
+const COUNCIL_PENAL_ADDRESSEES = [
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة الجزائية',
+  'السيد الرئيس والسادة المستشارين المشكلين لغرفة الاتهام',
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة الجزائية للأحداث',
+];
+
+// الجهات الموجه إليها — محكمة (مدني)
+const TRIBUNAL_CIVIL_ADDRESSEES = [
+  'السيد الرئيس الفاصل في القضايا المدنية',
+  'السيد الرئيس الفاصل في القضايا العقارية',
+  'السيد الرئيس الفاصل في القضايا الاجتماعية',
+  'السيد الرئيس الفاصل في القضايا التجارية',
+  'السيد الرئيس الفاصل في شؤون الأسرة',
+  'السيد الرئيس الفاصل في القضايا الاستعجالية',
+];
+
+// الجهات الموجه إليها — مجلس (مدني)
+const COUNCIL_CIVIL_ADDRESSEES = [
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة المدنية',
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة العقارية',
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة الاجتماعية',
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة التجارية',
+  'السيد الرئيس والسادة المستشارين المشكلين لغرفة شؤون الأسرة',
+  'السيد الرئيس والسادة المستشارين المشكلين للغرفة الاستعجالية',
+];
+
+const LS_KEY_PENAL = 'tasis_penal_data_v2';
+const LS_KEY_CIVIL = 'tasis_civil_data_v2';
 
 /* ─────────────────────── Legal Text Generation ─────────────────────── */
 
 function generatePenalText(data: PenalFormData): string {
   const capacityLabel = CAPACITY_OPTIONS.find(o => o.value === data.capacity)?.label || '';
   const today = new Date().toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
+  const levelLabel = data.courtLevel === 'council' ? 'مجلس قضاء' : 'محكمة';
 
   let requestLine = '';
   if (data.requestType === 'file_review') {
-    requestLine = `\nكما يلتمس الدفاع تمكينه من الاطلاع على ملف القضية طبقاً للقانون.`;
+    requestLine = '\nكما يلتمس الدفاع تمكينه من الاطلاع على ملف القضية طبقاً للقانون.';
   } else if (data.requestType === 'file_copy') {
-    requestLine = `\nكما يلتمس الدفاع الحصول على نسخة من ملف القضية.`;
+    requestLine = '\nكما يلتمس الدفاع الحصول على نسخة من ملف القضية.';
   } else if (data.requestType === 'contact_institution') {
-    requestLine = `\nكما يلتمس الدفاع الترخيص له بالاتصال بالمؤسسة العقابية لزيارة موكله.`;
+    requestLine = '\nكما يلتمس الدفاع الترخيص له بالاتصال بالمؤسسة العقابية لزيارة موكله.';
   }
+
+  const locationLine = data.courtLevel === 'council'
+    ? `مجلس قضاء ${data.courtCouncil}`
+    : `مجلس قضاء ${data.courtCouncil}\nمحكمة ${data.court}`;
+
+  const sectionLine = data.section ? `\n${data.courtLevel === 'council' ? 'الغرفة' : 'القسم / الغرفة'}: ${data.section}` : '';
 
   return `الجمهورية الجزائرية الديمقراطية الشعبية
 وزارة العدل
 
-مجلس قضاء ${data.courtCouncil}
-محكمة ${data.court}
-${data.section ? `القسم / الغرفة: ${data.section}` : ''}
+${locationLine}${sectionLine}
 
 إعلان تأسيس وتوكيل
 
-أنا الموقع أدناه الأستاذ(ة) ${data.lawyerName}، محام(ية) معتمد(ة) لدى المجلس،
+إلى ${data.addressee}
+
+أنا الموقع أدناه الأستاذ(ة) ${data.lawyerName}، محام(ية) معتمد(ة) لدى ${data.courtLevel === 'council' ? 'المجلس' : 'المحكمة'}،
 
 أتشرف بإعلام سيادتكم أنني أتأسس وأنصب نفسي دفاعاً عن ${capacityLabel}:
 السيد(ة): ${data.clientName}
@@ -84,7 +133,7 @@ ${requestLine}
 
 وتفضلوا بقبول فائق التقدير والاحترام.
 
-حرر بـ ${data.court} في: ${today}
+حرر بـ ${data.courtLevel === 'council' ? data.courtCouncil : data.court} في: ${today}
 
 المحامي(ة)
 الأستاذ(ة) ${data.lawyerName}
@@ -94,20 +143,24 @@ ${requestLine}
 function generateCivilText(data: CivilFormData): string {
   const today = new Date().toLocaleDateString('ar-DZ', { year: 'numeric', month: 'long', day: 'numeric' });
 
+  const locationLine = data.courtLevel === 'council'
+    ? `مجلس قضاء ${data.courtCouncil}`
+    : `مجلس قضاء ${data.courtCouncil}\nمحكمة ${data.court}`;
+
+  const sectionLine = data.section ? `\n${data.courtLevel === 'council' ? 'الغرفة' : 'القسم'}: ${data.section}` : '';
+
   return `الجمهورية الجزائرية الديمقراطية الشعبية
 وزارة العدل
 
-مجلس قضاء ${data.courtCouncil}
-محكمة ${data.court}
-${data.section ? `القسم: ${data.section}` : ''}
+${locationLine}${sectionLine}
 
 إعلان تأسيس وتوكيل
 
-السيد(ة) رئيس(ة) المحكمة: ${data.judgeName}
+إلى ${data.addressee}
 
 الموضوع: ${data.caseSubject}
 
-أنا الموقع أدناه الأستاذ(ة) ${data.lawyerName}، محام(ية) معتمد(ة) لدى المجلس،
+أنا الموقع أدناه الأستاذ(ة) ${data.lawyerName}، محام(ية) معتمد(ة) لدى ${data.courtLevel === 'council' ? 'المجلس' : 'المحكمة'}،
 
 أتشرف بإعلام سيادتكم أنني أتأسس وأنصب نفسي دفاعاً ووكيلاً عن:
 السيد(ة): ${data.clientName}
@@ -121,154 +174,151 @@ ${data.section ? `القسم: ${data.section}` : ''}
 
 وتفضلوا بقبول فائق التقدير والاحترام.
 
-حرر بـ ${data.court} في: ${today}
+حرر بـ ${data.courtLevel === 'council' ? data.courtCouncil : data.court} في: ${today}
 
 المحامي(ة)
 الأستاذ(ة) ${data.lawyerName}
 الإمضاء`;
 }
 
-/* ─────────────────────── PDF Generation ─────────────────────── */
+/* ─────────────────────── PDF Generation via HTML ─────────────────────── */
 
 async function generatePdf(text: string, formType: FormType): Promise<Blob> {
-  const { PDFDocument, rgb } = await import('pdf-lib');
-  const fontkit = (await import('@pdf-lib/fontkit')).default;
+  const { default: html2canvas } = await import('html2canvas');
+  const { default: jsPDF } = await import('jspdf');
 
-  const pdfDoc = await PDFDocument.create();
-  pdfDoc.registerFontkit(fontkit);
+  // Create a hidden container with proper Arabic HTML
+  const container = document.createElement('div');
+  container.style.cssText = `
+    position: fixed; left: -9999px; top: 0;
+    width: 595px; /* A4 width at 72dpi */
+    background: white;
+    font-family: 'Noto Sans Arabic', 'Segoe UI', 'Arial', sans-serif;
+    direction: rtl;
+    padding: 0;
+  `;
 
-  // Load Arabic font
-  const fontResponse = await fetch('/fonts/NotoSansArabic-Regular.ttf');
-  const fontBytes = await fontResponse.arrayBuffer();
-  const arabicFont = await pdfDoc.embedFont(fontBytes);
+  const lines = text.split('\n');
+  let html = `
+    <div style="padding: 50px 45px 40px 45px; min-height: 842px; box-sizing: border-box;">
+      <!-- Header: Justice Icon -->
+      <div style="text-align: center; margin-bottom: 8px;">
+        <svg width="48" height="48" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M32 4 L32 56 M16 56 L48 56 M12 20 L52 20 M12 20 L6 36 C6 42 12 42 18 42 L18 36 L12 20 M52 20 L46 36 C46 42 52 42 58 42 L58 36 L52 20 M32 4 C34 4 36 6 36 8 C36 10 34 12 32 12 C30 12 28 10 28 8 C28 6 30 4 32 4" stroke="#1a3a5c" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <!-- Divider -->
+      <div style="border-top: 1px solid #c0c0c0; margin: 0 120px 20px 120px;"></div>
+  `;
 
-  const PAGE_WIDTH = 595.28; // A4
-  const PAGE_HEIGHT = 841.89;
-  const MARGIN = 50;
-  const FONT_SIZE = 12;
-  const HEADER_SIZE = 14;
-  const LINE_HEIGHT = FONT_SIZE * 2.2;
-  const CONTENT_WIDTH = PAGE_WIDTH - 2 * MARGIN;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
 
-  // Reverse Arabic text for RTL rendering in pdf-lib
-  function reverseText(str: string): string {
-    return str.split('').reverse().join('');
+    if (!trimmed) {
+      html += '<div style="height: 12px;"></div>';
+      continue;
+    }
+
+    // Republic header
+    if (trimmed === 'الجمهورية الجزائرية الديمقراطية الشعبية') {
+      html += `<div style="text-align: center; font-size: 15px; font-weight: 700; color: #1a3a5c; margin-bottom: 2px;">${trimmed}</div>`;
+    }
+    // Ministry
+    else if (trimmed === 'وزارة العدل') {
+      html += `<div style="text-align: center; font-size: 13px; font-weight: 600; color: #1a3a5c; margin-bottom: 10px;">${trimmed}</div>`;
+    }
+    // Title
+    else if (trimmed === 'إعلان تأسيس وتوكيل') {
+      html += `<div style="text-align: center; font-size: 16px; font-weight: 700; color: #1a3a5c; margin: 16px 0; padding: 8px 0; border-top: 2px solid #1a3a5c; border-bottom: 2px solid #1a3a5c;">${trimmed}</div>`;
+    }
+    // "إلى" addressee line
+    else if (trimmed.startsWith('إلى ')) {
+      html += `<div style="text-align: center; font-size: 13px; font-weight: 700; color: #2c3e50; margin: 8px 0 12px 0;">${trimmed}</div>`;
+    }
+    // Court info lines
+    else if (trimmed.startsWith('مجلس قضاء') || trimmed.startsWith('محكمة ') || trimmed.startsWith('القسم') || trimmed.startsWith('الغرفة')) {
+      html += `<div style="text-align: center; font-size: 12px; font-weight: 600; color: #34495e; margin-bottom: 2px;">${trimmed}</div>`;
+    }
+    // Lawyer signature section
+    else if (trimmed === 'المحامي(ة)' || trimmed.startsWith('الأستاذ(ة)') || trimmed === 'الإمضاء') {
+      html += `<div style="text-align: left; font-size: 12px; font-weight: 600; color: #1a3a5c; margin-top: 2px; padding-left: 50px;">${trimmed}</div>`;
+    }
+    // Date line
+    else if (trimmed.startsWith('حرر بـ')) {
+      html += `<div style="text-align: left; font-size: 11px; color: #555; margin-top: 16px; padding-left: 50px;">${trimmed}</div>`;
+    }
+    // Subject/topic line
+    else if (trimmed.startsWith('الموضوع:')) {
+      html += `<div style="font-size: 12px; font-weight: 700; color: #2c3e50; margin: 4px 0;">${trimmed}</div>`;
+    }
+    // Case info
+    else if (trimmed.startsWith('في القضية رقم:') || trimmed.startsWith('المحددة لجلسة:')) {
+      html += `<div style="font-size: 12px; color: #333; margin: 2px 0; font-weight: 600;">${trimmed}</div>`;
+    }
+    // Client/opponent
+    else if (trimmed.startsWith('السيد(ة):') || trimmed.startsWith('ضد:')) {
+      html += `<div style="font-size: 12px; color: #333; margin: 2px 0; font-weight: 700;">${trimmed}</div>`;
+    }
+    // Regular text
+    else {
+      html += `<div style="font-size: 12px; color: #333; line-height: 1.8; margin: 3px 0;">${trimmed}</div>`;
+    }
   }
 
-  // Split text into lines that fit the page width
-  function wrapLine(line: string, fontSize: number): string[] {
-    if (!line.trim()) return [''];
-    const words = line.split(/\s+/);
-    const lines: string[] = [];
-    let current = '';
+  // Footer
+  const typeLabel = formType === 'penal' ? 'إعلان تأسيس - جزائي' : 'إعلان تأسيس - مدني';
+  html += `
+      <div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 8px; text-align: center;">
+        <span style="font-size: 9px; color: #999;">${typeLabel} — منصة الشامل</span>
+      </div>
+    </div>
+  `;
 
-    for (const word of words) {
-      const test = current ? current + ' ' + word : word;
-      const width = arabicFont.widthOfTextAtSize(reverseText(test), fontSize);
-      if (width > CONTENT_WIDTH && current) {
-        lines.push(current);
-        current = word;
-      } else {
-        current = test;
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  try {
+    const canvas = await html2canvas(container, {
+      scale: 3, // High resolution
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      width: 595,
+    });
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4',
+    });
+
+    const pdfWidth = 210; // A4 mm
+    const pdfHeight = 297;
+    const imgWidth = pdfWidth;
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+
+    // If content fits on one page
+    if (imgHeight <= pdfHeight) {
+      pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
+    } else {
+      // Multi-page
+      let remainingHeight = imgHeight;
+      let position = 0;
+      while (remainingHeight > 0) {
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        remainingHeight -= pdfHeight;
+        if (remainingHeight > 0) {
+          pdf.addPage();
+          position -= pdfHeight;
+        }
       }
     }
-    if (current) lines.push(current);
-    return lines;
+
+    return pdf.output('blob');
+  } finally {
+    document.body.removeChild(container);
   }
-
-  // Build all visual lines
-  const rawLines = text.split('\n');
-  const allLines: { text: string; isHeader: boolean }[] = [];
-
-  for (let i = 0; i < rawLines.length; i++) {
-    const line = rawLines[i];
-    const isHeader = i <= 1 || line.startsWith('إعلان تأسيس');
-    const fontSize = isHeader ? HEADER_SIZE : FONT_SIZE;
-    const wrapped = wrapLine(line, fontSize);
-    for (const w of wrapped) {
-      allLines.push({ text: w, isHeader });
-    }
-  }
-
-  // Render pages
-  let page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  let y = PAGE_HEIGHT - MARGIN;
-  const BOTTOM_MARGIN = 60;
-
-  // Draw header icon ⚖️ on first page
-  const iconText = reverseText('⚖');
-  try {
-    const iconWidth = arabicFont.widthOfTextAtSize(iconText, 28);
-    page.drawText(iconText, {
-      x: (PAGE_WIDTH - iconWidth) / 2,
-      y: y,
-      size: 28,
-      font: arabicFont,
-      color: rgb(0.1, 0.23, 0.36),
-    });
-  } catch {
-    // If the scale symbol can't be rendered with this font, skip it
-  }
-  y -= 35;
-
-  // Draw a subtle line under header
-  page.drawLine({
-    start: { x: MARGIN + 100, y: y + 5 },
-    end: { x: PAGE_WIDTH - MARGIN - 100, y: y + 5 },
-    thickness: 0.5,
-    color: rgb(0.6, 0.6, 0.6),
-  });
-  y -= 15;
-
-  for (const lineObj of allLines) {
-    if (y < BOTTOM_MARGIN) {
-      page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-      y = PAGE_HEIGHT - MARGIN;
-    }
-
-    const fontSize = lineObj.isHeader ? HEADER_SIZE : FONT_SIZE;
-    const color = lineObj.isHeader ? rgb(0.1, 0.23, 0.36) : rgb(0.1, 0.1, 0.1);
-    const reversed = reverseText(lineObj.text);
-    const textWidth = arabicFont.widthOfTextAtSize(reversed, fontSize);
-
-    // RTL: right-align text
-    const x = PAGE_WIDTH - MARGIN - textWidth;
-
-    if (lineObj.text.trim()) {
-      page.drawText(reversed, {
-        x: Math.max(MARGIN, x),
-        y,
-        size: fontSize,
-        font: arabicFont,
-        color,
-      });
-    }
-
-    y -= LINE_HEIGHT;
-  }
-
-  // Footer line on last page
-  y -= 10;
-  page.drawLine({
-    start: { x: MARGIN, y: Math.max(40, y) },
-    end: { x: PAGE_WIDTH - MARGIN, y: Math.max(40, y) },
-    thickness: 0.3,
-    color: rgb(0.7, 0.7, 0.7),
-  });
-
-  const typeLabel = formType === 'penal' ? 'إعلان تأسيس - جزائي' : 'إعلان تأسيس - مدني';
-  const footerReversed = reverseText(typeLabel);
-  const footerWidth = arabicFont.widthOfTextAtSize(footerReversed, 8);
-  page.drawText(footerReversed, {
-    x: (PAGE_WIDTH - footerWidth) / 2,
-    y: Math.max(25, y - 15),
-    size: 8,
-    font: arabicFont,
-    color: rgb(0.5, 0.5, 0.5),
-  });
-
-  const pdfBytes = await pdfDoc.save();
-  return new Blob([pdfBytes], { type: 'application/pdf' });
 }
 
 /* ─────────────────────── Component ─────────────────────── */
@@ -276,12 +326,14 @@ async function generatePdf(text: string, formType: FormType): Promise<Blob> {
 export default function EstablishmentDeclaration({ onBack }: { onBack: () => void }) {
   const [formType, setFormType] = useState<FormType | null>(null);
   const [penalData, setPenalData] = useState<PenalFormData>({
-    courtCouncil: '', court: '', section: '', lawyerName: '', clientName: '',
+    courtLevel: 'tribunal', courtCouncil: '', court: '', section: '',
+    addressee: '', lawyerName: '', clientName: '',
     capacity: 'non_detained', caseNumber: '', sessionDate: '', requestType: '',
   });
   const [civilData, setCivilData] = useState<CivilFormData>({
-    courtCouncil: '', court: '', section: '', caseNumber: '', sessionDate: '',
-    judgeName: '', lawyerName: '', clientName: '', opponent: '', caseSubject: '',
+    courtLevel: 'tribunal', courtCouncil: '', court: '', section: '',
+    addressee: '', caseNumber: '', sessionDate: '',
+    lawyerName: '', clientName: '', opponent: '', caseSubject: '',
   });
   const [generatedText, setGeneratedText] = useState<string | null>(null);
   const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
@@ -315,17 +367,31 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
   }, [civilData]);
 
   function updatePenal<K extends keyof PenalFormData>(key: K, value: PenalFormData[K]) {
-    setPenalData(prev => ({ ...prev, [key]: value }));
+    setPenalData(prev => {
+      const updated = { ...prev, [key]: value };
+      // Reset addressee when switching court level
+      if (key === 'courtLevel') {
+        updated.addressee = '';
+      }
+      return updated;
+    });
     setErrors(prev => ({ ...prev, [key]: false }));
   }
 
   function updateCivil<K extends keyof CivilFormData>(key: K, value: CivilFormData[K]) {
-    setCivilData(prev => ({ ...prev, [key]: value }));
+    setCivilData(prev => {
+      const updated = { ...prev, [key]: value };
+      if (key === 'courtLevel') {
+        updated.addressee = '';
+      }
+      return updated;
+    });
     setErrors(prev => ({ ...prev, [key]: false }));
   }
 
   function validatePenal(): boolean {
-    const required: (keyof PenalFormData)[] = ['courtCouncil', 'court', 'lawyerName', 'clientName', 'caseNumber', 'sessionDate'];
+    const required: (keyof PenalFormData)[] = ['courtCouncil', 'addressee', 'lawyerName', 'clientName', 'caseNumber', 'sessionDate'];
+    if (penalData.courtLevel === 'tribunal') required.push('court');
     const newErrors: Record<string, boolean> = {};
     let valid = true;
     for (const key of required) {
@@ -339,7 +405,8 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
   }
 
   function validateCivil(): boolean {
-    const required: (keyof CivilFormData)[] = ['courtCouncil', 'court', 'caseNumber', 'sessionDate', 'lawyerName', 'clientName', 'opponent', 'caseSubject'];
+    const required: (keyof CivilFormData)[] = ['courtCouncil', 'addressee', 'caseNumber', 'sessionDate', 'lawyerName', 'clientName', 'opponent', 'caseSubject'];
+    if (civilData.courtLevel === 'tribunal') required.push('court');
     const newErrors: Record<string, boolean> = {};
     let valid = true;
     for (const key of required) {
@@ -418,11 +485,67 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
     setErrors({});
   }
 
-  // ─── Input helper ───
+  // ─── Shared Styles ───
   const inputClass = (key: string) =>
     `w-full text-sm border ${errors[key] ? 'border-red-400 ring-2 ring-red-200' : 'border-gray-200 dark:border-gray-600'} rounded-lg px-3 py-2 bg-gray-50 dark:bg-gray-900 focus:ring-2 focus:ring-[#1a3a5c]/40 dark:focus:ring-[#f0c040]/40 outline-none transition-all`;
 
   const labelClass = 'block text-xs font-bold text-gray-600 dark:text-gray-400 mb-1';
+
+  const toggleBtnClass = (active: boolean) =>
+    `p-2.5 rounded-lg border text-xs font-bold transition-all ${
+      active
+        ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] border-[#1a3a5c] dark:border-[#f0c040]'
+        : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#1a3a5c]/50'
+    }`;
+
+  // ─── Court Level + Addressee Picker (shared) ───
+  function renderCourtLevelAndAddressee(
+    courtLevel: CourtLevel,
+    addressee: string,
+    addressees: string[],
+    onCourtLevelChange: (v: CourtLevel) => void,
+    onAddresseeChange: (v: string) => void,
+    formTypeStr: 'penal' | 'civil'
+  ) {
+    const penalAddressees = courtLevel === 'council' ? COUNCIL_PENAL_ADDRESSEES : TRIBUNAL_PENAL_ADDRESSEES;
+    const civilAddressees = courtLevel === 'council' ? COUNCIL_CIVIL_ADDRESSEES : TRIBUNAL_CIVIL_ADDRESSEES;
+    const list = formTypeStr === 'penal' ? penalAddressees : civilAddressees;
+
+    return (
+      <>
+        {/* مستوى الجهة القضائية */}
+        <div className="col-span-full">
+          <label className={labelClass}>الجهة القضائية: <span className="text-red-500">*</span></label>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => onCourtLevelChange('tribunal')} className={toggleBtnClass(courtLevel === 'tribunal')}>
+              🏛️ محكمة (درجة أولى)
+            </button>
+            <button type="button" onClick={() => onCourtLevelChange('council')} className={toggleBtnClass(courtLevel === 'council')}>
+              🏛️ مجلس قضاء (استئناف)
+            </button>
+          </div>
+        </div>
+
+        {/* الجهة الموجه إليها */}
+        <div className="col-span-full">
+          <label className={labelClass}>الجهة الموجه إليها: <span className="text-red-500">*</span></label>
+          <div className={`grid ${list.length > 3 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-2`}>
+            {list.map(opt => (
+              <button key={opt} type="button" onClick={() => onAddresseeChange(opt)}
+                className={`p-2.5 rounded-lg border text-[11px] font-bold transition-all text-right leading-relaxed ${
+                  addressee === opt
+                    ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] border-[#1a3a5c] dark:border-[#f0c040]'
+                    : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#1a3a5c]/50'
+                }`}>
+                {opt}
+              </button>
+            ))}
+          </div>
+          {errors['addressee'] && <p className="text-xs text-red-500 mt-1">يرجى اختيار الجهة الموجه إليها</p>}
+        </div>
+      </>
+    );
+  }
 
   // ─── Result View ───
   if (generatedText) {
@@ -532,19 +655,29 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
 
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+            {renderCourtLevelAndAddressee(
+              penalData.courtLevel, penalData.addressee, [],
+              (v) => updatePenal('courtLevel', v),
+              (v) => updatePenal('addressee', v),
+              'penal'
+            )}
+
             <div>
               <label className={labelClass}>مجلس القضاء: <span className="text-red-500">*</span></label>
               <input type="text" placeholder="مثال: الجزائر" value={penalData.courtCouncil}
                 onChange={e => updatePenal('courtCouncil', e.target.value)} className={inputClass('courtCouncil')} />
             </div>
+            {penalData.courtLevel === 'tribunal' && (
+              <div>
+                <label className={labelClass}>المحكمة: <span className="text-red-500">*</span></label>
+                <input type="text" placeholder="مثال: بئر مراد رايس" value={penalData.court}
+                  onChange={e => updatePenal('court', e.target.value)} className={inputClass('court')} />
+              </div>
+            )}
             <div>
-              <label className={labelClass}>المحكمة: <span className="text-red-500">*</span></label>
-              <input type="text" placeholder="مثال: بئر مراد رايس" value={penalData.court}
-                onChange={e => updatePenal('court', e.target.value)} className={inputClass('court')} />
-            </div>
-            <div>
-              <label className={labelClass}>القسم / الغرفة:</label>
-              <input type="text" placeholder="مثال: الغرفة الجزائية الأولى" value={penalData.section}
+              <label className={labelClass}>{penalData.courtLevel === 'council' ? 'الغرفة:' : 'القسم / الغرفة:'}</label>
+              <input type="text" placeholder={penalData.courtLevel === 'council' ? 'مثال: الغرفة الجزائية' : 'مثال: الغرفة الجزائية الأولى'} value={penalData.section}
                 onChange={e => updatePenal('section', e.target.value)} className={inputClass('section')} />
             </div>
             <div>
@@ -572,12 +705,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
               <label className={labelClass}>الصفة: <span className="text-red-500">*</span></label>
               <div className="grid grid-cols-3 gap-2">
                 {CAPACITY_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => updatePenal('capacity', opt.value)}
-                    className={`p-2.5 rounded-lg border text-xs font-bold transition-all ${
-                      penalData.capacity === opt.value
-                        ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] border-[#1a3a5c] dark:border-[#f0c040]'
-                        : 'bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-[#1a3a5c]/50'
-                    }`}>
+                  <button key={opt.value} type="button" onClick={() => updatePenal('capacity', opt.value)} className={toggleBtnClass(penalData.capacity === opt.value)}>
                     {opt.label}
                   </button>
                 ))}
@@ -588,7 +716,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
               <label className={labelClass}>نوع الطلب (اختياري):</label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {REQUEST_OPTIONS.map(opt => (
-                  <button key={opt.value} onClick={() => updatePenal('requestType', opt.value)}
+                  <button key={opt.value} type="button" onClick={() => updatePenal('requestType', opt.value)}
                     className={`p-2 rounded-lg border text-[10px] font-bold transition-all ${
                       penalData.requestType === opt.value
                         ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] border-[#1a3a5c] dark:border-[#f0c040]'
@@ -631,19 +759,29 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {renderCourtLevelAndAddressee(
+            civilData.courtLevel, civilData.addressee, [],
+            (v) => updateCivil('courtLevel', v),
+            (v) => updateCivil('addressee', v),
+            'civil'
+          )}
+
           <div>
             <label className={labelClass}>مجلس القضاء: <span className="text-red-500">*</span></label>
             <input type="text" placeholder="مثال: الجزائر" value={civilData.courtCouncil}
               onChange={e => updateCivil('courtCouncil', e.target.value)} className={inputClass('courtCouncil')} />
           </div>
+          {civilData.courtLevel === 'tribunal' && (
+            <div>
+              <label className={labelClass}>المحكمة: <span className="text-red-500">*</span></label>
+              <input type="text" placeholder="مثال: بئر مراد رايس" value={civilData.court}
+                onChange={e => updateCivil('court', e.target.value)} className={inputClass('court')} />
+            </div>
+          )}
           <div>
-            <label className={labelClass}>المحكمة: <span className="text-red-500">*</span></label>
-            <input type="text" placeholder="مثال: بئر مراد رايس" value={civilData.court}
-              onChange={e => updateCivil('court', e.target.value)} className={inputClass('court')} />
-          </div>
-          <div>
-            <label className={labelClass}>القسم:</label>
-            <input type="text" placeholder="مثال: القسم المدني" value={civilData.section}
+            <label className={labelClass}>{civilData.courtLevel === 'council' ? 'الغرفة:' : 'القسم:'}</label>
+            <input type="text" placeholder={civilData.courtLevel === 'council' ? 'مثال: الغرفة المدنية' : 'مثال: القسم المدني'} value={civilData.section}
               onChange={e => updateCivil('section', e.target.value)} className={inputClass('section')} />
           </div>
           <div>
@@ -655,11 +793,6 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
             <label className={labelClass}>تاريخ الجلسة: <span className="text-red-500">*</span></label>
             <input type="date" value={civilData.sessionDate}
               onChange={e => updateCivil('sessionDate', e.target.value)} className={inputClass('sessionDate')} />
-          </div>
-          <div>
-            <label className={labelClass}>اسم الرئيس:</label>
-            <input type="text" placeholder="اسم رئيس الجلسة (اختياري)" value={civilData.judgeName}
-              onChange={e => updateCivil('judgeName', e.target.value)} className={inputClass('judgeName')} />
           </div>
           <div>
             <label className={labelClass}>اسم المحامي: <span className="text-red-500">*</span></label>
@@ -676,7 +809,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
             <input type="text" placeholder="اسم الخصم" value={civilData.opponent}
               onChange={e => updateCivil('opponent', e.target.value)} className={inputClass('opponent')} />
           </div>
-          <div>
+          <div className="col-span-full">
             <label className={labelClass}>موضوع القضية: <span className="text-red-500">*</span></label>
             <input type="text" placeholder="مثال: دعوى تعويض..." value={civilData.caseSubject}
               onChange={e => updateCivil('caseSubject', e.target.value)} className={inputClass('caseSubject')} />
