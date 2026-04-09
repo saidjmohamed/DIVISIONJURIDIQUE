@@ -133,109 +133,121 @@ function generateCivilText(data: CivilFormData): string {
 الإمضاء`;
 }
 
-/* ─────────────────────── PDF Generation via HTML ─────────────────────── */
+/* ─────────────────────── PDF via Print Window ─────────────────────── */
 
-async function generatePdf(text: string, formType: FormType): Promise<Blob> {
-  const { default: html2canvas } = await import('html2canvas');
-  const { default: jsPDF } = await import('jspdf');
-
-  const container = document.createElement('div');
-  container.style.cssText = `
-    position: fixed; left: -9999px; top: 0;
-    width: 595px;
-    background: white;
-    font-family: 'Noto Sans Arabic', 'Segoe UI', 'Arial', sans-serif;
-    direction: rtl;
-    padding: 0;
-  `;
-
+function buildPdfHtml(text: string, formType: FormType): string {
   const lines = text.split('\n');
-  let html = `
-    <div style="padding: 50px 45px 40px 45px; min-height: 842px; box-sizing: border-box;">
-      <div style="text-align: center; margin-bottom: 8px;">
-        <svg width="48" height="48" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M32 4 L32 56 M16 56 L48 56 M12 20 L52 20 M12 20 L6 36 C6 42 12 42 18 42 L18 36 L12 20 M52 20 L46 36 C46 42 52 42 58 42 L58 36 L52 20 M32 4 C34 4 36 6 36 8 C36 10 34 12 32 12 C30 12 28 10 28 8 C28 6 30 4 32 4" stroke="#1a3a5c" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </div>
-      <div style="border-top: 1px solid #c0c0c0; margin: 0 120px 20px 120px;"></div>
-  `;
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const trimmed = line.trim();
-
-    if (!trimmed) {
-      html += '<div style="height: 12px;"></div>';
-      continue;
-    }
-
-    if (trimmed === 'الجمهورية الجزائرية الديمقراطية الشعبية') {
-      html += `<div style="text-align: center; font-size: 15px; font-weight: 700; color: #1a3a5c; margin-bottom: 2px;">${trimmed}</div>`;
-    } else if (trimmed === 'وزارة العدل') {
-      html += `<div style="text-align: center; font-size: 13px; font-weight: 600; color: #1a3a5c; margin-bottom: 10px;">${trimmed}</div>`;
-    } else if (trimmed === 'إعلان تأسيس وتوكيل') {
-      html += `<div style="text-align: center; font-size: 16px; font-weight: 700; color: #1a3a5c; margin: 16px 0; padding: 8px 0; border-top: 2px solid #1a3a5c; border-bottom: 2px solid #1a3a5c;">${trimmed}</div>`;
-    } else if (trimmed.startsWith('إلى ')) {
-      html += `<div style="text-align: center; font-size: 13px; font-weight: 700; color: #2c3e50; margin: 8px 0 12px 0;">${trimmed}</div>`;
-    } else if (trimmed.startsWith('مجلس قضاء') || trimmed.startsWith('محكمة ') || trimmed.startsWith('القسم') || trimmed.startsWith('الغرفة')) {
-      html += `<div style="text-align: center; font-size: 12px; font-weight: 600; color: #34495e; margin-bottom: 2px;">${trimmed}</div>`;
-    } else if (trimmed === 'المحامي(ة)' || trimmed.startsWith('الأستاذ(ة)') || trimmed === 'الإمضاء') {
-      html += `<div style="text-align: left; font-size: 12px; font-weight: 600; color: #1a3a5c; margin-top: 2px; padding-left: 50px;">${trimmed}</div>`;
-    } else if (trimmed.startsWith('حرر بـ')) {
-      html += `<div style="text-align: left; font-size: 11px; color: #555; margin-top: 16px; padding-left: 50px;">${trimmed}</div>`;
-    } else if (trimmed.startsWith('الموضوع:')) {
-      html += `<div style="font-size: 12px; font-weight: 700; color: #2c3e50; margin: 4px 0;">${trimmed}</div>`;
-    } else if (trimmed.startsWith('في القضية رقم:') || trimmed.startsWith('المحددة لجلسة:')) {
-      html += `<div style="font-size: 12px; color: #333; margin: 2px 0; font-weight: 600;">${trimmed}</div>`;
-    } else if (trimmed.startsWith('السيد(ة):') || trimmed.startsWith('ضد:')) {
-      html += `<div style="font-size: 12px; color: #333; margin: 2px 0; font-weight: 700;">${trimmed}</div>`;
-    } else {
-      html += `<div style="font-size: 12px; color: #333; line-height: 1.8; margin: 3px 0;">${trimmed}</div>`;
-    }
-  }
-
   const typeLabel = formType === 'penal' ? 'إعلان تأسيس - جزائي' : 'إعلان تأسيس - مدني';
-  html += `
-      <div style="margin-top: 30px; border-top: 1px solid #ddd; padding-top: 8px; text-align: center;">
-        <span style="font-size: 9px; color: #999;">${typeLabel} — منصة الشامل</span>
-      </div>
-    </div>
-  `;
 
-  container.innerHTML = html;
-  document.body.appendChild(container);
-
-  try {
-    const canvas = await html2canvas(container, {
-      scale: 3,
-      useCORS: true,
-      backgroundColor: '#ffffff',
-      width: 595,
-    });
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-
-    const pdfWidth = 210;
-    const pdfHeight = 297;
-    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-
-    if (imgHeight <= pdfHeight) {
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, imgHeight);
+  let bodyHtml = '';
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) {
+      bodyHtml += '<div style="height:14px"></div>';
+    } else if (t === 'الجمهورية الجزائرية الديمقراطية الشعبية') {
+      bodyHtml += `<div style="text-align:center;font-size:16px;font-weight:700;color:#1a3a5c;margin-bottom:2px">${t}</div>`;
+    } else if (t === 'وزارة العدل') {
+      bodyHtml += `<div style="text-align:center;font-size:14px;font-weight:600;color:#1a3a5c;margin-bottom:12px">${t}</div>`;
+    } else if (t === 'إعلان تأسيس وتوكيل') {
+      bodyHtml += `<div style="text-align:center;font-size:18px;font-weight:700;color:#1a3a5c;margin:18px 0;padding:10px 0;border-top:2px solid #1a3a5c;border-bottom:2px solid #1a3a5c">${t}</div>`;
+    } else if (t.startsWith('إلى ')) {
+      bodyHtml += `<div style="text-align:center;font-size:14px;font-weight:700;color:#2c3e50;margin:10px 0 14px">${t}</div>`;
+    } else if (t.startsWith('مجلس قضاء') || t.startsWith('محكمة ') || t.startsWith('القسم') || t.startsWith('الغرفة')) {
+      bodyHtml += `<div style="text-align:center;font-size:13px;font-weight:600;color:#34495e;margin-bottom:3px">${t}</div>`;
+    } else if (t === 'المحامي(ة)' || t.startsWith('الأستاذ(ة)') || t === 'الإمضاء') {
+      bodyHtml += `<div style="text-align:left;font-size:13px;font-weight:600;color:#1a3a5c;margin-top:3px;padding-left:60px">${t}</div>`;
+    } else if (t.startsWith('حرر بـ')) {
+      bodyHtml += `<div style="text-align:left;font-size:12px;color:#555;margin-top:18px;padding-left:60px">${t}</div>`;
+    } else if (t.startsWith('الموضوع:')) {
+      bodyHtml += `<div style="font-size:13px;font-weight:700;color:#2c3e50;margin:6px 0">${t}</div>`;
+    } else if (t.startsWith('في القضية رقم:') || t.startsWith('المحددة لجلسة:')) {
+      bodyHtml += `<div style="font-size:13px;color:#333;margin:3px 0;font-weight:600">${t}</div>`;
+    } else if (t.startsWith('السيد(ة):') || t.startsWith('ضد:')) {
+      bodyHtml += `<div style="font-size:13px;color:#333;margin:3px 0;font-weight:700">${t}</div>`;
     } else {
-      let remaining = imgHeight;
-      let pos = 0;
-      while (remaining > 0) {
-        pdf.addImage(imgData, 'JPEG', 0, pos, pdfWidth, imgHeight);
-        remaining -= pdfHeight;
-        if (remaining > 0) { pdf.addPage(); pos -= pdfHeight; }
-      }
+      bodyHtml += `<div style="font-size:13px;color:#333;line-height:2;margin:4px 0">${t}</div>`;
     }
-
-    return pdf.output('blob');
-  } finally {
-    document.body.removeChild(container);
   }
+
+  return `<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>${typeLabel}</title>
+<style>
+  @page { size: A4; margin: 20mm 15mm; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Noto Sans Arabic', 'Segoe UI', 'Arial', 'Tahoma', sans-serif;
+    direction: rtl;
+    color: #333;
+    padding: 0;
+  }
+  .page {
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 10px 20px;
+  }
+  .icon-header {
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 36px;
+    color: #1a3a5c;
+  }
+  .divider {
+    border-top: 1px solid #ccc;
+    margin: 0 100px 16px;
+  }
+  .footer {
+    margin-top: 32px;
+    border-top: 1px solid #ddd;
+    padding-top: 8px;
+    text-align: center;
+    font-size: 10px;
+    color: #999;
+  }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="icon-header">⚖</div>
+  <div class="divider"></div>
+  ${bodyHtml}
+  <div class="footer">${typeLabel} — منصة الشامل</div>
+</div>
+</body>
+</html>`;
+}
+
+function openPrintablePdf(text: string, formType: FormType) {
+  const html = buildPdfHtml(text, formType);
+  const printWindow = window.open('', '_blank', 'width=800,height=1100');
+  if (!printWindow) {
+    // Fallback: if popup blocked, try iframe approach
+    const blob = new Blob([html], { type: 'text/html; charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `إعلان_تأسيس_${formType === 'penal' ? 'جزائي' : 'مدني'}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return;
+  }
+  printWindow.document.write(html);
+  printWindow.document.close();
+  // Wait for content to render then trigger print dialog (Save as PDF)
+  printWindow.onload = () => {
+    setTimeout(() => printWindow.print(), 300);
+  };
+  // Fallback if onload doesn't fire
+  setTimeout(() => {
+    try { printWindow.print(); } catch { /* ignore */ }
+  }, 1000);
 }
 
 /* ─────────────────────── Component ─────────────────────── */
@@ -253,11 +265,10 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
     lawyerName: '', clientName: '', opponent: '', caseSubject: '',
   });
   const [generatedText, setGeneratedText] = useState<string | null>(null);
-  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errors, setErrors] = useState<Record<string, boolean>>({});
-  const downloadRef = useRef<HTMLAnchorElement>(null);
+  const formRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     try {
@@ -268,11 +279,24 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
     } catch { /* ignore */ }
   }, []);
 
+  // Debounced localStorage save — prevents excessive saves on every keystroke
+  const savePenalTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const saveCivilTimeout = useRef<ReturnType<typeof setTimeout>>();
+
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY_PENAL, JSON.stringify(penalData)); } catch { /* */ }
+    clearTimeout(savePenalTimeout.current);
+    savePenalTimeout.current = setTimeout(() => {
+      try { localStorage.setItem(LS_KEY_PENAL, JSON.stringify(penalData)); } catch { /* */ }
+    }, 500);
+    return () => clearTimeout(savePenalTimeout.current);
   }, [penalData]);
+
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY_CIVIL, JSON.stringify(civilData)); } catch { /* */ }
+    clearTimeout(saveCivilTimeout.current);
+    saveCivilTimeout.current = setTimeout(() => {
+      try { localStorage.setItem(LS_KEY_CIVIL, JSON.stringify(civilData)); } catch { /* */ }
+    }, 500);
+    return () => clearTimeout(saveCivilTimeout.current);
   }, [civilData]);
 
   function updatePenal<K extends keyof PenalFormData>(key: K, value: PenalFormData[K]) {
@@ -307,35 +331,18 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
     return valid;
   }
 
-  const handleGenerate = useCallback(async () => {
+  function handleGenerate() {
     if (!formType) return;
     if (formType === 'penal' && !validatePenal()) return;
     if (formType === 'civil' && !validateCivil()) return;
 
-    setLoading(true);
-    try {
-      const text = formType === 'penal' ? generatePenalText(penalData) : generateCivilText(civilData);
-      setGeneratedText(text);
-      const blob = await generatePdf(text, formType);
-      setPdfBlob(blob);
-    } catch (err) {
-      console.error('PDF generation error:', err);
-    } finally {
-      setLoading(false);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formType, penalData, civilData]);
+    const text = formType === 'penal' ? generatePenalText(penalData) : generateCivilText(civilData);
+    setGeneratedText(text);
+  }
 
-  function downloadPdf() {
-    if (!pdfBlob) return;
-    const url = URL.createObjectURL(pdfBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `إعلان_تأسيس_${formType === 'penal' ? 'جزائي' : 'مدني'}.pdf`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+  function handleDownloadPdf() {
+    if (!generatedText || !formType) return;
+    openPrintablePdf(generatedText, formType);
   }
 
   function shareWhatsApp() {
@@ -362,7 +369,6 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
 
   function reset() {
     setGeneratedText(null);
-    setPdfBlob(null);
     setErrors({});
   }
 
@@ -400,9 +406,10 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
           </div>
         </div>
 
+        {/* Action Buttons */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          <button onClick={downloadPdf} disabled={!pdfBlob}
-            className="flex items-center justify-center gap-2 py-3 bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] rounded-xl font-bold hover:opacity-90 transition-all shadow-md disabled:opacity-50">
+          <button onClick={handleDownloadPdf}
+            className="flex items-center justify-center gap-2 py-3 bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] rounded-xl font-bold hover:opacity-90 transition-all shadow-md">
             <span>📥</span> تحميل PDF
           </button>
           <button onClick={shareWhatsApp}
@@ -418,7 +425,6 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
         <button onClick={reset} className="w-full py-3 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-gray-600 transition-all">
           تعديل البيانات
         </button>
-        <a ref={downloadRef} className="hidden" />
       </div>
     );
   }
@@ -455,9 +461,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
           </button>
         </div>
         <div className="mt-6 bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 border border-blue-100 dark:border-blue-800">
-          <p className="text-xs text-blue-700 dark:text-blue-300 text-center">
-            💡 البيانات تُحفظ تلقائياً — يمكنك العودة لاحقاً دون إعادة الإدخال
-          </p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 text-center">💡 البيانات تُحفظ تلقائياً — يمكنك العودة لاحقاً دون إعادة الإدخال</p>
         </div>
       </div>
     );
@@ -466,7 +470,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
   // ─── Penal Form ───
   if (formType === 'penal') {
     return (
-      <div className="max-w-2xl mx-auto" dir="rtl">
+      <div className="max-w-2xl mx-auto" dir="rtl" ref={formRef}>
         <div className="flex items-center gap-3 mb-4">
           <button onClick={() => { setFormType(null); setErrors({}); }} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg font-bold">→</button>
           <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">⚖️ إعلان تأسيس — نموذج جزائي</h2>
@@ -485,7 +489,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
             </div>
             <div>
               <label className={labelClass}>القسم / الغرفة:</label>
-              <input type="text" placeholder="مثال: الغرفة الجزائية الأولى (اختياري)" value={penalData.section}
+              <input type="text" placeholder="مثال: الغرفة الجزائية (اختياري)" value={penalData.section}
                 onChange={e => updatePenal('section', e.target.value)} className={inputClass('section')} />
             </div>
             <div className="col-span-full">
@@ -551,7 +555,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
             <p className="text-xs text-red-500 font-bold text-center">يرجى ملء جميع الحقول الإجبارية (*)</p>
           )}
 
-          <button onClick={handleGenerate} disabled={loading}
+          <button type="button" onClick={handleGenerate} disabled={loading}
             className="w-full py-4 bg-[#1a3a5c] dark:bg-[#f0c040] hover:opacity-90 disabled:opacity-50 text-white dark:text-[#1a3a5c] rounded-xl font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2">
             {loading ? (
               <><span className="inline-block w-4 h-4 border-2 border-white/30 dark:border-[#1a3a5c]/30 border-t-white dark:border-t-[#1a3a5c] rounded-full animate-spin" /> جاري إنشاء الوثيقة...</>
@@ -564,7 +568,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
 
   // ─── Civil Form ───
   return (
-    <div className="max-w-2xl mx-auto" dir="rtl">
+    <div className="max-w-2xl mx-auto" dir="rtl" ref={formRef}>
       <div className="flex items-center gap-3 mb-4">
         <button onClick={() => { setFormType(null); setErrors({}); }} className="text-[#1a3a5c] dark:text-[#f0c040] text-lg font-bold">→</button>
         <h2 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">📜 إعلان تأسيس — نموذج مدني</h2>
@@ -627,7 +631,7 @@ export default function EstablishmentDeclaration({ onBack }: { onBack: () => voi
           <p className="text-xs text-red-500 font-bold text-center">يرجى ملء جميع الحقول الإجبارية (*)</p>
         )}
 
-        <button onClick={handleGenerate} disabled={loading}
+        <button type="button" onClick={handleGenerate} disabled={loading}
           className="w-full py-4 bg-[#1a3a5c] dark:bg-[#f0c040] hover:opacity-90 disabled:opacity-50 text-white dark:text-[#1a3a5c] rounded-xl font-bold transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-2">
           {loading ? (
             <><span className="inline-block w-4 h-4 border-2 border-white/30 dark:border-[#1a3a5c]/30 border-t-white dark:border-t-[#1a3a5c] rounded-full animate-spin" /> جاري إنشاء الوثيقة...</>
