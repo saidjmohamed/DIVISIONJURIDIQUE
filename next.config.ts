@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Turbopack resolve aliases for pdfjs-dist (no canvas native module in browser)
   turbopack: {
+    root: process.cwd(),
     resolveAlias: {
       canvas: { browser: '' },
     },
