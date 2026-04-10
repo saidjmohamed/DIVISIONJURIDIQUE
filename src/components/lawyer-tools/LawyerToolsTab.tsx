@@ -17,6 +17,7 @@ import ProceduresComparison from './ProceduresComparison';
 import LegalDictionary from './LegalDictionary';
 import AiPromptsGuide from './AiPromptsGuide';
 import SubjectMatterJurisdiction from './SubjectMatterJurisdiction';
+import NanoBananaBuilder from './NanoBananaBuilder';
 
 const tools = [
   { id: 'quiz', title: 'الكويز القانوني الذكي', icon: '🧠', desc: 'أسئلة اختيار من متعدد تُولَّد بالذكاء الاصطناعي مع التعليل بنص القانون الجزائري — 8 قوانين، 3 مستويات', color: '#6366f1', badge: 'جديد' },
@@ -34,6 +35,7 @@ const tools = [
   { id: 'ai-prompts', title: 'دليل برومبتات الذكاء الاصطناعي', icon: '💡', desc: '20 برومبت جاهز للنسخ — تحليل قضايا، صياغة، بحث، استراتيجية، ترجمة', color: '#8b5cf6' },
   { id: 'dictionary', title: 'معجم المصطلحات القانونية', icon: '📖', desc: 'قاموس عربي-فرنسي للمصطلحات القانونية مع الشرح والمراجع', color: '#6366f1' },
   { id: 'templates', title: 'نماذج العرائض', icon: '📄', desc: 'نماذج جاهزة للعرائض والشكاوى يمكن نسخها وتعديلها', color: '#d97706' },
+  { id: 'fbnano', title: 'مولّد تصاميم Nano Banana', icon: '📊', desc: 'أنشئ تصميماً قانونياً احترافياً (إنفوجرافيك / كاروسيل) في 30 ثانية — فقط اكتب الموضوع وانسخ الكود', color: '#059669', badge: 'جديد' },
 ];
 
 export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
@@ -54,6 +56,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'procedures') return <ProceduresComparison onBack={() => setActiveTool(null)} />;
   if (activeTool === 'dictionary') return <LegalDictionary onBack={() => setActiveTool(null)} />;
   if (activeTool === 'ai-prompts') return <AiPromptsGuide onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'fbnano') return <NanoBananaBuilder onBack={() => setActiveTool(null)} />;
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
