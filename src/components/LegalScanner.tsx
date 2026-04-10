@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
-import { Download, Share2, Plus, Trash2, RotateCcw, Check, Camera, X } from 'lucide-react';
+import { Download, Share2, Plus, Trash2, RotateCcw, Check, Camera, X, Upload } from 'lucide-react';
 
 interface ScannedPage {
   id: string;
@@ -50,14 +50,12 @@ function enhanceImage(canvas: HTMLCanvasElement): HTMLCanvasElement {
 
 /**
  * كشف حدود الوثيقة (Document Edge Detection)
- * استخدام خوارزمية بسيطة لكشف الزوايا الأربع
  */
 function detectDocumentEdges(canvas: HTMLCanvasElement): { x: number; y: number; width: number; height: number } | null {
   const ctx = canvas.getContext('2d')!;
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const data = imageData.data;
 
-  // بحث بسيط عن الحدود
   let minX = canvas.width,
     maxX = 0,
     minY = canvas.height,
@@ -65,7 +63,6 @@ function detectDocumentEdges(canvas: HTMLCanvasElement): { x: number; y: number;
 
   for (let i = 0; i < data.length; i += 4) {
     const gray = data[i];
-    // البحث عن البكسلات الداكنة (حدود الوثيقة)
     if (gray < 200) {
       const pixelIndex = i / 4;
       const x = pixelIndex % canvas.width;
@@ -91,7 +88,7 @@ function detectDocumentEdges(canvas: HTMLCanvasElement): { x: number; y: number;
 }
 
 /**
- * تصحيح الميلان والمنظور (Perspective Correction)
+ * تصحيح الميلان والمنظور
  */
 function correctPerspective(
   canvas: HTMLCanvasElement,
@@ -107,6 +104,48 @@ function correctPerspective(
   return newCanvas;
 }
 
+/**
+ * معالجة صورة من ملف أو canvas
+ */
+async function processImage(source: HTMLCanvasElement | File): Promise<string> {
+  let canvas: HTMLCanvasElement;
+
+  if (source instanceof File) {
+    // تحويل الملف إلى canvas
+    const img = new Image();
+    const url = URL.createObjectURL(source);
+
+    await new Promise((resolve, reject) => {
+      img.onload = () => {
+        canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        URL.revokeObjectURL(url);
+        resolve(null);
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error('Failed to load image'));
+      };
+    });
+  } else {
+    canvas = source;
+  }
+
+  // معالجة الصورة
+  let processedCanvas = enhanceImage(canvas);
+
+  // كشف الحدود
+  const edges = detectDocumentEdges(processedCanvas);
+  if (edges) {
+    processedCanvas = correctPerspective(processedCanvas, edges);
+  }
+
+  return processedCanvas.toDataURL('image/jpeg', 0.95);
+}
+
 // ===== Main Component =====
 
 export default function LegalScanner() {
@@ -115,12 +154,14 @@ export default function LegalScanner() {
   const [currentSession, setCurrentSession] = useState<ScanSession | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // تحميل الجلسات المحفوظة من localStorage
+  // تحميل الجلسات المحفوظة
   useEffect(() => {
     const saved = localStorage.getItem('legalScannerSessions');
     if (saved) {
@@ -132,38 +173,94 @@ export default function LegalScanner() {
     }
   }, []);
 
-  // حفظ الجلسات في localStorage
+  // حفظ الجلسات
   const saveSessions = useCallback((newSessions: ScanSession[]) => {
     setSessions(newSessions);
     localStorage.setItem('legalScannerSessions', JSON.stringify(newSessions));
   }, []);
 
-  // بدء الكاميرا
+  // بدء الكاميرا مع خيارات توافقية متعددة
   const startCamera = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1440 },
-        },
-      });
+    setCameraError(null);
+    setIsProcessing(true);
 
-      if (videoRef.current) {
+    try {
+      // محاولة 1: الكاميرا الخلفية بدقة عالية
+      let stream: MediaStream | null = null;
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1920 },
+            height: { ideal: 1440 },
+          },
+          audio: false,
+        });
+      } catch (e1) {
+        console.warn('High resolution camera failed, trying standard resolution:', e1);
+
+        // محاولة 2: دقة قياسية
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: 'environment',
+              width: { ideal: 1280 },
+              height: { ideal: 960 },
+            },
+            audio: false,
+          });
+        } catch (e2) {
+          console.warn('Standard resolution failed, trying basic camera:', e2);
+
+          // محاولة 3: أي كاميرا متاحة
+          try {
+            stream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+              audio: false,
+            });
+          } catch (e3) {
+            throw new Error('لم يتمكن من الوصول للكاميرا. تأكد من منح الصلاحيات.');
+          }
+        }
+      }
+
+      if (stream && videoRef.current) {
+        streamRef.current = stream;
         videoRef.current.srcObject = stream;
+
+        // انتظر حتى يبدأ البث
+        await new Promise((resolve) => {
+          const checkStream = () => {
+            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
+              resolve(null);
+            } else {
+              setTimeout(checkStream, 100);
+            }
+          };
+          checkStream();
+        });
+
         setMode('camera');
       }
     } catch (error) {
-      toast.error('لم يتمكن من الوصول للكاميرا');
+      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ في الكاميرا';
+      setCameraError(errorMsg);
+      toast.error(errorMsg);
       console.error('Camera error:', error);
+    } finally {
+      setIsProcessing(false);
     }
   }, []);
 
   // إيقاف الكاميرا
   const stopCamera = useCallback(() => {
-    if (videoRef.current?.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
     }
   }, []);
 
@@ -174,28 +271,15 @@ export default function LegalScanner() {
     setIsProcessing(true);
     try {
       const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d')!;
       const video = videoRef.current;
 
-      // رسم الفيديو على الـ canvas
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+
+      const ctx = canvas.getContext('2d')!;
       ctx.drawImage(video, 0, 0);
 
-      // معالجة الصورة
-      let processedCanvas = canvas;
-
-      // تحسين الجودة
-      processedCanvas = enhanceImage(processedCanvas);
-
-      // كشف الحدود
-      const edges = detectDocumentEdges(processedCanvas);
-      if (edges) {
-        processedCanvas = correctPerspective(processedCanvas, edges);
-      }
-
-      // تحويل إلى صورة
-      const imageData = processedCanvas.toDataURL('image/jpeg', 0.95);
+      const imageData = await processImage(canvas);
       setPreviewImage(imageData);
       setMode('preview');
     } catch (error) {
@@ -206,7 +290,32 @@ export default function LegalScanner() {
     }
   }, []);
 
-  // إضافة صورة إلى الجلسة الحالية
+  // معالجة الملفات المرفوعة
+  const handleFileUpload = useCallback(async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setIsProcessing(true);
+    try {
+      const file = files[0];
+
+      // التحقق من نوع الملف
+      if (!file.type.startsWith('image/')) {
+        toast.error('يرجى اختيار صورة');
+        return;
+      }
+
+      const imageData = await processImage(file);
+      setPreviewImage(imageData);
+      setMode('preview');
+    } catch (error) {
+      toast.error('فشل تحميل الصورة');
+      console.error('File upload error:', error);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, []);
+
+  // إضافة صورة إلى الجلسة
   const addPageToSession = useCallback(async () => {
     if (!previewImage) return;
 
@@ -245,7 +354,7 @@ export default function LegalScanner() {
     }
   }, [previewImage, currentSession]);
 
-  // حفظ الجلسة كـ PDF
+  // حفظ كـ PDF
   const saveToPDF = useCallback(async () => {
     if (!currentSession || currentSession.pages.length === 0) {
       toast.error('لا توجد صفحات للحفظ');
@@ -266,17 +375,15 @@ export default function LegalScanner() {
       for (let i = 0; i < currentSession.pages.length; i++) {
         const page = currentSession.pages[i];
 
-        // تحميل الصورة
+        if (i > 0) pdf.addPage();
+
         const img = new Image();
         img.src = page.imageData;
 
         await new Promise((resolve, reject) => {
           img.onload = () => {
-            if (i > 0) pdf.addPage();
-
             const imgWidth = pageWidth;
             const imgHeight = (img.height / img.width) * pageWidth;
-
             const yPos = imgHeight > pageHeight ? 0 : (pageHeight - imgHeight) / 2;
 
             pdf.addImage(page.imageData, 'JPEG', 0, yPos, imgWidth, Math.min(imgHeight, pageHeight));
@@ -286,14 +393,11 @@ export default function LegalScanner() {
         });
       }
 
-      // إنشاء اسم الملف
       const now = new Date();
       const filename = `scan_${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}.pdf`;
 
-      // حفظ الملف
       pdf.save(filename);
 
-      // حفظ الجلسة
       const updatedSession = {
         ...currentSession,
         id: filename.replace('.pdf', ''),
@@ -360,7 +464,6 @@ export default function LegalScanner() {
         });
         toast.success('تم المشاركة بنجاح');
       } else {
-        // fallback: نسخ الرابط
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -377,7 +480,7 @@ export default function LegalScanner() {
     }
   }, [currentSession]);
 
-  // حذف صفحة من الجلسة
+  // حذف صفحة
   const deletePage = useCallback((pageId: string) => {
     if (!currentSession) return;
 
@@ -392,7 +495,7 @@ export default function LegalScanner() {
     }
   }, [currentSession]);
 
-  // حذف جلسة محفوظة
+  // حذف جلسة
   const deleteSession = useCallback((sessionId: string) => {
     const newSessions = sessions.filter(s => s.id !== sessionId);
     saveSessions(newSessions);
@@ -409,6 +512,7 @@ export default function LegalScanner() {
             ref={videoRef}
             autoPlay
             playsInline
+            muted
             className="w-full h-full object-cover"
           />
           <canvas ref={canvasRef} className="hidden" />
@@ -559,11 +663,30 @@ export default function LegalScanner() {
       <div className="grid grid-cols-1 gap-3">
         <button
           onClick={startCamera}
-          className="p-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg flex items-center justify-center gap-3 text-lg"
+          disabled={isProcessing}
+          className="p-4 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-bold hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg flex items-center justify-center gap-3 text-lg disabled:opacity-50"
         >
           <Camera className="w-6 h-6" />
-          📷 تصوير وثيقة جديدة
+          📷 {isProcessing ? 'جاري فتح الكاميرا...' : 'تصوير وثيقة جديدة'}
         </button>
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isProcessing}
+          className="p-4 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-bold hover:from-green-700 hover:to-green-800 transition-all shadow-lg flex items-center justify-center gap-3 text-lg disabled:opacity-50"
+        >
+          <Upload className="w-6 h-6" />
+          📁 {isProcessing ? 'جاري التحميل...' : 'رفع صورة من الاستوديو'}
+        </button>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onChange={(e) => handleFileUpload(e.target.files)}
+          className="hidden"
+        />
 
         {currentSession && currentSession.pages.length > 0 && (
           <>
@@ -625,6 +748,17 @@ export default function LegalScanner() {
           📁 الملفات المحفوظة
         </button>
       </div>
+
+      {cameraError && (
+        <div className="bg-red-50 dark:bg-red-950/30 rounded-xl p-4 border border-red-200 dark:border-red-800">
+          <p className="text-xs text-red-700 dark:text-red-300 leading-relaxed">
+            ⚠️ <strong>خطأ:</strong> {cameraError}
+          </p>
+          <p className="text-xs text-red-600 dark:text-red-400 mt-2 leading-relaxed">
+            💡 جرب استخدام خيار "رفع صورة من الاستوديو" بدلاً من ذلك.
+          </p>
+        </div>
+      )}
 
       <div className="bg-amber-50 dark:bg-amber-950/30 rounded-xl p-4 border border-amber-200 dark:border-amber-800">
         <p className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
