@@ -179,79 +179,82 @@ export default function LegalScanner() {
     localStorage.setItem('legalScannerSessions', JSON.stringify(newSessions));
   }, []);
 
-  // بدء الكاميرا مع خيارات توافقية متعددة
-  const startCamera = useCallback(async () => {
+  // حالة لتتبع ما إذا كنا في وضع بدء الكاميرا
+  const [pendingCamera, setPendingCamera] = useState(false);
+
+  // بدء الكاميرا: ننتقل أولاً لوضع camera ليظهر عنصر video في DOM
+  const startCamera = useCallback(() => {
     setCameraError(null);
     setIsProcessing(true);
+    setPendingCamera(true);
+    setMode('camera');
+  }, []);
 
-    try {
-      // محاولة 1: الكاميرا الخلفية بدقة عالية
-      let stream: MediaStream | null = null;
+  // عندما يظهر video element ونكون بانتظار تشغيل الكاميرا
+  useEffect(() => {
+    if (!pendingCamera || mode !== 'camera') return;
 
+    let cancelled = false;
+
+    const initCamera = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1920 },
-            height: { ideal: 1440 },
-          },
-          audio: false,
-        });
-      } catch (e1) {
-        console.warn('High resolution camera failed, trying standard resolution:', e1);
+        let stream: MediaStream | null = null;
 
-        // محاولة 2: دقة قياسية
+        // محاولة 1: الكاميرا الخلفية بدقة عالية
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
-              facingMode: 'environment',
-              width: { ideal: 1280 },
-              height: { ideal: 960 },
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1920 },
+              height: { ideal: 1440 },
             },
             audio: false,
           });
-        } catch (e2) {
-          console.warn('Standard resolution failed, trying basic camera:', e2);
-
-          // محاولة 3: أي كاميرا متاحة
+        } catch {
+          // محاولة 2: دقة قياسية
           try {
             stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
+              video: { facingMode: 'environment' },
               audio: false,
             });
-          } catch (e3) {
-            throw new Error('لم يتمكن من الوصول للكاميرا. تأكد من منح الصلاحيات.');
+          } catch {
+            // محاولة 3: أي كاميرا
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+            } catch {
+              throw new Error('لم يتمكن من الوصول للكاميرا. تأكد من منح الصلاحيات.');
+            }
           }
         }
+
+        if (cancelled) {
+          stream?.getTracks().forEach(t => t.stop());
+          return;
+        }
+
+        if (stream && videoRef.current) {
+          streamRef.current = stream;
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+      } catch (error) {
+        if (cancelled) return;
+        const errorMsg = error instanceof Error ? error.message : 'حدث خطأ في الكاميرا';
+        setCameraError(errorMsg);
+        toast.error(errorMsg);
+        setMode('menu');
+      } finally {
+        if (!cancelled) {
+          setIsProcessing(false);
+          setPendingCamera(false);
+        }
       }
+    };
 
-      if (stream && videoRef.current) {
-        streamRef.current = stream;
-        videoRef.current.srcObject = stream;
-
-        // انتظر حتى يبدأ البث
-        await new Promise((resolve) => {
-          const checkStream = () => {
-            if (videoRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
-              resolve(null);
-            } else {
-              setTimeout(checkStream, 100);
-            }
-          };
-          checkStream();
-        });
-
-        setMode('camera');
-      }
-    } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : 'حدث خطأ في الكاميرا';
-      setCameraError(errorMsg);
-      toast.error(errorMsg);
-      console.error('Camera error:', error);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, []);
+    // ننتظر لحظة حتى يتم رسم video element في DOM
+    const timer = setTimeout(initCamera, 100);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [pendingCamera, mode]);
 
   // إيقاف الكاميرا
   const stopCamera = useCallback(() => {
@@ -344,7 +347,13 @@ export default function LegalScanner() {
       setCurrentSession(updatedSession);
 
       setPreviewImage(null);
-      setMode('camera');
+      // إعادة فتح الكاميرا لالتقاط صفحة أخرى
+      // إذا كان الـ stream لا يزال نشطاً نبقى في وضع camera
+      if (streamRef.current && streamRef.current.active) {
+        setMode('camera');
+      } else {
+        startCamera();
+      }
       toast.success('تمت إضافة الصفحة بنجاح');
     } catch (error) {
       toast.error('فشل إضافة الصفحة');
@@ -352,7 +361,7 @@ export default function LegalScanner() {
     } finally {
       setIsProcessing(false);
     }
-  }, [previewImage, currentSession]);
+  }, [previewImage, currentSession, startCamera]);
 
   // حفظ كـ PDF
   const saveToPDF = useCallback(async () => {
@@ -704,8 +713,9 @@ export default function LegalScanner() {
             </div>
 
             <button
-              onClick={() => setMode('camera')}
-              className="p-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2"
+              onClick={startCamera}
+              disabled={isProcessing}
+              className="p-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
             >
               <Plus className="w-5 h-5" />
               إضافة صفحة أخرى
