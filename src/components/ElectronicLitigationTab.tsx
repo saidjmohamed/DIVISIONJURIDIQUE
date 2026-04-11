@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { PDFDocument } from 'pdf-lib';
 import EstablishmentDeclaration from './EstablishmentDeclaration';
-import LegalScanner from './LegalScanner';
+
 
 // Dynamic import for pdfjs-dist — avoids SSR/canvas issues on server
 async function loadPdfjs() {
@@ -374,20 +374,18 @@ function PdfCompressTool() {
 
 // ===== Main =====
 export default function ElectronicLitigationTab() {
-  const [activeSection, setActiveSection] = useState<'platforms' | 'tools' | 'tasis' | 'scanner'>('platforms');
+  const [activeSection, setActiveSection] = useState<'platforms' | 'tools' | 'tasis'>('platforms');
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
       <div className="flex gap-2 mb-6 flex-wrap">
         <button onClick={() => setActiveSection('platforms')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'platforms' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>🏛️ منصات التقاضي</button>
-        <button onClick={() => setActiveSection('scanner')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'scanner' ? 'bg-[#d4af37] text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>⚖️ ماسح الوثائق</button>
+
         <button onClick={() => setActiveSection('tasis')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tasis' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>📋 إعلان تأسيس</button>
         <button onClick={() => setActiveSection('tools')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tools' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>📄 ضغط PDF</button>
       </div>
 
-      {activeSection === 'scanner' ? (
-        <LegalScanner />
-      ) : activeSection === 'platforms' ? (
+      {activeSection === 'platforms' ? (
         <div className="space-y-4">
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-4 sm:p-6 shadow-sm border border-blue-100 dark:border-gray-700">
             <div className="flex items-center gap-3 mb-2"><span className="text-2xl">🏛️</span><h3 className="text-lg font-bold text-[#1a3a5c] dark:text-[#f0c040]">منصات وزارة العدل الإلكترونية</h3></div>
