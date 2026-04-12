@@ -44,6 +44,24 @@ function normalizeArabic(text: string): string {
     .trim();
 }
 
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ar-DZ', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('ar-DZ', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+}
+
 export default function JurisprudenceTab() {
   const [indexData, setIndexData] = useState<IndexData | null>(null);
   const [allItems, setAllItems] = useState<JurisprudenceItem[]>([]);
@@ -212,7 +230,7 @@ export default function JurisprudenceTab() {
     );
   }
 
-  const chamberMap = new Map(indexData?.chambers.map(c => [c.id, c]) || []);
+  const chamberMap = new Map<string, ChamberInfo>(indexData?.chambers.map(c => [c.id, c]) || []);
 
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 animate-fade-in">

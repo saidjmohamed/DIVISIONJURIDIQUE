@@ -92,7 +92,11 @@ export async function POST(req: NextRequest) {
     }
 
     // بناء سجل المحادثة لـ Gemini
-    const contents = [];
+    interface Content {
+      role: "user" | "model";
+      parts: { text: string }[];
+    }
+    const contents: Content[] = [];
 
     // إضافة السياق السابق (آخر 10 رسائل)
     if (messages && Array.isArray(messages)) {

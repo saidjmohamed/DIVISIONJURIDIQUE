@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import React, { useState, useMemo } from "react"
 import { QIJ_DEADLINES, DEADLINE_CATEGORIES, Deadline } from "@/data/deadlines-qij"
 import { formatDuration, formatStartFrom } from "@/lib/deadline-calculator"
 import { Clock, Search, BookOpen, ChevronDown, ChevronUp, Calendar } from "lucide-react"
@@ -12,8 +12,8 @@ type Props = {
   compact?: boolean
 }
 
-export default function DeadlinesTable({ 
-  deadlines = QIJ_DEADLINES, 
+export default function DeadlinesTable({
+  deadlines = QIJ_DEADLINES,
   lawColor = "blue",
   showTitle = true,
   compact = false
@@ -62,7 +62,7 @@ export default function DeadlinesTable({
       if (!groups[d.category]) groups[d.category] = []
       groups[d.category].push(d)
     })
-    return groups
+    return groups as Record<string, Deadline[]>
   }, [filtered])
 
   const getCategoryLabel = (cat: string) => {

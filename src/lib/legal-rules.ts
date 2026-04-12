@@ -111,7 +111,7 @@ export function getSubjectMatterJurisdiction(caseType: string): JurisdictionResu
     },
     'تجاري': {
       section: 'القسم التجاري / المحكمة التجارية المتخصصة',
-      formation: 'جماعي (في المتخصصة) / فردي (في القسم)',
+      formation: 'جماعي',
       legalBasis: 'المادة 531 من ق.إ.م.إ',
       description: 'يختص بالمنازعات التجارية بين التجار أو المتعلقة بالأعمال التجارية.'
     },
@@ -123,13 +123,13 @@ export function getSubjectMatterJurisdiction(caseType: string): JurisdictionResu
     },
     'اجتماعي': {
       section: 'القسم الاجتماعي',
-      formation: 'جماعي (قاضي ومساعدان)',
+      formation: 'جماعي',
       legalBasis: 'المادة 500 من ق.إ.م.إ والقانون 90-04',
       description: 'يختص بمنازعات العمل الفردية والضمان الاجتماعي.'
     },
     'إداري': {
       section: 'المحكمة الإدارية',
-      formation: 'جماعي (3 قضاة على الأقل)',
+      formation: 'جماعي',
       legalBasis: 'المادة 800 من ق.إ.م.إ',
       description: 'تختص بالمنازعات التي تكون الدولة أو الولاية أو البلدية أو المؤسسة العمومية طرفاً فيها.'
     },
