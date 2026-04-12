@@ -46,53 +46,7 @@ export default function FormalPetitionChecker({ onBack }: { onBack: () => void }
   const [report, setReport] = useState<AnalysisReport | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    if (!selectedType) {
-      toast.error('يرجى اختيار نوع الوثيقة أولاً');
-      return;
-    }
-
-    const file = acceptedFiles[0];
-    if (!file) return;
-
-    const isWord = file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc');
-    if (!isWord) {
-      toast.error('هذه الأداة تقبل ملفات Word فقط (.docx / .doc)');
-      return;
-    }
-
-    setFileName(file.name);
-    setIsAnalyzing(true);
-    setReport(null);
-
-    try {
-      const text = await extractTextFromFile(file);
-      
-      // Simulate AI Analysis based on rules
-      setTimeout(() => {
-        const analysis = performAnalysis(text, selectedType);
-        setReport(analysis);
-        setIsAnalyzing(false);
-        toast.success('اكتمل الفحص الشكلي بنجاح');
-      }, 1500);
-
-    } catch (error) {
-      console.error(error);
-      toast.error('فشل في تحليل الملف. تأكد من أنه ملف Word صالح.');
-      setIsAnalyzing(false);
-    }
-  }, [selectedType]);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
-      'application/msword': ['.doc']
-    },
-    multiple: false
-  });
-
-  const performAnalysis = (text: string, typeId: string): AnalysisReport => {
+  function performAnalysis(text: string, typeId: string): AnalysisReport {
     const allChecks: CheckResult[] = [];
     
     // 1. Common Rules
@@ -151,7 +105,56 @@ export default function FormalPetitionChecker({ onBack }: { onBack: () => void }
         .filter(c => c.status !== 'pass')
         .map(c => `إضافة أو تصحيح: ${c.label} (${c.article})`)
     };
-  };
+  }
+
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (!selectedType) {
+      toast.error('يرجى اختيار نوع الوثيقة أولاً');
+      return;
+    }
+
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    const isWord = file.name.toLowerCase().endsWith('.docx') || file.name.toLowerCase().endsWith('.doc');
+    if (!isWord) {
+      toast.error('هذه الأداة تقبل ملفات Word فقط (.docx / .doc)');
+      return;
+    }
+
+    setFileName(file.name);
+    setIsAnalyzing(true);
+    setReport(null);
+
+    try {
+      const text = await extractTextFromFile(file);
+
+      // Simulate AI Analysis based on rules
+      setTimeout(() => {
+        const analysis = performAnalysis(text, selectedType);
+        setReport(analysis);
+        setIsAnalyzing(false);
+        toast.success('اكتمل الفحص الشكلي بنجاح');
+      }, 1500);
+
+    } catch (error) {
+      console.error(error);
+      toast.error('فشل في تحليل الملف. تأكد من أنه ملف Word صالح.');
+      setIsAnalyzing(false);
+    }
+  }, [selectedType]);
+
+
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx'],
+      'application/msword': ['.doc']
+    },
+    multiple: false
+  });
+
 
   const reset = () => {
     setReport(null);
