@@ -1,0 +1,11 @@
+name: Smart Local Alternative
+
+on:
+  workflow_dispatch:
+
+jobs:
+  info:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Info
+        run: echo "GitHub Actions disabled due to billing. Use local script instead."
