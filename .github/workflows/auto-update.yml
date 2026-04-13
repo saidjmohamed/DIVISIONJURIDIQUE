@@ -1,0 +1,36 @@
+name: Auto Update Project
+
+on:
+  push:
+    branches:
+      - master
+      - main
+
+  schedule:
+    - cron: "0 */6 * * *"  # كل 6 ساعات
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Git
+        run: |
+          git config --global user.name "AI Bot"
+          git config --global user.email "bot@github.com"
+
+      - name: Make changes (example)
+        run: |
+          echo "Last update: $(date)" >> auto-log.txt
+
+      - name: Commit changes
+        run: |
+          git add .
+          git commit -m "auto: update المشروع" || echo "No changes"
+
+      - name: Push changes
+        run: |
+          git push
