@@ -1,10 +1,15 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي (v11 — Smart Fallback System)
+ * AI Core — محرك الذكاء الاصطناعي (v12 — NVIDIA First + Smart Fallback)
  *
- * 🥇 المزود الأول:  OpenRouter → openai/gpt-oss-120b:free
- * 🥈 Fallback 1:    Google Gemini 2.5 Flash  (أسرع — مدفوع)
- * 🥉 Fallback 2:    Google Gemini 2.0 Flash  (مجاني — 4 مفاتيح بالتناوب)
- * 🏅 Fallback 3:    Groq → llama-3.3-70b-versatile (مجاني — سريع جداً)
+ * 🥇 Tier 0:  NVIDIA NIM — 4 نماذج قوية بالتتابع (المزود الأساسي)
+ *   ├─ meta/llama-4-maverick-17b-128e-instruct  (أسرع ~4s)
+ *   ├─ mistralai/mixtral-8x22b-instruct-v0.1  (سريع جداً ~3s)
+ *   ├─ meta/llama-3.3-70b-instruct            (متوازن ~7s)
+ *   └─ meta/llama-3.1-405b-instruct           (أقوى ~12s — أفضل جودة)
+ * 🥈 Tier 1:  OpenRouter → 3 نماذج مجانية بالتتابع
+ * 🥉 Tier 2:  Google Gemini 2.5 Flash  (4 مفاتيح بالتناوب)
+ * 🏅 Tier 3:  Google Gemini 2.0 Flash  (4 مفاتيح بالتناوب — مجاني)
+ * 🛡️ Tier 4:  Groq → llama-3.3-70b-versatile (خط الدفاع الأخير)
  *
  * الانتقال يحدث تلقائياً عند:
  *   - Rate limit (429) من أي مزود
@@ -22,6 +27,7 @@ import { NextRequest } from "next/server";
 // 🔑 مفاتيح API
 // ═══════════════════════════════════════════════════════════════════════════
 
+const NVIDIA_KEY     = process.env.NVIDIA_API_KEY || "";
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const GROQ_KEY       = process.env.GROQ_API_KEY || "";
 
@@ -34,6 +40,7 @@ export const GEMINI_KEYS: string[] = [
   process.env.GEMINI_API_KEY_4 || "",
 ].filter(k => k.length > 0);
 
+const NVIDIA_API_URL    = "https://integrate.api.nvidia.com/v1/chat/completions";
 const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL      = "https://api.groq.com/openai/v1/chat/completions";
 const GEMINI_FLASH_25   = "gemini-2.5-flash";
@@ -50,49 +57,93 @@ export interface AIModel {
   tier: number;
   maxTokens: number;
   contextWindow: number;
-  provider: "openrouter" | "gemini" | "groq";
+  provider: "nvidia" | "openrouter" | "gemini" | "groq";
   geminiModel?: string;
 }
 
+// ── Tier 0: NVIDIA NIM — المزود الأساسي ──
+export const NVIDIA_MODEL_1: AIModel = {
+  id: "meta/llama-4-maverick-17b-128e-instruct",
+  label: "Llama 4 Maverick (NVIDIA)",
+  tier: 0,
+  maxTokens: 4096,
+  contextWindow: 128_000,
+  provider: "nvidia",
+};
+export const NVIDIA_MODEL_2: AIModel = {
+  id: "mistralai/mixtral-8x22b-instruct-v0.1",
+  label: "Mixtral 8x22B (NVIDIA)",
+  tier: 0,
+  maxTokens: 4096,
+  contextWindow: 65_536,
+  provider: "nvidia",
+};
+export const NVIDIA_MODEL_3: AIModel = {
+  id: "meta/llama-3.3-70b-instruct",
+  label: "Llama 3.3 70B (NVIDIA)",
+  tier: 0,
+  maxTokens: 4096,
+  contextWindow: 128_000,
+  provider: "nvidia",
+};
+export const NVIDIA_MODEL_4: AIModel = {
+  id: "meta/llama-3.1-405b-instruct",
+  label: "Llama 3.1 405B (NVIDIA)",
+  tier: 0,
+  maxTokens: 4096,
+  contextWindow: 128_000,
+  provider: "nvidia",
+};
+
+// ── Tier 1: OpenRouter — نماذج مجانية ──
 export const PRIMARY_MODEL: AIModel = {
   id: "openai/gpt-oss-120b:free",
   label: "GPT-OSS 120B",
-  tier: 0,
+  tier: 1,
   maxTokens: 4096,
   contextWindow: 131_072,
   provider: "openrouter",
 };
 
+// ── Tier 2: Gemini 2.5 Flash ──
 export const GEMINI_25_MODEL: AIModel = {
   id: GEMINI_FLASH_25,
   label: "Gemini 2.5 Flash",
-  tier: 1,
+  tier: 2,
   maxTokens: 4096,
   contextWindow: 1_000_000,
   provider: "gemini",
   geminiModel: GEMINI_FLASH_25,
 };
 
+// ── Tier 3: Gemini 2.0 Flash (مجاني) ──
 export const FALLBACK_MODEL: AIModel = {
   id: GEMINI_FLASH_20,
   label: "Gemini 2.0 Flash",
-  tier: 2,
+  tier: 3,
   maxTokens: 2048,
   contextWindow: 1_000_000,
   provider: "gemini",
   geminiModel: GEMINI_FLASH_20,
 };
 
+// ── Tier 4: Groq — خط الدفاع الأخير ──
 export const GROQ_MODEL: AIModel = {
   id: "llama-3.3-70b-versatile",
   label: "Llama 3.3 70B (Groq)",
-  tier: 3,
+  tier: 4,
   maxTokens: 4096,
   contextWindow: 128_000,
   provider: "groq",
 };
 
-export const ALL_MODELS: AIModel[] = [PRIMARY_MODEL, GEMINI_25_MODEL, FALLBACK_MODEL, GROQ_MODEL];
+export const ALL_MODELS: AIModel[] = [
+  NVIDIA_MODEL_1, NVIDIA_MODEL_2, NVIDIA_MODEL_3, NVIDIA_MODEL_4,
+  PRIMARY_MODEL, GEMINI_25_MODEL, FALLBACK_MODEL, GROQ_MODEL,
+];
+
+// ── قائمة نماذج NVIDIA للـ Tier 0 ──
+const NVIDIA_MODELS: AIModel[] = [NVIDIA_MODEL_1, NVIDIA_MODEL_2, NVIDIA_MODEL_3, NVIDIA_MODEL_4];
 
 // ═══════════════════════════════════════════════════════════════════════════
 // ⚙️ Timeout
@@ -157,6 +208,8 @@ export interface AICallOptions {
   preferredModel?: string;
   /** إذا كان true سيتخطى OpenRouter ويبدأ مباشرة من Gemini */
   geminiOnly?: boolean;
+  /** إذا كان true سيتخطى NVIDIA ويبدأ مباشرة من OpenRouter */
+  skipNvidia?: boolean;
 }
 
 export interface AIResult {
@@ -178,6 +231,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
     globalTimeoutMs,
     requestType = 'chat',
     geminiOnly = false,
+    skipNvidia = false,
   } = options;
 
   const timeout    = globalTimeoutMs || getGlobalTimeout(requestType);
@@ -185,7 +239,49 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   const triedModels: string[] = [];
 
   // ══════════════════════════════════════════════════════════
-  // 🥇 المستوى الأول: OpenRouter — يجرب 3 نماذج مجانية بالتتابع
+  // 🟢 المستوى 0: NVIDIA NIM — المزود الأساسي (4 نماذج بالتتابع)
+  // ══════════════════════════════════════════════════════════
+  if (!geminiOnly && !skipNvidia && NVIDIA_KEY) {
+    for (const nvModel of NVIDIA_MODELS) {
+      const timeLeft = timeout - (Date.now() - startTime);
+      if (timeLeft < 5_000) break;
+
+      triedModels.push(nvModel.id);
+      const ctrl  = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), Math.min(timeLeft, 25_000));
+
+      try {
+        console.log(`[AI Core] 🟢 NVIDIA (${nvModel.label})...`);
+        const content = await callNVIDIA(
+          systemPrompt, userMessage, messages,
+          maxTokens || nvModel.maxTokens,
+          temperature, ctrl.signal, nvModel.id,
+        );
+        clearTimeout(timer);
+
+        if (content) {
+          return {
+            content,
+            model: nvModel,
+            triedModels,
+            elapsedMs: Date.now() - startTime,
+            timedOut: false,
+            usedFallback: false,
+          };
+        }
+        console.warn(`[AI Core] NVIDIA ${nvModel.label} رد فارغ → النموذج التالي`);
+      } catch (err) {
+        clearTimeout(timer);
+        const isAbort = err instanceof Error && err.name === 'AbortError';
+        console.warn(`[AI Core] NVIDIA ${nvModel.label} ${isAbort ? 'TIMEOUT' : 'ERROR'} → النموذج التالي`);
+      }
+    }
+  } else if (!geminiOnly && !skipNvidia) {
+    console.warn("[AI Core] NVIDIA_API_KEY غير مضبوط → OpenRouter مباشرة");
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 🟡 المستوى 1: OpenRouter — يجرب 3 نماذج مجانية بالتتابع
   // ══════════════════════════════════════════════════════════
   const OR_FREE_MODELS = [
     PRIMARY_MODEL,
@@ -200,10 +296,10 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
       triedModels.push(orModel.id);
       const ctrl  = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), Math.min(timeLeft, 30_000));
+      const timer = setTimeout(() => ctrl.abort(), Math.min(timeLeft, 25_000));
 
       try {
-        console.log(`[AI Core] 🟢 OpenRouter (${orModel.label})...`);
+        console.log(`[AI Core] 🟡 OpenRouter (${orModel.label})...`);
         const content = await callOpenRouter(
           systemPrompt, userMessage, messages,
           maxTokens || orModel.maxTokens,
@@ -219,7 +315,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
             triedModels,
             elapsedMs: Date.now() - startTime,
             timedOut: false,
-            usedFallback: orModel.id !== PRIMARY_MODEL.id,
+            usedFallback: true,
           };
         }
         console.warn(`[AI Core] ${orModel.label} رد فارغ → النموذج التالي`);
@@ -234,7 +330,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🥈 المستوى الثاني: Gemini 2.5 Flash
+  // 🟠 المستوى 2: Gemini 2.5 Flash
   // يجرب جميع المفاتيح الأربعة بالتناوب
   // ══════════════════════════════════════════════════════════
   triedModels.push(GEMINI_25_MODEL.id);
@@ -245,10 +341,10 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
     const key    = GEMINI_KEYS[i];
     const ctrl2  = new AbortController();
-    const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 25_000));
+    const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 20_000));
 
     try {
-      console.log(`[AI Core] 🟡 Gemini 2.5 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
+      console.log(`[AI Core] 🟠 Gemini 2.5 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
       const content = await callGemini(
         systemPrompt, userMessage, messages,
         maxTokens || GEMINI_25_MODEL.maxTokens,
@@ -287,8 +383,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🥉 المستوى الثالث: Gemini 2.0 Flash
-  // يجرب جميع المفاتيح الأربعة بالتناوب
+  // 🔵 المستوى 3: Gemini 2.0 Flash (مجاني)
   // ══════════════════════════════════════════════════════════
   triedModels.push(FALLBACK_MODEL.id);
 
@@ -298,7 +393,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 
     const key    = GEMINI_KEYS[i];
     const ctrl3  = new AbortController();
-    const timer3 = setTimeout(() => ctrl3.abort(), Math.min(timeLeft, 20_000));
+    const timer3 = setTimeout(() => ctrl3.abort(), Math.min(timeLeft, 15_000));
 
     try {
       console.log(`[AI Core] 🔵 Gemini 2.0 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
@@ -339,8 +434,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🏅 المستوى الرابع: Groq — llama-3.3-70b-versatile (خط الدفاع الأخير)
-  // مجاني وسريع جداً — يعمل حتى عند انتهاء حصة Gemini
+  // 🟣 المستوى 4: Groq — خط الدفاع الأخير
   // ══════════════════════════════════════════════════════════
   if (GROQ_KEY) {
     triedModels.push(GROQ_MODEL.id);
@@ -393,7 +487,79 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// 🔌 OpenRouter — Qwen 3.6 Plus Free
+// 🟢 NVIDIA NIM — المزود الأساسي (OpenAI-compatible API)
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function callNVIDIA(
+  systemPrompt: string,
+  userMessage: string,
+  history: Array<{ role: string; content: string }> | undefined,
+  maxTokens: number,
+  temperature: number,
+  signal: AbortSignal,
+  modelId: string,
+): Promise<string | null> {
+  if (!NVIDIA_KEY) return null;
+
+  const apiMessages: Array<{ role: string; content: string }> = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (history?.length) {
+    for (const msg of history.slice(-10)) {
+      if (msg.role === 'user' || msg.role === 'assistant') {
+        apiMessages.push({ role: msg.role, content: String(msg.content || '').slice(0, 5000) });
+      }
+    }
+  }
+  apiMessages.push({ role: "user", content: userMessage });
+
+  const startMs = Date.now();
+
+  try {
+    const res = await fetch(NVIDIA_API_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${NVIDIA_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: modelId,
+        messages: apiMessages,
+        max_tokens: maxTokens,
+        temperature,
+      }),
+      signal,
+    });
+
+    const elapsed = Date.now() - startMs;
+
+    if (res.status === 429) {
+      console.warn(`[AI Core] NVIDIA 429 في ${elapsed}ms → النموذج التالي`);
+      return null;
+    }
+    if (!res.ok) {
+      console.error(`[AI Core] NVIDIA HTTP ${res.status} في ${elapsed}ms`);
+      return null;
+    }
+
+    const data    = await res.json();
+    const content = data?.choices?.[0]?.message?.content?.trim();
+
+    if (content && content.length > 5) {
+      console.log(`[AI Core] ✅ NVIDIA (${modelId}): ${content.length} حرف في ${elapsed}ms`);
+      return content;
+    }
+    console.warn(`[AI Core] NVIDIA رد فارغ في ${elapsed}ms`);
+    return null;
+  } catch (err) {
+    const reason = err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR';
+    console.error(`[AI Core] NVIDIA ${reason}:`, err);
+    throw err;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🟡 OpenRouter — نماذج مجانية
 // ═══════════════════════════════════════════════════════════════════════════
 
 async function callOpenRouter(

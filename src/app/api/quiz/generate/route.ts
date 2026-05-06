@@ -1,17 +1,18 @@
 /**
  * /api/quiz/generate
- * يولّد أسئلة كويز قانونية عبر Groq (llama-3.3-70b-versatile) حصراً
- * سريع · مجاني · لا يُضيف <think> · يرد بـ JSON نظيف
+ * يولّد أسئلة كويز قانونية عبر NVIDIA NIM (أساسي) + Groq (بديل)
+ * سريع · يرد بـ JSON نظيف
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { parseJSON, checkRateLimit, GROQ_MODEL } from '@/lib/ai-core';
+import { parseJSON, checkRateLimit, NVIDIA_MODEL_1, GROQ_MODEL } from '@/lib/ai-core';
 
-export const maxDuration = 30; // Groq سريع جداً — 30 ثانية تكفي
+export const maxDuration = 30;
 
-const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-// ⚠️ يجب تعيين مفتاح Groq عبر متغير البيئة (.env) — لا تدمج مفاتيح حقيقية في الكود
-const GROQ_KEY     = process.env.GROQ_API_KEY || '';
+const NVIDIA_API_URL = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const NVIDIA_KEY     = process.env.NVIDIA_API_KEY || '';
+const GROQ_API_URL   = 'https://api.groq.com/openai/v1/chat/completions';
+const GROQ_KEY       = process.env.GROQ_API_KEY || '';
 
 // ── قائمة القوانين ───────────────────────────────────────────────────────────
 const LAW_REGISTRY: Record<string, { name: string; shortName: string; number: string }> = {
@@ -29,7 +30,7 @@ const DIFFICULTY_LABELS: Record<string, string> = {
   easy: 'سهل', medium: 'متوسط', hard: 'صعب',
 };
 
-// ── أسئلة احتياطية عند فشل Groq ─────────────────────────────────────────────
+// ── أسئلة احتياطية عند فشل AI ─────────────────────────────────────────────
 const FALLBACK_QUESTIONS = [
   {
     id: 'f1', law: 'ق.إ.ج', lawNumber: '25-14',
@@ -88,13 +89,54 @@ const FALLBACK_QUESTIONS = [
   },
 ];
 
-// ── استدعاء Groq مباشرة ──────────────────────────────────────────────────────
+// ── استدعاء NVIDIA مباشرة ────────────────────────────────────────────────────
+async function callNVIDIADirect(
+  systemPrompt: string,
+  userMessage: string,
+  maxTokens: number,
+  signal: AbortSignal,
+): Promise<string | null> {
+  if (!NVIDIA_KEY) return null;
+
+  const res = await fetch(NVIDIA_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${NVIDIA_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: NVIDIA_MODEL_1.id,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user',   content: userMessage  },
+      ],
+      max_tokens:   maxTokens,
+      temperature:  0.4,
+      response_format: { type: 'json_object' },
+    }),
+    signal,
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    console.error(`[quiz/nvidia] HTTP ${res.status}: ${body.slice(0, 200)}`);
+    return null;
+  }
+
+  const data    = await res.json();
+  const content = data?.choices?.[0]?.message?.content?.trim();
+  return content && content.length > 5 ? content : null;
+}
+
+// ── استدعاء Groq مباشرة (بديل) ────────────────────────────────────────────────
 async function callGroqDirect(
   systemPrompt: string,
   userMessage: string,
   maxTokens: number,
   signal: AbortSignal,
 ): Promise<string | null> {
+  if (!GROQ_KEY) return null;
+
   const res = await fetch(GROQ_API_URL, {
     method: 'POST',
     headers: {
@@ -102,14 +144,13 @@ async function callGroqDirect(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: GROQ_MODEL.id,          // llama-3.3-70b-versatile
+      model: GROQ_MODEL.id,
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user',   content: userMessage  },
       ],
       max_tokens:   maxTokens,
       temperature:  0.4,
-      // إجبار Groq على إخراج JSON فقط
       response_format: { type: 'json_object' },
     }),
     signal,
@@ -167,42 +208,63 @@ export async function POST(req: NextRequest) {
     `أعد JSON بهذا الشكل الحرفي:\n` +
     `{"questions":[{"id":"q1","law":"ق.إ.ج","lawNumber":"25-14","question":"...","options":["أ","ب","ج","د"],"correct":0,"article":"م.1","articleText":"نص المادة","explanation":"التعليل مع رقم المادة","difficulty":"easy","category":"الاختصاص"}]}`;
 
-  // ── استدعاء Groq مع timeout 25 ثانية ──────────────────────────────────────
+  // ── استدعاء NVIDIA أولاً ثم Groq كبديل ─────────────────────────────────────
   const startTime = Date.now();
-  const ctrl      = new AbortController();
-  const timer     = setTimeout(() => ctrl.abort(), 25_000);
+  let aiContent: string | null = null;
+  let usedModel = 'fallback';
 
-  let groqContent: string | null = null;
-  try {
-    groqContent = await callGroqDirect(systemPrompt, userMessage, 4096, ctrl.signal);
-  } catch (err) {
-    const isAbort = err instanceof Error && err.name === 'AbortError';
-    console.error(`[quiz/groq] ${isAbort ? 'TIMEOUT' : 'ERROR'}:`, err);
-  } finally {
-    clearTimeout(timer);
+  // المحاولة الأولى: NVIDIA
+  if (NVIDIA_KEY) {
+    const ctrl1 = new AbortController();
+    const timer1 = setTimeout(() => ctrl1.abort(), 20_000);
+    try {
+      console.log('[quiz/nvidia] محاولة NVIDIA...');
+      aiContent = await callNVIDIADirect(systemPrompt, userMessage, 4096, ctrl1.signal);
+      if (aiContent) usedModel = 'nvidia';
+    } catch (err) {
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      console.error(`[quiz/nvidia] ${isAbort ? 'TIMEOUT' : 'ERROR'}`);
+    } finally {
+      clearTimeout(timer1);
+    }
+  }
+
+  // المحاولة الثانية: Groq (بديل)
+  if (!aiContent && GROQ_KEY) {
+    const ctrl2 = new AbortController();
+    const timer2 = setTimeout(() => ctrl2.abort(), 15_000);
+    try {
+      console.log('[quiz/groq] محاولة Groq كبديل...');
+      aiContent = await callGroqDirect(systemPrompt, userMessage, 4096, ctrl2.signal);
+      if (aiContent) usedModel = 'groq';
+    } catch (err) {
+      console.error(`[quiz/groq] ${err instanceof Error && err.name === 'AbortError' ? 'TIMEOUT' : 'ERROR'}`);
+    } finally {
+      clearTimeout(timer2);
+    }
   }
 
   const elapsedMs = Date.now() - startTime;
 
   // ── تحليل الرد ──────────────────────────────────────────────────────────────
-  if (groqContent) {
-    const parsed = parseJSON<{ questions: unknown[] }>(groqContent);
+  if (aiContent) {
+    const parsed = parseJSON<{ questions: unknown[] }>(aiContent);
     if (parsed && Array.isArray(parsed.questions) && parsed.questions.length > 0) {
       return NextResponse.json({
         questions: parsed.questions,
         meta: {
-          model:     GROQ_MODEL.label,   // "Llama 3.3 70B (Groq)"
+          model:     usedModel === 'nvidia' ? NVIDIA_MODEL_1.label : GROQ_MODEL.label,
           law:       law.name,
           count:     parsed.questions.length,
           elapsedMs,
-          source:    'groq',
+          source:    usedModel,
         },
       });
     }
   }
 
-  // ── Fallback عند فشل Groq ────────────────────────────────────────────────────
-  console.warn('[quiz/groq] فشل Groq — استخدام الأسئلة الاحتياطية');
+  // ── Fallback عند فشل الجميع ─────────────────────────────────────────────────
+  console.warn('[quiz] فشل NVIDIA + Groq — استخدام الأسئلة الاحتياطية');
 
   let fallback = FALLBACK_QUESTIONS;
   if (lawId !== 'mixed') {
@@ -219,7 +281,7 @@ export async function POST(req: NextRequest) {
       count:     shuffled.length,
       elapsedMs,
       source:    'fallback',
-      warning:   'تعذّر الاتصال بـ Groq — عرض أسئلة احتياطية',
+      warning:   'تعذّر الاتصال بـ NVIDIA و Groq — عرض أسئلة احتياطية',
     },
   });
 }

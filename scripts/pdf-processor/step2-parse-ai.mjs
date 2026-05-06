@@ -26,8 +26,9 @@ if (!fs.existsSync(PARSED_DIR)) {
   fs.mkdirSync(PARSED_DIR, { recursive: true });
 }
 
-// الحصول على API Key
-const API_KEY = process.env.GEMINI_API_KEY || process.env.OPENROUTER_API_KEY;
+// الحصول على API Key — NVIDIA (أساسي) > OpenRouter > Gemini
+const API_KEY = process.env.NVIDIA_API_KEY || process.env.OPENROUTER_API_KEY || process.env.GEMINI_API_KEY;
+const API_PROVIDER = process.env.NVIDIA_API_KEY ? 'nvidia' : (process.env.OPENROUTER_API_KEY ? 'openrouter' : 'gemini');
 
 const ANALYSIS_PROMPT = `أنت متخصص في تحليل قرارات المحكمة العليا الجزائرية. 
 
@@ -97,6 +98,36 @@ const ANALYSIS_PROMPT = `أنت متخصص في تحليل قرارات المح
 ]
 
 مهم: أعد مصفوفة JSON صحيحة فقط، بدون أي نص قبلها أو بعدها.`;
+
+async function analyzeWithNVIDIA(text) {
+  const url = 'https://integrate.api.nvidia.com/v1/chat/completions';
+  
+  const body = {
+    model: 'meta/llama-3.3-70b-instruct',
+    messages: [
+      { role: 'system', content: ANALYSIS_PROMPT },
+      { role: 'user', content: `حلل النص التالي واستخرج القرارات القضائية:\n\n${text}` }
+    ],
+    temperature: 0.2,
+    max_tokens: 32000,
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(`NVIDIA API Error ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data?.choices?.[0]?.message?.content;
+}
 
 async function analyzeWithGemini(text) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
@@ -270,7 +301,9 @@ async function processFile(mdFile, index, total) {
       const chunk = chunks[i];
       
       let responseText;
-      if (process.env.OPENROUTER_API_KEY) {
+      if (API_PROVIDER === 'nvidia') {
+        responseText = await analyzeWithNVIDIA(chunk);
+      } else if (API_PROVIDER === 'openrouter') {
         responseText = await analyzeWithOpenRouter(chunk);
       } else {
         responseText = await analyzeWithGemini(chunk);
@@ -322,8 +355,8 @@ async function main() {
   
   if (!API_KEY) {
     console.log('❌ لم يتم العثور على مفتاح API');
-    console.log('   ضع GEMINI_API_KEY أو OPENROUTER_API_KEY في ملف .env');
-    console.log('   أو شغّل: GEMINI_API_KEY=your_key npm run parse');
+    console.log('   ضع NVIDIA_API_KEY أو OPENROUTER_API_KEY أو GEMINI_API_KEY في ملف .env');
+    console.log('   أو شغّل: NVIDIA_API_KEY=your_key npm run parse');
     process.exit(1);
   }
   

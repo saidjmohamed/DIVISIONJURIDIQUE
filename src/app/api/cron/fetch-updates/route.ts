@@ -253,28 +253,37 @@ async function fetchTelegram(): Promise<LegalEntry[]> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// تحسين بـ Groq (سريع + مجاني)
+// تحسين بـ NVIDIA (أساسي) + Groq (بديل)
 // ═══════════════════════════════════════════════════════════════════════════
-async function enhanceWithGroq(entries: LegalEntry[]): Promise<LegalEntry[]> {
-  const GROQ_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_KEY || entries.length === 0) return entries;
+async function callAIEnhancement(
+  list: string,
+  provider: "nvidia" | "groq",
+): Promise<string | null> {
+  const url = provider === "nvidia"
+    ? "https://integrate.api.nvidia.com/v1/chat/completions"
+    : "https://api.groq.com/openai/v1/chat/completions";
+
+  const apiKey = provider === "nvidia"
+    ? process.env.NVIDIA_API_KEY
+    : process.env.GROQ_API_KEY;
+
+  if (!apiKey) return null;
+
+  const model = provider === "nvidia"
+    ? "meta/llama-3.3-70b-instruct"
+    : "llama-3.3-70b-versatile";
 
   try {
-    const list = entries
-      .slice(0, 15)
-      .map((e, i) => `${i + 1}. ${e.title} — ${e.summary.slice(0, 100)}`)
-      .join("\n");
-
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    const res = await fetch(url, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${GROQ_KEY}`,
+        "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model:       "llama-3.3-70b-versatile",
+        model,
         temperature: 0.3,
-        max_tokens:  2000,
+        max_tokens: 2000,
         response_format: { type: "json_object" },
         messages: [
           {
@@ -287,12 +296,34 @@ async function enhanceWithGroq(entries: LegalEntry[]): Promise<LegalEntry[]> {
       signal: AbortSignal.timeout(20_000),
     });
 
-    if (!res.ok) return entries;
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.choices?.[0]?.message?.content || null;
+  } catch {
+    return null;
+  }
+}
 
-    const data    = await res.json();
-    const content = data?.choices?.[0]?.message?.content;
-    if (!content) return entries;
+async function enhanceWithAI(entries: LegalEntry[]): Promise<LegalEntry[]> {
+  if (entries.length === 0) return entries;
 
+  const list = entries
+    .slice(0, 15)
+    .map((e, i) => `${i + 1}. ${e.title} — ${e.summary.slice(0, 100)}`)
+    .join("\n");
+
+  // المحاولة الأولى: NVIDIA
+  let content = await callAIEnhancement(list, "nvidia");
+
+  // المحاولة الثانية: Groq (بديل)
+  if (!content) {
+    console.log("[cron] NVIDIA فشل — تجربة Groq كبديل");
+    content = await callAIEnhancement(list, "groq");
+  }
+
+  if (!content) return entries;
+
+  try {
     const parsed = JSON.parse(content) as { results?: Array<{ summary?: string; impact?: string; keywords?: string[] }> };
     const results = parsed?.results || [];
 
@@ -379,8 +410,8 @@ export async function GET(req: NextRequest) {
     return true;
   });
 
-  // ── تحسين بـ Groq ───────────────────────────────────────────────────
-  const enhanced = await enhanceWithGroq(unique);
+  // ── تحسين بـ AI (NVIDIA أساسي + Groq بديل) ──────────────────────────────
+  const enhanced = await enhanceWithAI(unique);
 
   // ── حفظ في Redis ────────────────────────────────────────────────────
   let totalStored = 0;
