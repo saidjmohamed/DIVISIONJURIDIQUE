@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { GEMINI_KEYS, ALL_MODELS } from "@/lib/ai-core";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 🔧 AI Diagnostic — يعرض حالة OpenRouter + 4 مفاتيح Gemini + Groq
+// ⚠️ يتطلب مصادقة CRON_SECRET لحماية المعلومات الحساسة
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const maxDuration = 30;
@@ -98,7 +99,14 @@ async function testGroq(key: string): Promise<{ ok: boolean; status: number; lat
   }
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // 🔒 التحقق من المصادقة — يجب إرسال CRON_SECRET في الرأس
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.get("x-cron-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
+  if (cronSecret && authHeader !== cronSecret) {
+    return NextResponse.json({ error: "غير مصرح — يُطلب CRON_SECRET" }, { status: 401 });
+  }
+
   const OR_KEY   = process.env.OPENROUTER_API_KEY;
   const GROQ_K   = process.env.GROQ_API_KEY;
   const timestamp = new Date().toISOString();
@@ -107,9 +115,7 @@ export async function GET() {
   const [orResult, groqResult, ...geminiResults] = await Promise.all([
     OR_KEY ? testOpenRouter(OR_KEY) : Promise.resolve({ ok: false, status: 0, latencyMs: 0, error: "KEY_MISSING" }),
     GROQ_K ? testGroq(GROQ_K) : Promise.resolve({ ok: false, status: 0, latencyMs: 0, error: "KEY_MISSING" }),
-    // اختبار Gemini 2.5 Flash على جميع المفاتيح
     ...GEMINI_KEYS.map(k => testGemini(k, "gemini-2.5-flash")),
-    // اختبار Gemini 2.0 Flash على جميع المفاتيح
     ...GEMINI_KEYS.map(k => testGemini(k, "gemini-2.0-flash")),
   ]);
 
@@ -122,47 +128,46 @@ export async function GET() {
   const summary = {
     openrouter: {
       configured: !!OR_KEY,
-      keyPreview: OR_KEY ? `${OR_KEY.slice(0, 8)}...${OR_KEY.slice(-4)}` : null,
+      // لا نعرض أي جزء من المفتاح لحماية الأمان
       model: "openai/gpt-oss-120b:free",
       ...orResult,
     },
     groq: {
       configured: !!GROQ_K,
-      keyPreview: GROQ_K ? `${GROQ_K.slice(0, 8)}...${GROQ_K.slice(-4)}` : null,
       model: "llama-3.3-70b-versatile",
       ...groqResult,
     },
     gemini25Flash: {
       model: "gemini-2.5-flash",
       totalKeys: GEMINI_KEYS.length,
-      keys: GEMINI_KEYS.map((k, i) => ({
+      keys: gemini25Results.map((r, i) => ({
         index: i + 1,
-        keyPreview: `${k.slice(0, 10)}...`,
-        ...gemini25Results[i],
+        configured: GEMINI_KEYS[i] ? true : false,
+        ...r,
       })),
       workingKeys: gemini25Results.filter(r => r.ok).length,
     },
     gemini20Flash: {
       model: "gemini-2.0-flash",
       totalKeys: GEMINI_KEYS.length,
-      keys: GEMINI_KEYS.map((k, i) => ({
+      keys: gemini20Results.map((r, i) => ({
         index: i + 1,
-        keyPreview: `${k.slice(0, 10)}...`,
-        ...gemini20Results[i],
+        configured: GEMINI_KEYS[i] ? true : false,
+        ...r,
       })),
       workingKeys: gemini20Results.filter(r => r.ok).length,
     },
     fallbackChain: ALL_MODELS.map((m, i) => {
-      let status = "❌ FAIL";
-      if (i === 0) status = orResult.ok ? "✅ OK" : "❌ FAIL";
-      else if (i === 1) status = gemini25AnyOk ? `✅ ${gemini25Results.filter(r => r.ok).length}/${GEMINI_KEYS.length} keys OK` : "❌ ALL FAIL";
-      else if (i === 2) status = gemini20AnyOk ? `✅ ${gemini20Results.filter(r => r.ok).length}/${GEMINI_KEYS.length} keys OK` : "❌ ALL FAIL";
-      else if (i === 3) status = groqResult.ok ? "✅ OK" : "❌ FAIL";
+      let status = "FAIL";
+      if (i === 0) status = orResult.ok ? "OK" : "FAIL";
+      else if (i === 1) status = gemini25AnyOk ? `${gemini25Results.filter(r => r.ok).length}/${GEMINI_KEYS.length} keys OK` : "ALL FAIL";
+      else if (i === 2) status = gemini20AnyOk ? `${gemini20Results.filter(r => r.ok).length}/${GEMINI_KEYS.length} keys OK` : "ALL FAIL";
+      else if (i === 3) status = groqResult.ok ? "OK" : "FAIL";
       return { tier: i, provider: m.label, model: m.id, status };
     }),
     overallStatus: (orResult.ok || gemini25AnyOk || gemini20AnyOk || groqResult.ok)
-      ? "🟢 OPERATIONAL"
-      : "🔴 ALL DOWN",
+      ? "OPERATIONAL"
+      : "ALL DOWN",
   };
 
   return NextResponse.json({ timestamp, ...summary });

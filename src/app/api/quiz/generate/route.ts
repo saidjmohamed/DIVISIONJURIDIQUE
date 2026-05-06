@@ -10,7 +10,8 @@ import { parseJSON, checkRateLimit, GROQ_MODEL } from '@/lib/ai-core';
 export const maxDuration = 30; // Groq سريع جداً — 30 ثانية تكفي
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
-const GROQ_KEY     = process.env.GROQ_API_KEY || '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';
+// ⚠️ يجب تعيين مفتاح Groq عبر متغير البيئة (.env) — لا تدمج مفاتيح حقيقية في الكود
+const GROQ_KEY     = process.env.GROQ_API_KEY || '';
 
 // ── قائمة القوانين ───────────────────────────────────────────────────────────
 const LAW_REGISTRY: Record<string, { name: string; shortName: string; number: string }> = {

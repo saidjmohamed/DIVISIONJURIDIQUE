@@ -26,12 +26,13 @@ const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const GROQ_KEY       = process.env.GROQ_API_KEY || "";
 
 // ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
+// ⚠️ يجب تعيين مفاتيح Gemini عبر متغيرات البيئة (.env) — لا تدمج مفاتيح حقيقية في الكود
 export const GEMINI_KEYS: string[] = [
-  process.env.GEMINI_API_KEY_1 || "AIzaSyDLlsNaQFMrGgBlyFRdAQAjwDwYh_m4wiM", // key 1
-  process.env.GEMINI_API_KEY_2 || "AIzaSyA9QT3tfih8nIVQoeCPQPr7HnozvgdxETo", // key 2
-  process.env.GEMINI_API_KEY_3 || "AIzaSyCG7CGixqvdyZ4dQpQBcEXi-UKEhO_iLvA", // key 3
-  process.env.GEMINI_API_KEY_4 || "AIzaSyDL_dlkXQnU2NXmNdEwsFYiAxAcTQCyIAg", // key 4
-].filter(Boolean);
+  process.env.GEMINI_API_KEY_1 || "",
+  process.env.GEMINI_API_KEY_2 || "",
+  process.env.GEMINI_API_KEY_3 || "",
+  process.env.GEMINI_API_KEY_4 || "",
+].filter(k => k.length > 0);
 
 const OR_API_URL        = "https://openrouter.ai/api/v1/chat/completions";
 const GROQ_API_URL      = "https://api.groq.com/openai/v1/chat/completions";

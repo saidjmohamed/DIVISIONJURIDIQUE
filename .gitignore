@@ -30,8 +30,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files — لا ترفع ملفات البيئة الحساسة إلى GitHub
+.env
+.env.local
+.env.production
+.env.development
 
 # vercel
 .vercel
@@ -40,17 +43,47 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 local-*
+
+# IDE & AI tools
 .claude
 .z-ai-config
-dev.log
-test
-prompt
 
+# logs
+dev.log
 server.log
-# Skills directory
+
+# Skills directory (internal agent tools)
 /skills/
+
 # Upload directory (large files)
 upload/
 
+# Database
 db/
-.env.local
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ملفات حساسة — يجب عدم رفعها أبداً
+# ═══════════════════════════════════════════════════════════════════════════
+.mcp.json
+.config_backup
+.accesslog
+.stats
+worklog.md
+
+# ═══════════════════════════════════════════════════════════════════════════
+# مجلدات مؤقتة / مكررة
+# ═══════════════════════════════════════════════════════════════════════════
+original/
+download/
+__pycache__/
+venv/
+temp/
+cache/
+*.pyc
+
+# ═══════════════════════════════════════════════════════════════════════════
+# ملفات مؤقتة متنوعة
+# ═══════════════════════════════════════════════════════════════════════════
+3001
+test.txt
+prompt
