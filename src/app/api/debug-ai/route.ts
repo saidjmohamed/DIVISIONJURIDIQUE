@@ -100,10 +100,10 @@ async function testGroq(key: string): Promise<{ ok: boolean; status: number; lat
 }
 
 export async function GET(req: NextRequest) {
-  // 🔒 التحقق من المصادقة — يجب إرسال CRON_SECRET في الرأس
+  // 🔒 التحقق من المصادقة — يتطلب CRON_SECRET دائماً
   const cronSecret = process.env.CRON_SECRET;
   const authHeader = req.headers.get("x-cron-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
-  if (cronSecret && authHeader !== cronSecret) {
+  if (!cronSecret || authHeader !== cronSecret) {
     return NextResponse.json({ error: "غير مصرح — يُطلب CRON_SECRET" }, { status: 401 });
   }
 

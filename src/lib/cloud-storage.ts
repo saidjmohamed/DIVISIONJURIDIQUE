@@ -164,7 +164,7 @@ export async function updateFile(id: string, updates: Partial<CloudFile>): Promi
 
 // إنشاء معرف فريد
 export function generateId(): string {
-  return `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `file_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
 }
 
 // استيراد ملفات متعددة دفعة واحدة

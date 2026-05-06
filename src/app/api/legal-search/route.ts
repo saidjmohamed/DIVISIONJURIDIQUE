@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { searchLaws } from "@/lib/legal-search";
+import { checkRateLimit } from "@/lib/ai-core";
 
 export async function GET(req: NextRequest) {
+  // Rate limiting: 20 طلب في الدقيقة
+  const rateCheck = await checkRateLimit(req, { key: "legal-search", limit: 20, window: 60 });
+  if (rateCheck.limited) {
+    return NextResponse.json({ error: rateCheck.errorMessage }, { status: 429 });
+  }
+
   const q = req.nextUrl.searchParams.get("q")?.trim();
   const limitParam = req.nextUrl.searchParams.get("limit");
   const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 10, 20) : 10;

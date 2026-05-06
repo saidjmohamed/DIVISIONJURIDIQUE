@@ -14,6 +14,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { mergeEntries, logCronExecution, type LegalEntry } from "@/lib/legal-cache";
+import { classifyType, classifyCategory, extractLawNumber, stripHtml, isLegallyRelevant, genEntryId } from "@/lib/legal-utils";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 60;
@@ -21,62 +22,6 @@ export const maxDuration = 60;
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0";
 const TODAY = new Date().toISOString().split("T")[0];
 const YEAR  = new Date().getFullYear();
-
-// ═══════════════════════════════════════════════════════════════════════════
-// مساعدات مشتركة
-// ═══════════════════════════════════════════════════════════════════════════
-
-function genId(source: string, title: string): string {
-  return Buffer.from(`${source}:${title.slice(0, 40)}`).toString("base64url").slice(0, 20);
-}
-
-function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-    .replace(/&#\d+;/g, "").replace(/&[a-z]+;/g, "")
-    .replace(/\s+/g, " ").trim();
-}
-
-function classifyType(text: string): string {
-  if (/قانون\s+أساسي|قانون\s+عضوي/.test(text))  return "قانون";
-  if (/قانون/.test(text))                          return "قانون";
-  if (/مرسوم\s+تنفيذي|décret\s+exécutif/i.test(text)) return "مرسوم تنفيذي";
-  if (/مرسوم\s+رئاسي|décret\s+présidentiel/i.test(text)) return "مرسوم رئاسي";
-  if (/مرسوم/.test(text))                          return "مرسوم تنفيذي";
-  if (/قرار|arrêté/i.test(text))                  return "قرار";
-  if (/اجتهاد|قضاء/.test(text))                  return "اجتهاد";
-  if (/منشور|circulaire/i.test(text))             return "منشور";
-  if (/أمر\s+رقم|ordonnance/i.test(text))        return "أمر";
-  return "خبر رسمي";
-}
-
-function classifyCategory(text: string): string {
-  const t = text;
-  if (/مدني|عقد|التزام|مسؤولية/.test(t))          return "مدني";
-  if (/جزائي|جنائي|عقوب|جريمة/.test(t))           return "جزائي";
-  if (/إداري|وظيف|تأديب|صفقات/.test(t))           return "إداري";
-  if (/تجاري|شركة|استثمار|أعمال/.test(t))          return "تجاري";
-  if (/عمل|شغل|أجر|نقابة|ضمان\s+اجتماعي/.test(t)) return "عمالي";
-  if (/أسرة|زواج|طلاق|نفقة|حضانة/.test(t))        return "عائلي";
-  if (/عقار|ملكية|بناء|تعمير|أراضي/.test(t))       return "عقاري";
-  if (/دستور|انتخاب|برلمان|رئاس|هيئة ناخبة/.test(t)) return "دستوري";
-  return "إداري";
-}
-
-function extractLawNumber(text: string): string | undefined {
-  const m = text.match(/رقم\s+(\d{2,3}-\d{2,3})/i)
-         || text.match(/n[°o]\s*(\d{2,3}-\d{2,3})/i)
-         || text.match(/(\d{2,3}-\d{2,3})/);
-  return m ? m[1] : undefined;
-}
-
-// فلتر: هل الخبر ذو طابع قانوني/تشريعي؟
-function isLegallyRelevant(text: string): boolean {
-  return /مرسوم|قانون|قرار|تشريع|انتخاب|دستور|تعديل|صادق|يوقع|مجلس\s+الوزراء|أمر\s+رقم|منشور|نظام|مرفق/.test(text);
-}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. الجريدة الرسمية — JORADP
@@ -93,7 +38,7 @@ async function fetchJoradp(): Promise<LegalEntry[]> {
     // استخرج روابط الأعداد الأخيرة
     const links = [...html.matchAll(/href="([^"]*A(?:rab|rab)\w*\.htm[^"]*)"/gi)];
     const entries: LegalEntry[] = links.slice(0, 8).map((m) => ({
-      id:         genId("joradp", m[1]),
+      id:         genEntryId("joradp", m[1]),
       title:      `الجريدة الرسمية — ${m[1].match(/(\d+\w+)/)?.[1] || "عدد جديد"}`,
       type:       "خبر رسمي",
       date:       TODAY,
@@ -149,7 +94,7 @@ async function fetchApsPage(url: string, sourceId: string, sourceLabel: string):
       const dateIso = parseApsDate(rawDate) || TODAY;
 
       entries.push({
-        id:         genId(sourceId, title),
+        id:         genEntryId(sourceId, title),
         title,
         law_number: extractLawNumber(title),
         type:       classifyType(title),
@@ -199,7 +144,7 @@ async function fetchConseilEtat(): Promise<LegalEntry[]> {
       if (!isLegallyRelevant(title) && !/مجلس|قضاء|قرار|اجتهاد/.test(title)) continue;
 
       entries.push({
-        id:         genId("conseildetat", title),
+        id:         genEntryId("conseildetat", title),
         title,
         type:       classifyType(title),
         date:       TODAY,
@@ -239,7 +184,7 @@ async function fetchJustice(): Promise<LegalEntry[]> {
       const href  = hrefs[i]?.[1] || "https://www.mjustice.dz";
 
       entries.push({
-        id:         genId("justice", title),
+        id:         genEntryId("justice", title),
         title,
         type:       classifyType(title),
         date:       TODAY,

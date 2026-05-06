@@ -125,7 +125,7 @@ export default function HomePage() {
           <ModernTabs
             tabs={modernTabsData}
             activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as any)}
+            onTabChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
             variant="default"
           />
         </div>

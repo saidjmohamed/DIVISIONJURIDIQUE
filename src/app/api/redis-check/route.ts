@@ -1,9 +1,23 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { Redis } from "@upstash/redis";
+import { checkRateLimit } from "@/lib/ai-core";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Rate limiting: 10 طلب في الدقيقة
+  const rateCheck = await checkRateLimit(req, { key: "redis-check", limit: 10, window: 60 });
+  if (rateCheck.limited) {
+    return NextResponse.json({ error: rateCheck.errorMessage }, { status: 429 });
+  }
+
+  // مصادقة: يتطلب CRON_SECRET في الإنتاج
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.get("x-cron-secret") || req.headers.get("authorization")?.replace("Bearer ", "");
+  if (process.env.NODE_ENV === "production" && cronSecret && authHeader !== cronSecret) {
+    return NextResponse.json({ error: "غير مصرح" }, { status: 401 });
+  }
+
   const url   = process.env.UPSTASH_REDIS_REST_URL;
   const token = process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -29,10 +43,10 @@ export async function GET() {
         : 0;
 
     return NextResponse.json({
-      redis:    "✅ متصل",
-      ping:     val === "pong" ? "✅" : "❌",
+      redis:    "متصل",
+      ping:     val === "pong" ? "ok" : "fail",
       entries:  count,
-      url_prefix: url.slice(0, 30) + "...",
+      // لا نعرض أي جزء من URL لحماية الأمان
     });
   } catch (err) {
     return NextResponse.json({

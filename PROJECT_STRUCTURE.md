@@ -16,6 +16,8 @@ DIVISIONJURIDIQUE/
 ├── 📄 README.md                        # التوثيق الرئيسي للمشروع
 ├── 📄 PROJECT_STRUCTURE.md             # هذا الملف — شجرة المشروع
 ├── 📄 ANALYSIS_REPORT.md               # تقرير التحليل والتعديلات
+├── 📄 SECURITY_REPORT.md               # تقرير الأمان
+├── 📄 IMPROVEMENTS.md                  # اقتراحات التحسين
 ├── 📄 .env.example                     # نموذج متغيرات البيئة
 ├── 📄 .gitignore                       # ملفات مستثناة من Git
 ├── 📄 LICENSE                          # ترخيص MIT
@@ -51,34 +53,65 @@ DIVISIONJURIDIQUE/
 │   │   │
 │   │   └── 📁 api/                     # واجهات برمجة التطبيقات
 │   │       ├── 📁 ai/                  # مساعد الذكاء الاصطناعي
-│   │       │   └── route.ts            # نقطة نهاية المحادثة
+│   │       │   └── route.ts            # نقطة نهاية المحادثة (Rate Limited: 20/min)
 │   │       ├── 📁 cron/
-│   │       │   └── fetch-updates/      # جلب التحديثات القانونية
-│   │       ├── 📁 debug-ai/            # تشخيص حالة AI (محمي)
-│   │       ├── 📁 legal-search/        # البحث القانوني
+│   │       │   └── fetch-updates/      # جلب التحديثات القانونية (CRON_SECRET)
+│   │       ├── 📁 debug-ai/            # تشخيص حالة AI (محمي بـ CRON_SECRET)
+│   │       ├── 📁 legal-search/        # البحث القانوني (Rate Limited: 20/min)
 │   │       ├── 📁 legal-updates/       # التحديثات القانونية
-│   │       ├── 📁 petition-check/      # فحص العرائض
+│   │       ├── 📁 petition-check/      # فحص العرائض (Rate Limited: 10/min)
 │   │       ├── 📁 quiz/
-│   │       │   └── generate/           # توليد أسئلة الكويز
-│   │       ├── 📁 redis-check/         # فحص Redis
-│   │       ├── 📁 telegram-sync/       # مزامنة تيليجرام
+│   │       │   └── generate/           # توليد أسئلة الكويز (Rate Limited: 10/min)
+│   │       ├── 📁 redis-check/         # فحص Redis (محمي + Rate Limited)
+│   │       ├── 📁 telegram-sync/       # مزامنة تيليجرام (CRON_SECRET)
 │   │       └── 📁 tools/               # أدوات المحامي
-│   │           ├── contract/           # مراجعة العقود
-│   │           ├── judgment/           # تحليل الأحكام
-│   │           └── memo/               # مسودة المذكرات
+│   │           ├── contract/           # مراجعة العقود (Rate Limited: 8/min)
+│   │           ├── judgment/           # تحليل الأحكام (Rate Limited: 8/min)
+│   │           └── memo/               # مسودة المذكرات (Rate Limited: 6/min)
 │   │
 │   ├── 📁 components/                  # مكونات React
 │   │   ├── 📁 ui/                      # مكونات shadcn/ui (38 مكون)
 │   │   ├── 📁 deadlines/               # حاسبة الآجال القانونية
+│   │   │   ├── DualDeadlineView.tsx    # عرض مزدوج للآجال
+│   │   │   ├── DeadlineCalculator.tsx  # حاسبة الآجال
+│   │   │   └── DeadlinesTable.tsx      # جدول الآجال
 │   │   ├── 📁 jurisprudence/           # الاجتهاد القضائي
+│   │   │   └── JurisprudenceTab.tsx    # تبويب الاجتهادات
 │   │   ├── 📁 lawyer-tools/            # أدوات المحامي (16 أداة)
+│   │   │   ├── AiPromptsGuide.tsx      # دليل محفزات AI
+│   │   │   ├── CompensationCalculator.tsx # حاسبة التعويضات
+│   │   │   ├── ComplaintChecker.tsx    # فحص الشكاوى
+│   │   │   ├── ContractReviewer.tsx    # مراجعة العقود
+│   │   │   ├── DeadlineCalculatorTool.tsx # أداة حساب الآجال
+│   │   │   ├── DeadlinesFullView.tsx   # عرض كامل الآجال
+│   │   │   ├── FormChecklist.tsx       # قائمة التحقق من النماذج
+│   │   │   ├── FormalPetitionChecker.tsx # فحص العرائض الرسمية
+│   │   │   ├── JudgmentAnalyzer.tsx    # تحليل الأحكام
+│   │   │   ├── LawyerToolsTab.tsx      # تبويب أدوات المحامي
+│   │   │   ├── LegalDictionary.tsx     # القاموس القانوني
+│   │   │   ├── LegalQuizGame.tsx       # كويز قانوني
+│   │   │   ├── MemoDrafter.tsx         # مسودة المذكرات
+│   │   │   ├── NanoBananaBuilder.tsx   # بانا بناء نانو
+│   │   │   ├── PetitionChecker.tsx     # فحص العرائض
+│   │   │   ├── PetitionTemplates.tsx   # قوالب العرائض
+│   │   │   ├── ProceduresComparison.tsx # مقارنة الإجراءات
+│   │   │   ├── SmartPetitionChecker.tsx # فحص ذكي للعرائض
+│   │   │   └── SubjectMatterJurisdiction.tsx # الاختصاص النوعي
 │   │   ├── AiAssistant.tsx             # مساعد AI الرئيسي
+│   │   ├── DeveloperInfo.tsx           # معلومات المطور
+│   │   ├── ElectronicLitigationTab.tsx # التقاضي الإلكتروني
+│   │   ├── EstablishmentDeclaration.tsx # تصريح المؤسسة
 │   │   ├── GlobalLawSearch.tsx         # بحث قانوني شامل
-│   │   ├── LegalDeadlinesCalculator.tsx # حاسبة الآجال
+│   │   ├── InAppBrowserBanner.tsx      # بانر المتصفح الداخلي
+│   │   ├── InstallPrompt.tsx           # مطالبة تثبيت PWA
 │   │   ├── JudicialHierarchy.tsx       # التسلسل القضائي
+│   │   ├── LegalDeadlinesCalculator.tsx # حاسبة الآجال
 │   │   ├── LegalUpdatesTab.tsx         # التحديثات القانونية
 │   │   ├── ModernTabs.tsx              # نظام التبويبات
-│   │   └── ...                         # مكونات أخرى
+│   │   ├── ShareBubble.tsx             # فقاعة المشاركة
+│   │   ├── TabContent.tsx              # محتوى التبويب
+│   │   ├── TabDescription.tsx          # وصف التبويب
+│   │   └── WelcomeScreen.tsx           # شاشة الترحيب
 │   │
 │   ├── 📁 data/                        # بيانات ثابتة
 │   │   ├── deadlines-qij.ts            # آجال الإجراءات الجزائية
@@ -99,47 +132,24 @@ DIVISIONJURIDIQUE/
 │   │   └── useQuiz.ts                  # الكويز
 │   │
 │   └── 📁 lib/                         # مكتبات مساعدة
-│       ├── ai-core.ts                  # محرك AI رباعي المستويات
+│       ├── ai-core.ts                  # محرك AI رباعي المستويات + Rate Limiting
+│       ├── legal-utils.ts              # أدوات قانونية مشتركة (تصنيف، استخراج، تنظيف)
 │       ├── db.ts                       # اتصال Prisma
-│       ├── rate-limit.ts               # تقييد الطلبات
+│       ├── rate-limit.ts               # تقييد الطلبات (Upstash Redis)
 │       ├── legal-search.ts             # بحث قانوني
-│       ├── legal-cache.ts              # تخزين مؤقت
+│       ├── legal-cache.ts              # تخزين مؤقت قانوني
 │       ├── legal-rules.ts              # قواعد قانونية
 │       ├── deadline-calculator.ts      # حساب الآجال
 │       ├── extract-text.ts             # استخراج النص
-│       ├── cloud-storage.ts            # تخزين سحابي
+│       ├── cloud-storage.ts            # تخزين سحابي (Redis + Telegram)
 │       ├── ilovepdf.ts                 # أدوات PDF
-│       └── utils.ts                    # أدوات مساعدة عامة
+│       └── utils.ts                    # أدوات مساعدة عامة (cn, etc.)
 │
 ├── 📁 public/                          # ملفات ثابتة
-│   ├── 📁 laws-json/                   # قاعدة القوانين (270+ ملف JSON)
-│   │   ├── index.json                  # فهرس القوانين
-│   │   ├── all.json                    # جميع القوانين مجمعة
-│   │   ├── civil.json                  # القانون المدني
-│   │   ├── penal.json                  # قانون العقوبات
-│   │   ├── qij.json                    # إجراءات جزائية
-│   │   ├── qima.json                   # إجراءات مدنية
-│   │   ├── commercial.json             # القانون التجاري
-│   │   ├── family.json                 # قانون الأسرة
-│   │   ├── fiscal.json                 # القانون المالي
-│   │   ├── maritime.json               # القانون البحري
-│   │   └── ...                         # 260+ قانون آخر
-│   │
-│   ├── 📁 jurisprudence/               # الاجتهاد القضائي
-│   │   ├── index.json                  # فهرس الاجتهادات
-│   │   ├── civil.json                  # اجتهادات مدنية
-│   │   ├── penal.json                  # اجتهادات جزائية
-│   │   ├── commercial.json             # اجتهادات تجارية
-│   │   ├── family.json                 # اجتهادات أسرة
-│   │   ├── social.json                 # اجتهادات اجتماعية
-│   │   ├── realestate.json             # اجتهادات عقارية
-│   │   ├── compensation.json           # اجتهادات تعويضات
-│   │   ├── misdemeanor.json            # اجتهادات جنح
-│   │   └── combined.json               # اجتهادات مجمعة
-│   │
-│   ├── 📁 laws/                        # نسخة ثانية من القوانين
-│   ├── 📁 fonts/                       # خطوط عربية
-│   │   └── NotoSansArabic-Regular.ttf
+│   ├── 📁 laws/                        # قاعدة القوانين (100+ ملف JSON)
+│   ├── 📁 laws-json/                   # قوانين إضافية (270+ ملف JSON)
+│   ├── 📁 jurisprudence/               # بيانات الاجتهاد القضائي (10 ملفات)
+│   ├── 📁 fonts/                       # خطوط عربية (NotoSansArabic)
 │   ├── 📁 icons/                       # أيقونات PWA (8 أحجام)
 │   ├── logo.svg                        # شعار المنصة
 │   ├── manifest.json                   # بيان PWA
@@ -149,23 +159,24 @@ DIVISIONJURIDIQUE/
 │   ├── changelog.json                  # سجل التغييرات
 │   └── developer.jpg                   # صورة المطور
 │
-├── 📁 scripts/                         # سكريبتات المعالجة
+├── 📁 scripts/                         # سكريبتات معالجة البيانات
 │   ├── count-articles.mjs              # عد المواد القانونية
 │   ├── export-laws-json.mjs            # تصدير القوانين
-│   ├── convert-laws.js                 # تحويل القوانين
-│   ├── convert_laws_to_app.py          # تحويل للتنسيق التطبيقي
-│   ├── process_laws.py                 # معالجة القوانين (v1)
-│   ├── process_laws_v2.py              # معالجة القوانين (v2)
+│   ├── convert-laws.js                 # تحويل القوانين (Node.js)
+│   ├── convert_laws_to_app.py          # تحويل للتنسيق التطبيقي (Python)
+│   ├── process_laws.py                 # معالجة القوانين v1 (Python)
+│   ├── process_laws_v2.py              # معالجة القوانين v2 (Python)
 │   └── 📁 pdf-processor/              # معالجة ملفات PDF
-│       ├── step1-extract-pdf.mjs
-│       ├── step2-parse-ai.mjs
-│       ├── step3-classify.mjs
-│       └── step4-merge.mjs
+│       ├── package.json                # تبعيات المعالج
+│       ├── step1-extract-pdf.mjs       # خطوة 1: استخراج النص من PDF
+│       ├── step2-parse-ai.mjs          # خطوة 2: تحليل بالذكاء الاصطناعي
+│       ├── step3-classify.mjs          # خطوة 3: تصنيف القوانين
+│       └── step4-merge.mjs             # خطوة 4: دمج النتائج
 │
 ├── 📁 mini-services/                   # خدمات مصغرة
 │   └── .gitkeep
 │
-└── 📁 download/                        # بيانات محفوظة (gitignored)
+└── 📁 data/                            # بيانات محفوظة (gitignored)
     └── README.md
 ```
 
@@ -183,3 +194,5 @@ DIVISIONJURIDIQUE/
 | عدد أدوات المحامي | 16 أداة |
 | عدد مكونات shadcn/ui | 38 مكون |
 | عدد React Hooks | 6 hooks |
+| عدد مكتبات lib | 12 مكتبة |
+| عدد سكريبتات المعالجة | 8 سكريبتات |

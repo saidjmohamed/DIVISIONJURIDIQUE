@@ -9,59 +9,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { mergeEntries, type LegalEntry } from "@/lib/legal-cache";
+import { classifyType, classifyCategory, extractLawNumber, stripHtml } from "@/lib/legal-utils";
 
 export const dynamic     = "force-dynamic";
 export const maxDuration = 30;
 
 const CHANNEL_URL = "https://t.me/s/elshamill";
-
-// ── تصنيف النوع ──────────────────────────────────────────────────────
-function classifyType(text: string): string {
-  if (/قانون\s+أساسي|قانون\s+عضوي/.test(text)) return "قانون";
-  if (/قانون/.test(text))                        return "قانون";
-  if (/مرسوم\s+تنفيذي/.test(text))              return "مرسوم تنفيذي";
-  if (/مرسوم\s+رئاسي/.test(text))               return "مرسوم رئاسي";
-  if (/مرسوم/.test(text))                        return "مرسوم تنفيذي";
-  if (/قرار/.test(text))                         return "قرار";
-  if (/اجتهاد|قضاء/.test(text))                 return "اجتهاد";
-  if (/منشور/.test(text))                        return "منشور";
-  return "خبر رسمي";
-}
-
-// ── تصنيف المجال ─────────────────────────────────────────────────────
-function classifyCategory(text: string): string {
-  if (/مدني|عقد|التزام|مسؤولية/.test(text))      return "مدني";
-  if (/جزائي|جنائي|عقوب|جريمة/.test(text))       return "جزائي";
-  if (/إداري|دوائر|تأديب|وظيف/.test(text))       return "إداري";
-  if (/تجاري|شركة|تجار|أعمال/.test(text))        return "تجاري";
-  if (/عمالي|عمل|شغل|نقاب/.test(text))           return "عمالي";
-  if (/أسرة|زواج|طلاق|نفقة|حضانة/.test(text))   return "عائلي";
-  if (/عقار|ملكية|بناء|تعمير/.test(text))        return "عقاري";
-  if (/دستور|انتخاب|برلمان/.test(text))          return "دستوري";
-  return "إداري";
-}
-
-// ── استخراج رقم القانون ──────────────────────────────────────────────
-function extractLawNumber(text: string): string | undefined {
-  const m = text.match(/(?:رقم|مرسوم|قانون)\s+(\d{2,3}-\d{2,3})/i)
-         || text.match(/(\d{2,3}-\d{2,3})/);
-  return m ? m[1] : undefined;
-}
-
-// ── تنظيف HTML ───────────────────────────────────────────────────────
-function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&#33;/g, "!")
-    .replace(/&[a-z]+;/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 // ── تحليل HTML للقناة ────────────────────────────────────────────────
 interface RawMessage {
@@ -92,7 +45,7 @@ function parseChannelHtml(html: string): RawMessage[] {
 
     // النص
     const textMatch = block.match(/class="tgme_widget_message_text[^"]*"[^>]*>([\s\S]*?)<\/div>/);
-    const rawText   = textMatch ? stripHtml(textMatch[1]) : "";
+    const rawText   = textMatch ? stripHtml(textMatch[1], true) : "";
 
     if (id && rawText.length > 40) {
       msgs.push({
