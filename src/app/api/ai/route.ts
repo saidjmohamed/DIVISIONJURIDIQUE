@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  PRIMARY_MODEL, callAI, checkRateLimit,
+  NVIDIA_MODEL_1, callAI, checkRateLimit,
 } from "@/lib/ai-core";
 import { searchLaws, extractKeywords, formatSearchResultsForPrompt } from "@/lib/legal-search";
 
 // ═══════════════════════════════════════════════════════════════════════════
 // المساعد القانوني الذكي — SSE Streaming + RAG
-// 🧠 Qwen 3.6 Plus → Gemini 2.5 Flash → Gemini 2.0 Flash → Groq
+// 🟢 NVIDIA NIM (4 نماذج) → OpenRouter → Gemini → Groq
 // 🔍 RAG: بحث في 268 قانون جزائري قبل الإجابة
 // ═══════════════════════════════════════════════════════════════════════════
 
@@ -188,8 +188,10 @@ export async function POST(req: NextRequest) {
 // ─── GET: النموذج المستخدم ──────────────────────────
 export async function GET() {
   return NextResponse.json({
-    model: PRIMARY_MODEL.id,
-    label: PRIMARY_MODEL.label,
-    contextWindow: PRIMARY_MODEL.contextWindow,
+    model: NVIDIA_MODEL_1.id,
+    label: NVIDIA_MODEL_1.label,
+    contextWindow: NVIDIA_MODEL_1.contextWindow,
+    provider: 'nvidia',
+    fallback: 'OpenRouter → Gemini 2.5 → Gemini 2.0 → Groq',
   });
 }
