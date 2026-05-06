@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ThemeProvider } from "next-themes";
+import { Analytics } from "@vercel/analytics/react";
 import InAppBrowserBannerWrapper from "@/components/InAppBrowserBannerWrapper";
 import InstallPrompt from "@/components/InstallPrompt";
 import "./globals.css";
@@ -89,6 +90,7 @@ export default function RootLayout({
           {children}
           <InstallPrompt />
           <InAppBrowserBannerWrapper />
+          <Analytics />
         </ThemeProvider>
       </body>
     </html>

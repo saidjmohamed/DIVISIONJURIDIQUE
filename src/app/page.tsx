@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ShareBubble from '@/components/ShareBubble';
 import DeveloperInfo from '@/components/DeveloperInfo';
+import VisitorCounter from '@/components/VisitorCounter';
 import ModernTabs from '@/components/ModernTabs';
 import TabContent from '@/components/TabContent';
 import TabDescription from '@/components/TabDescription';
@@ -106,6 +107,7 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center gap-2">
+              <VisitorCounter />
               <button
                 onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
                 className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
