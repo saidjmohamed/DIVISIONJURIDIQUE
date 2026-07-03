@@ -1,14 +1,14 @@
 /**
- * AI Core — محرك الذكاء الاصطناعي (v12 — NVIDIA First + Smart Fallback)
+ * AI Core — محرك الذكاء الاصطناعي (v13 — Gemini First + Smart Fallback)
  *
- * 🥇 Tier 0:  NVIDIA NIM — 4 نماذج قوية بالتتابع (المزود الأساسي)
- *   ├─ meta/llama-4-maverick-17b-128e-instruct  (أسرع ~4s)
- *   ├─ mistralai/mixtral-8x22b-instruct-v0.1  (سريع جداً ~3s)
- *   ├─ meta/llama-3.3-70b-instruct            (متوازن ~7s)
- *   └─ meta/llama-3.1-405b-instruct           (أقوى ~12s — أفضل جودة)
- * 🥈 Tier 1:  OpenRouter → 3 نماذج مجانية بالتتابع
- * 🥉 Tier 2:  Google Gemini 2.5 Flash  (4 مفاتيح بالتناوب)
- * 🏅 Tier 3:  Google Gemini 2.0 Flash  (4 مفاتيح بالتناوب — مجاني)
+ * 🥇 Tier 0:  Google Gemini 2.5 Flash  (المزود الأساسي — 4 مفاتيح بالتناوب)
+ * 🥈 Tier 1:  Google Gemini 2.0 Flash  (4 مفاتيح بالتناوب — مجاني)
+ * 🥉 Tier 2:  NVIDIA NIM — 4 نماذج بالتتابع (fallback اختياري)
+ *   ├─ meta/llama-4-maverick-17b-128e-instruct
+ *   ├─ mistralai/mixtral-8x22b-instruct-v0.1
+ *   ├─ meta/llama-3.3-70b-instruct
+ *   └─ meta/llama-3.1-405b-instruct
+ * 🏅 Tier 3:  OpenRouter → 3 نماذج مجانية بالتتابع (fallback اختياري)
  * 🛡️ Tier 4:  Groq → llama-3.3-70b-versatile (خط الدفاع الأخير)
  *
  * الانتقال يحدث تلقائياً عند:
@@ -31,8 +31,9 @@ const NVIDIA_KEY     = process.env.NVIDIA_API_KEY || "";
 const OPENROUTER_KEY = process.env.OPENROUTER_API_KEY;
 const GROQ_KEY       = process.env.GROQ_API_KEY || "";
 
-// ── مفاتيح Gemini — تدوير تلقائي (كل مفتاح 1500 طلب/يوم مجاناً) ──
+// ── مفاتيح Gemini — المزود الأساسي (تدوير تلقائي) ──
 // ⚠️ يجب تعيين مفاتيح Gemini عبر متغيرات البيئة (.env) — لا تدمج مفاتيح حقيقية في الكود
+// يمكن تعيين نفس المفتاح لجميع المتغيرات أو مفاتيح مختلفة للتوزيع
 export const GEMINI_KEYS: string[] = [
   process.env.GEMINI_API_KEY_1 || "",
   process.env.GEMINI_API_KEY_2 || "",
@@ -61,11 +62,33 @@ export interface AIModel {
   geminiModel?: string;
 }
 
-// ── Tier 0: NVIDIA NIM — المزود الأساسي ──
+// ── Tier 0: Gemini 2.5 Flash — المزود الأساسي ──
+export const GEMINI_25_MODEL: AIModel = {
+  id: GEMINI_FLASH_25,
+  label: "Gemini 2.5 Flash",
+  tier: 0,
+  maxTokens: 8192,
+  contextWindow: 1_000_000,
+  provider: "gemini",
+  geminiModel: GEMINI_FLASH_25,
+};
+
+// ── Tier 1: Gemini 2.0 Flash — المزود الثانوي ──
+export const FALLBACK_MODEL: AIModel = {
+  id: GEMINI_FLASH_20,
+  label: "Gemini 2.0 Flash",
+  tier: 1,
+  maxTokens: 4096,
+  contextWindow: 1_000_000,
+  provider: "gemini",
+  geminiModel: GEMINI_FLASH_20,
+};
+
+// ── Tier 2: NVIDIA NIM — Fallback اختياري ──
 export const NVIDIA_MODEL_1: AIModel = {
   id: "meta/llama-4-maverick-17b-128e-instruct",
   label: "Llama 4 Maverick (NVIDIA)",
-  tier: 0,
+  tier: 2,
   maxTokens: 4096,
   contextWindow: 128_000,
   provider: "nvidia",
@@ -73,7 +96,7 @@ export const NVIDIA_MODEL_1: AIModel = {
 export const NVIDIA_MODEL_2: AIModel = {
   id: "mistralai/mixtral-8x22b-instruct-v0.1",
   label: "Mixtral 8x22B (NVIDIA)",
-  tier: 0,
+  tier: 2,
   maxTokens: 4096,
   contextWindow: 65_536,
   provider: "nvidia",
@@ -81,7 +104,7 @@ export const NVIDIA_MODEL_2: AIModel = {
 export const NVIDIA_MODEL_3: AIModel = {
   id: "meta/llama-3.3-70b-instruct",
   label: "Llama 3.3 70B (NVIDIA)",
-  tier: 0,
+  tier: 2,
   maxTokens: 4096,
   contextWindow: 128_000,
   provider: "nvidia",
@@ -89,42 +112,20 @@ export const NVIDIA_MODEL_3: AIModel = {
 export const NVIDIA_MODEL_4: AIModel = {
   id: "meta/llama-3.1-405b-instruct",
   label: "Llama 3.1 405B (NVIDIA)",
-  tier: 0,
+  tier: 2,
   maxTokens: 4096,
   contextWindow: 128_000,
   provider: "nvidia",
 };
 
-// ── Tier 1: OpenRouter — نماذج مجانية ──
+// ── Tier 3: OpenRouter — نماذج مجانية ──
 export const PRIMARY_MODEL: AIModel = {
   id: "openai/gpt-oss-120b:free",
   label: "GPT-OSS 120B",
-  tier: 1,
+  tier: 3,
   maxTokens: 4096,
   contextWindow: 131_072,
   provider: "openrouter",
-};
-
-// ── Tier 2: Gemini 2.5 Flash ──
-export const GEMINI_25_MODEL: AIModel = {
-  id: GEMINI_FLASH_25,
-  label: "Gemini 2.5 Flash",
-  tier: 2,
-  maxTokens: 4096,
-  contextWindow: 1_000_000,
-  provider: "gemini",
-  geminiModel: GEMINI_FLASH_25,
-};
-
-// ── Tier 3: Gemini 2.0 Flash (مجاني) ──
-export const FALLBACK_MODEL: AIModel = {
-  id: GEMINI_FLASH_20,
-  label: "Gemini 2.0 Flash",
-  tier: 3,
-  maxTokens: 2048,
-  contextWindow: 1_000_000,
-  provider: "gemini",
-  geminiModel: GEMINI_FLASH_20,
 };
 
 // ── Tier 4: Groq — خط الدفاع الأخير ──
@@ -138,11 +139,12 @@ export const GROQ_MODEL: AIModel = {
 };
 
 export const ALL_MODELS: AIModel[] = [
+  GEMINI_25_MODEL, FALLBACK_MODEL,
   NVIDIA_MODEL_1, NVIDIA_MODEL_2, NVIDIA_MODEL_3, NVIDIA_MODEL_4,
-  PRIMARY_MODEL, GEMINI_25_MODEL, FALLBACK_MODEL, GROQ_MODEL,
+  PRIMARY_MODEL, GROQ_MODEL,
 ];
 
-// ── قائمة نماذج NVIDIA للـ Tier 0 ──
+// ── قائمة نماذج NVIDIA للـ Tier 2 (fallback) ──
 const NVIDIA_MODELS: AIModel[] = [NVIDIA_MODEL_1, NVIDIA_MODEL_2, NVIDIA_MODEL_3, NVIDIA_MODEL_4];
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -239,7 +241,111 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
   const triedModels: string[] = [];
 
   // ══════════════════════════════════════════════════════════
-  // 🟢 المستوى 0: NVIDIA NIM — المزود الأساسي (4 نماذج بالتتابع)
+  // 🥇 المستوى 0: Gemini 2.5 Flash — المزود الأساسي
+  // يجرب جميع المفاتيح بالتناوب
+  // ══════════════════════════════════════════════════════════
+  triedModels.push(GEMINI_25_MODEL.id);
+
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const timeLeft = timeout - (Date.now() - startTime);
+    if (timeLeft < 3_000) break;
+
+    const key    = GEMINI_KEYS[i];
+    const ctrl0  = new AbortController();
+    const timer0 = setTimeout(() => ctrl0.abort(), Math.min(timeLeft, 25_000));
+
+    try {
+      console.log(`[AI Core] 🥇 Gemini 2.5 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
+      const content = await callGemini(
+        systemPrompt, userMessage, messages,
+        maxTokens || GEMINI_25_MODEL.maxTokens,
+        temperature, ctrl0.signal, key, GEMINI_FLASH_25,
+      );
+      clearTimeout(timer0);
+
+      if (content) {
+        console.log(`[AI Core] ✅ Gemini 2.5 Flash key #${i + 1} نجح`);
+        return {
+          content,
+          model: GEMINI_25_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: false,
+          usedFallback: false,
+        };
+      }
+      console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} رد فارغ → key #${i + 2}`);
+    } catch (err) {
+      clearTimeout(timer0);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort) {
+        return {
+          content: '',
+          model: GEMINI_25_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: true,
+          usedFallback: false,
+        };
+      }
+      const errMsg = err instanceof Error ? err.message : 'Unknown';
+      console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} خطأ (${errMsg}) → key #${i + 2}`);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 🥈 المستوى 1: Gemini 2.0 Flash — المزود الثانوي
+  // ══════════════════════════════════════════════════════════
+  triedModels.push(FALLBACK_MODEL.id);
+
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const timeLeft = timeout - (Date.now() - startTime);
+    if (timeLeft < 3_000) break;
+
+    const key    = GEMINI_KEYS[i];
+    const ctrl1  = new AbortController();
+    const timer1 = setTimeout(() => ctrl1.abort(), Math.min(timeLeft, 20_000));
+
+    try {
+      console.log(`[AI Core] 🥈 Gemini 2.0 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
+      const content = await callGemini(
+        systemPrompt, userMessage, messages,
+        maxTokens || FALLBACK_MODEL.maxTokens,
+        temperature, ctrl1.signal, key, GEMINI_FLASH_20,
+      );
+      clearTimeout(timer1);
+
+      if (content) {
+        console.log(`[AI Core] ✅ Gemini 2.0 Flash key #${i + 1} نجح`);
+        return {
+          content,
+          model: FALLBACK_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: false,
+          usedFallback: true,
+        };
+      }
+      console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} رد فارغ → key #${i + 2}`);
+    } catch (err) {
+      clearTimeout(timer1);
+      const isAbort = err instanceof Error && err.name === 'AbortError';
+      if (isAbort) {
+        return {
+          content: '',
+          model: FALLBACK_MODEL,
+          triedModels,
+          elapsedMs: Date.now() - startTime,
+          timedOut: true,
+          usedFallback: true,
+        };
+      }
+      console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} خطأ → key #${i + 2}`);
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // 🥉 المستوى 2: NVIDIA NIM — Fallback اختياري (4 نماذج بالتتابع)
   // ══════════════════════════════════════════════════════════
   if (!geminiOnly && !skipNvidia && NVIDIA_KEY) {
     for (const nvModel of NVIDIA_MODELS) {
@@ -251,7 +357,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
       const timer = setTimeout(() => ctrl.abort(), Math.min(timeLeft, 25_000));
 
       try {
-        console.log(`[AI Core] 🟢 NVIDIA (${nvModel.label})...`);
+        console.log(`[AI Core] 🥉 NVIDIA (${nvModel.label})...`);
         const content = await callNVIDIA(
           systemPrompt, userMessage, messages,
           maxTokens || nvModel.maxTokens,
@@ -266,7 +372,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
             triedModels,
             elapsedMs: Date.now() - startTime,
             timedOut: false,
-            usedFallback: false,
+            usedFallback: true,
           };
         }
         console.warn(`[AI Core] NVIDIA ${nvModel.label} رد فارغ → النموذج التالي`);
@@ -277,11 +383,11 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
       }
     }
   } else if (!geminiOnly && !skipNvidia) {
-    console.warn("[AI Core] NVIDIA_API_KEY غير مضبوط → OpenRouter مباشرة");
+    console.warn("[AI Core] NVIDIA_API_KEY غير مضبوط → تخطي NVIDIA");
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🟡 المستوى 1: OpenRouter — يجرب 3 نماذج مجانية بالتتابع
+  // 🏅 المستوى 3: OpenRouter — يجرب 3 نماذج مجانية بالتتابع
   // ══════════════════════════════════════════════════════════
   const OR_FREE_MODELS = [
     PRIMARY_MODEL,
@@ -299,7 +405,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
       const timer = setTimeout(() => ctrl.abort(), Math.min(timeLeft, 25_000));
 
       try {
-        console.log(`[AI Core] 🟡 OpenRouter (${orModel.label})...`);
+        console.log(`[AI Core] 🏅 OpenRouter (${orModel.label})...`);
         const content = await callOpenRouter(
           systemPrompt, userMessage, messages,
           maxTokens || orModel.maxTokens,
@@ -326,115 +432,11 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
       }
     }
   } else if (!geminiOnly) {
-    console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط → Gemini مباشرة");
+    console.warn("[AI Core] OPENROUTER_API_KEY غير مضبوط → تخطي OpenRouter");
   }
 
   // ══════════════════════════════════════════════════════════
-  // 🟠 المستوى 2: Gemini 2.5 Flash
-  // يجرب جميع المفاتيح الأربعة بالتناوب
-  // ══════════════════════════════════════════════════════════
-  triedModels.push(GEMINI_25_MODEL.id);
-
-  for (let i = 0; i < GEMINI_KEYS.length; i++) {
-    const timeLeft = timeout - (Date.now() - startTime);
-    if (timeLeft < 3_000) break;
-
-    const key    = GEMINI_KEYS[i];
-    const ctrl2  = new AbortController();
-    const timer2 = setTimeout(() => ctrl2.abort(), Math.min(timeLeft, 20_000));
-
-    try {
-      console.log(`[AI Core] 🟠 Gemini 2.5 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
-      const content = await callGemini(
-        systemPrompt, userMessage, messages,
-        maxTokens || GEMINI_25_MODEL.maxTokens,
-        temperature, ctrl2.signal, key, GEMINI_FLASH_25,
-      );
-      clearTimeout(timer2);
-
-      if (content) {
-        console.log(`[AI Core] ✅ Gemini 2.5 Flash key #${i + 1} نجح`);
-        return {
-          content,
-          model: GEMINI_25_MODEL,
-          triedModels,
-          elapsedMs: Date.now() - startTime,
-          timedOut: false,
-          usedFallback: true,
-        };
-      }
-      console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} رد فارغ → key #${i + 2}`);
-    } catch (err) {
-      clearTimeout(timer2);
-      const isAbort = err instanceof Error && err.name === 'AbortError';
-      if (isAbort) {
-        return {
-          content: '',
-          model: GEMINI_25_MODEL,
-          triedModels,
-          elapsedMs: Date.now() - startTime,
-          timedOut: true,
-          usedFallback: true,
-        };
-      }
-      const errMsg = err instanceof Error ? err.message : 'Unknown';
-      console.warn(`[AI Core] Gemini 2.5 Flash key #${i + 1} خطأ (${errMsg}) → key #${i + 2}`);
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════
-  // 🔵 المستوى 3: Gemini 2.0 Flash (مجاني)
-  // ══════════════════════════════════════════════════════════
-  triedModels.push(FALLBACK_MODEL.id);
-
-  for (let i = 0; i < GEMINI_KEYS.length; i++) {
-    const timeLeft = timeout - (Date.now() - startTime);
-    if (timeLeft < 3_000) break;
-
-    const key    = GEMINI_KEYS[i];
-    const ctrl3  = new AbortController();
-    const timer3 = setTimeout(() => ctrl3.abort(), Math.min(timeLeft, 15_000));
-
-    try {
-      console.log(`[AI Core] 🔵 Gemini 2.0 Flash key #${i + 1}/${GEMINI_KEYS.length}...`);
-      const content = await callGemini(
-        systemPrompt, userMessage, messages,
-        maxTokens || FALLBACK_MODEL.maxTokens,
-        temperature, ctrl3.signal, key, GEMINI_FLASH_20,
-      );
-      clearTimeout(timer3);
-
-      if (content) {
-        console.log(`[AI Core] ✅ Gemini 2.0 Flash key #${i + 1} نجح`);
-        return {
-          content,
-          model: FALLBACK_MODEL,
-          triedModels,
-          elapsedMs: Date.now() - startTime,
-          timedOut: false,
-          usedFallback: true,
-        };
-      }
-      console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} رد فارغ → key #${i + 2}`);
-    } catch (err) {
-      clearTimeout(timer3);
-      const isAbort = err instanceof Error && err.name === 'AbortError';
-      if (isAbort) {
-        return {
-          content: '',
-          model: FALLBACK_MODEL,
-          triedModels,
-          elapsedMs: Date.now() - startTime,
-          timedOut: true,
-          usedFallback: true,
-        };
-      }
-      console.warn(`[AI Core] Gemini 2.0 Flash key #${i + 1} خطأ → key #${i + 2}`);
-    }
-  }
-
-  // ══════════════════════════════════════════════════════════
-  // 🟣 المستوى 4: Groq — خط الدفاع الأخير
+  // 🛡️ المستوى 4: Groq — خط الدفاع الأخير
   // ══════════════════════════════════════════════════════════
   if (GROQ_KEY) {
     triedModels.push(GROQ_MODEL.id);
@@ -445,7 +447,7 @@ export async function callAI(options: AICallOptions): Promise<AIResult> {
       const timer4 = setTimeout(() => ctrl4.abort(), Math.min(timeLeft, 15_000));
 
       try {
-        console.log("[AI Core] 🟣 Groq llama-3.3-70b...");
+        console.log("[AI Core] 🛡️ Groq llama-3.3-70b...");
         const content = await callGroq(
           systemPrompt, userMessage, messages,
           maxTokens || GROQ_MODEL.maxTokens,
