@@ -10,7 +10,6 @@ import VisitorCounter from '@/components/VisitorCounter';
 import ModernTabs from '@/components/ModernTabs';
 import TabContent from '@/components/TabContent';
 import TabDescription from '@/components/TabDescription';
-import { motion, AnimatePresence } from 'framer-motion';
 
 // Lazy load components with proper loading states
 const GlobalLawSearch = dynamic(() => import('@/components/GlobalLawSearch'), { ssr: false });
@@ -22,11 +21,12 @@ const ElectronicLitigationTab = dynamic(() => import('@/components/ElectronicLit
 const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
+const JudicialInstitutionsInfo = dynamic(() => import('@/components/JudicialInstitutionsInfo'), { ssr: false });
 const LegalUpdatesTab = dynamic(() => import('@/components/LegalUpdatesTab'), { ssr: false });
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState<'search' | 'jurisprudence' | 'lawyer-tools' | 'judicial' | 'e-litigation' | 'legal-updates'>('search');
+  const [activeTab, setActiveTab] = useState<'search' | 'judicial' | 'judicial-info' | 'jurisprudence' | 'lawyer-tools' | 'e-litigation' | 'legal-updates'>('search');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -34,9 +34,7 @@ export default function HomePage() {
   useEffect(() => {
     setMounted(true);
     const hasVisited = sessionStorage.getItem('hasVisited');
-    if (hasVisited) {
-      setShowWelcome(false);
-    }
+    if (hasVisited) setShowWelcome(false);
   }, []);
 
   const handleStart = () => {
@@ -53,46 +51,32 @@ export default function HomePage() {
     }
   }, [activeTab, mounted, showWelcome]);
 
-  // Auto-scroll active tab into view
   useEffect(() => {
     if (tabsScrollRef.current) {
       const activeBtn = tabsScrollRef.current.querySelector('[data-active="true"]') as HTMLElement;
-      if (activeBtn) {
-        activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
+      if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
     }
   }, [activeTab]);
 
   const tabs = useMemo(() => [
     { id: 'search', label: 'القوانين', icon: '📜', description: 'تصفح وابحث في 116 قانوناً جزائرياً محدثاً مع إمكانية البحث الشامل في كافة المواد.' },
-    { id: 'judicial', label: 'الجهات', icon: '🏛️', description: 'حدد الاختصاص الإقليمي (المحاكم والمجالس) لكل بلديات الوطن بدقة متناهية.' },
+    { id: 'judicial', label: 'التقسيم القضائي', icon: '🏛️', description: 'حدد الاختصاص الإقليمي (المحاكم والمجالس) لكل بلديات الوطن بدقة متناهية.' },
+    { id: 'judicial-info', label: 'معلومات الهيئات القضائية', icon: '📞', description: 'دليل منظم لمعلومات الاتصال بالهيئات القضائية ومندوبيات المحامين، حسب مجالس القضاء والمحاكم والهيئات المتخصصة.' },
     { id: 'e-litigation', label: 'التقاضي', icon: '💻', description: 'منصات التقاضي الإلكتروني وضغط ملفات PDF للرفع على المنصة.' },
     { id: 'jurisprudence', label: 'الاجتهاد', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني وتوحيد القضاء.' },
     { id: 'lawyer-tools', label: 'الأدوات', icon: '💼', description: 'أدوات مهنية متخصصة للتحقق من العرائض، صياغة المذكرات، وتحليل الأحكام.' },
     { id: 'legal-updates', label: 'مستجدات', icon: '📰', description: 'مراقبة يومية تلقائية للمستجدات القانونية من الجريدة الرسمية ومجلس الدولة ووزارة العدل.' },
   ], []);
 
-  // Convert tabs to ModernTabs format
-  const modernTabsData = useMemo(() => 
-    tabs.map(tab => ({
-      id: tab.id,
-      label: tab.label,
-      icon: tab.icon
-    })), 
-    [tabs]
-  );
+  const modernTabsData = useMemo(() => tabs.map(tab => ({ id: tab.id, label: tab.label, icon: tab.icon })), [tabs]);
 
   if (!mounted) return null;
-
-  if (showWelcome) {
-    return <WelcomeScreen onStart={handleStart} />;
-  }
+  if (showWelcome) return <WelcomeScreen onStart={handleStart} />;
 
   const activeTabData = tabs.find(t => t.id === activeTab);
 
   return (
     <div className="min-h-screen bg-[#f8fafc] dark:bg-[#0f172a] transition-colors duration-300 flex flex-col overflow-x-hidden" dir="rtl">
-      {/* Navigation Bar */}
       <nav className="sticky top-0 z-50 bg-white/95 dark:bg-[#1e293b]/95 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 shadow-sm">
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between h-16 items-center">
@@ -105,13 +89,9 @@ export default function HomePage() {
                 <p className="text-[8px] sm:text-[10px] text-gray-500 dark:text-gray-400 font-medium mt-1">المنصة القانونية الجزائرية</p>
               </div>
             </div>
-
             <div className="flex items-center gap-2">
               <VisitorCounter />
-              <button
-                onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-                className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all"
-              >
+              <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">
                 {theme === 'dark' ? '☀️' : '🌙'}
               </button>
             </div>
@@ -119,32 +99,17 @@ export default function HomePage() {
         </div>
       </nav>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-24 flex-grow w-full pt-6">
-
-        {/* Modern Tab Navigation */}
         <div className="sticky top-[64px] z-40 mb-6">
-          <ModernTabs
-            tabs={modernTabsData}
-            activeTab={activeTab}
-            onTabChange={(tabId) => setActiveTab(tabId as typeof activeTab)}
-            variant="default"
-          />
+          <ModernTabs tabs={modernTabsData} activeTab={activeTab} onTabChange={(tabId) => setActiveTab(tabId as typeof activeTab)} variant="default" />
         </div>
 
-        {/* Tab Content Container */}
         <div className="bg-white dark:bg-[#1e293b] rounded-2xl sm:rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 p-3 sm:p-10 min-h-[400px]">
-          {/* Tab Description Header */}
-          <TabDescription
-            icon={activeTabData?.icon || '📋'}
-            title={activeTabData?.label || 'محتوى'}
-            description={activeTabData?.description || ''}
-          />
-
-          {/* Tab Content with Smooth Transitions */}
+          <TabDescription icon={activeTabData?.icon || '📋'} title={activeTabData?.label || 'محتوى'} description={activeTabData?.description || ''} />
           <TabContent activeTab={activeTab}>
             {activeTab === 'search' && <GlobalLawSearch />}
             {activeTab === 'judicial' && <JudicialHierarchy />}
+            {activeTab === 'judicial-info' && <JudicialInstitutionsInfo />}
             {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
             {activeTab === 'jurisprudence' && <JurisprudenceTab />}
             {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('search')} />}
@@ -153,20 +118,14 @@ export default function HomePage() {
         </div>
       </main>
 
-      {/* Floating Components */}
       <AiAssistant />
       <ShareBubble />
       <DeveloperInfo />
 
-      {/* Footer */}
       <footer className="bg-white dark:bg-[#0f172a] border-t border-gray-200 dark:border-gray-800 py-6 mt-auto">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-sm">
-            جميع الحقوق محفوظة © {new Date().getFullYear()} - الأستاذ سايج محمد
-          </p>
-          <p className="text-amber-600 dark:text-amber-500 text-[8px] sm:text-xs mt-1 font-bold">
-            صدقة جارية لروح الوالد سايج عبد النور رحمه الله
-          </p>
+          <p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-sm">جميع الحقوق محفوظة © {new Date().getFullYear()} - الأستاذ سايج محمد</p>
+          <p className="text-amber-600 dark:text-amber-500 text-[8px] sm:text-xs mt-1 font-bold">صدقة جارية لروح الوالد سايج عبد النور رحمه الله</p>
         </div>
       </footer>
 
