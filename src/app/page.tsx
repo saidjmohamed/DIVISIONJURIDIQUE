@@ -18,11 +18,10 @@ const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/Jurisp
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
 const JudicialInstitutionsInfo = dynamic(() => import('@/components/JudicialInstitutionsInfo'), { ssr: false });
-const LegalUpdatesTab = dynamic(() => import('@/components/LegalUpdatesTab'), { ssr: false });
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState<'search' | 'judicial' | 'judicial-info' | 'jurisprudence' | 'lawyer-tools' | 'e-litigation' | 'legal-updates'>('search');
+  const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'jurisprudence' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -39,7 +38,6 @@ export default function HomePage() {
     { id: 'jurisprudence', label: 'الاجتهاد القضائي', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني.' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻', description: 'منصات التقاضي الإلكتروني وأدوات تجهيز الملفات.' },
     { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '💼', description: 'أدوات مهنية متخصصة للعمل القانوني.' },
-    { id: 'legal-updates', label: 'المستجدات القانونية', icon: '📰', description: 'متابعة المستجدات القانونية.' },
   ], []);
   const modernTabsData = useMemo(() => tabs.map(tab => ({ id: tab.id, label: tab.label, icon: tab.icon })), [tabs]);
 
@@ -66,7 +64,6 @@ export default function HomePage() {
             {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
             {activeTab === 'jurisprudence' && <JurisprudenceTab />}
             {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('judicial-info')} />}
-            {activeTab === 'legal-updates' && <LegalUpdatesTab />}
           </TabContent>
         </div>
       </main>
