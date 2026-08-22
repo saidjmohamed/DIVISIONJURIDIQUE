@@ -1,0 +1,7 @@
+import { NextResponse } from 'next/server';
+const URL=process.env.SUPABASE_URL||'https://kgsmunxqctpptxljizmy.supabase.co';
+const KEY=process.env.SUPABASE_PUBLISHABLE_KEY||'sb_publishable_-dakDRrLhmOuu3b1TkTBfg_b5-1bLEr';
+function token(req:Request){return req.headers.get('cookie')?.match(/(?:^|;\s*)dj_admin=([^;]+)/)?.[1]||''}
+async function rpc(name:string,body:any){const r=await fetch(`${URL}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});return {ok:r.ok,data:await r.json()}}
+export async function GET(req:Request){const t=token(req);if(!t)return NextResponse.json({error:'غير مصرح'},{status:401});try{const x=await rpc('admin_list_judicial_reports',{p_token:t});if(!x.ok)return NextResponse.json({error:'تعذر تحميل البلاغات'},{status:502});return NextResponse.json({data:x.data||[]});}catch{return NextResponse.json({error:'طلب غير صالح'},{status:400})}}
+export async function PATCH(req:Request){const t=token(req);if(!t)return NextResponse.json({error:'غير مصرح'},{status:401});try{const b=await req.json();const x=await rpc('admin_update_judicial_report',{p_token:t,p_report_id:b.reportId,p_status:b.status,p_admin_note:b.adminNote||''});if(!x.ok||x.data!==true)return NextResponse.json({error:'تعذر تحديث البلاغ'},{status:401});return NextResponse.json({ok:true});}catch{return NextResponse.json({error:'طلب غير صالح'},{status:400})}}
