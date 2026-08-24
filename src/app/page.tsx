@@ -72,7 +72,7 @@ export default function HomePage() {
       </main>
       <AiAssistant /><ShareBubble /><DeveloperInfo />
       <footer className="bg-white dark:bg-[#0f172a] border-t border-gray-200 dark:border-gray-800 py-6 mt-auto"><div className="max-w-7xl mx-auto px-4 text-center"><p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-sm">جميع الحقوق محفوظة © {new Date().getFullYear()} - الأستاذ سايج محمد</p><p className="text-amber-600 dark:text-amber-500 text-[8px] sm:text-xs mt-1 font-bold">صدقة جارية لروح الوالد سايج عبد النور رحمه الله</p></div></footer>
-      <style jsx global>{`.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}input,button{touch-action:manipulation}`}</style>
+      <style jsx global>{`.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}input,button{touch-action:manipulation}[dir="rtl"] .border-blue-100.bg-blue-50.p-5>div:first-child>div:first-child>p.mt-2.text-sm.leading-7{font-size:0;line-height:1.9rem}[dir="rtl"] .border-blue-100.bg-blue-50.p-5>div:first-child>div:first-child>p.mt-2.text-sm.leading-7::after{content:"🤝 هذا العمل مبادرة جماعية من الزملاء المحامين، هدفها تسهيل الوصول إلى أرقام مندوبيات المحامين ومعلومات الهيئات القضائية عبر مختلف أنحاء الوطن. 🎯 هدفنا الأساسي هو الحفاظ على أرقام مندوبيات المحامين مُحدّثة ودقيقة، حتى يستفيد منها جميع الزملاء عند الحاجة. 📱 إذا كان لديك رقم غير موجود، أو لاحظت رقمًا خاطئًا أو تغيّر رقمًا سابقًا، يمكنك التواصل معنا للمساهمة في تحديث الدليل وإثرائه. ساهم بمعلومة صحيحة، ليستفيد منها الجميع. 🤝";font-size:14px;line-height:1.9rem;display:block;color:inherit}`}</style>
     </div>
   );
 }
