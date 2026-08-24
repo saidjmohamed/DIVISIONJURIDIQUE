@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://kgsmunxqctpptxljizmy.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || '';
+const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_-dakDRrLhmOuu3b1TkTBfg_b5-1bLEr';
 
 export const dynamic = 'force-dynamic';
 
