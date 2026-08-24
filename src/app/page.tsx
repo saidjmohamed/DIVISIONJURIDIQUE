@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useTheme } from 'next-themes';
 import dynamic from 'next/dynamic';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ShareBubble from '@/components/ShareBubble';
