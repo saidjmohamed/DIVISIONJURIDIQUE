@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
-import { useTheme } from 'next-themes';
 import WelcomeScreen from '@/components/WelcomeScreen';
 import ShareBubble from '@/components/ShareBubble';
 import DeveloperInfo from '@/components/DeveloperInfo';
@@ -18,10 +17,11 @@ const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/Jurisp
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
 const JudicialInstitutionsInfo = dynamic(() => import('@/components/JudicialInstitutionsInfo'), { ssr: false });
+const PlatformUpdates = dynamic(() => import('@/components/PlatformUpdates'), { ssr: false });
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'jurisprudence' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
+  const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'jurisprudence' | 'platform-updates' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -36,6 +36,7 @@ export default function HomePage() {
     { id: 'judicial', label: 'التقسيم القضائي للبلديات', icon: '🏛️', description: 'حدد الاختصاص الإقليمي للمحاكم والمجالس لكل بلدية في الوطن.' },
     { id: 'search', label: 'القوانين', icon: '📜', description: 'تصفح وابحث في القوانين الجزائرية المحدثة.' },
     { id: 'jurisprudence', label: 'الاجتهاد القضائي', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني.' },
+    { id: 'platform-updates', label: 'آخر تحديثات المنصة', icon: '🆕', description: 'تابع آخر الإضافات والتحسينات التي تمت على منصة الشامل القانوني.' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻', description: 'منصات التقاضي الإلكتروني وأدوات تجهيز الملفات.' },
     { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '💼', description: 'أدوات مهنية متخصصة للعمل القانوني.' },
   ], []);
@@ -61,8 +62,9 @@ export default function HomePage() {
             {activeTab === 'search' && <GlobalLawSearch />}
             {activeTab === 'judicial' && <JudicialHierarchy />}
             {activeTab === 'judicial-info' && <JudicialInstitutionsInfo />}
-            {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
             {activeTab === 'jurisprudence' && <JurisprudenceTab />}
+            {activeTab === 'platform-updates' && <PlatformUpdates />}
+            {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
             {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('judicial-info')} />}
           </TabContent>
         </div>
