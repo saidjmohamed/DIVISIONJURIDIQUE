@@ -9,28 +9,32 @@ on:
   schedule:
     - cron: "0 */6 * * *"  # كل 6 ساعات
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
 
       - name: Set up Git
         run: |
-          git config --global user.name "AI Bot"
-          git config --global user.email "bot@github.com"
+          git config user.name "AI Bot"
+          git config user.email "bot@github.com"
 
-      - name: Make changes (example)
+      - name: Make changes
         run: |
-          echo "Last update: $(date)" >> auto-log.txt
+          echo "Last update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> auto-log.txt
 
       - name: Commit changes
         run: |
-          git add .
-          git commit -m "auto: update المشروع" || echo "No changes"
+          git add auto-log.txt
+          git diff --cached --quiet || git commit -m "auto: update project"
 
       - name: Push changes
-        run: |
-          git push
+        run: git push origin HEAD:${GITHUB_REF_NAME}
