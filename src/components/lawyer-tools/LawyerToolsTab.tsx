@@ -20,6 +20,7 @@ import SubjectMatterJurisdiction from './SubjectMatterJurisdiction';
 import NanoBananaBuilder from './NanoBananaBuilder';
 import HtmlToMarkdown from './HtmlToMarkdown';
 import ArabicPdfOcr from './ArabicPdfOcr';
+import ReversePromptBuilder from './ReversePromptBuilder';
 
 const tools = [
   { id: 'quiz', title: 'الكويز القانوني الذكي', icon: '🧠', desc: 'أسئلة اختيار من متعدد تُولَّد بالذكاء الاصطناعي مع التعليل بنص القانون الجزائري — 8 قوانين، 3 مستويات', color: '#6366f1', badge: 'جديد' },
@@ -40,6 +41,7 @@ const tools = [
   { id: 'fbnano', title: 'مولّد تصاميم Nano Banana', icon: '📊', desc: 'أنشئ تصميماً قانونياً احترافياً (إنفوجرافيك / كاروسيل) في 30 ثانية — فقط اكتب الموضوع وانسخ الكود', color: '#059669', badge: 'جديد' },
   { id: 'html-to-md', title: 'تحويل HTML إلى Markdown', icon: '📝', desc: 'تحويل ملفات HTML إلى Markdown بالجملة — يعمل بالكامل أوفلاين بدون اتصال بالإنترنت', color: '#6366f1', badge: 'جديد' },
   { id: 'arabic-pdf-ocr', title: 'OCR عربي للملفات المصوّرة', icon: '🔤', desc: 'تحويل PDF القضائي المصوّر إلى نص عربي قابل للنسخ باستخدام PaddleOCR وPP-OCRv5', color: '#b45309', badge: 'جديد' },
+  { id: 'reverse-prompt', title: 'برومبت وصف عكسي لأي مذكرة', icon: '🧩', desc: 'استخراج برومبت يعكس بنية وشكل وصياغة أي مذكرة دون كشف موضوع القضية أو الأطراف', color: '#9333ea', badge: 'جديد' },
 ];
 
 export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
@@ -63,6 +65,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'fbnano') return <NanoBananaBuilder onBack={() => setActiveTool(null)} />;
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
   if (activeTool === 'arabic-pdf-ocr') return <ArabicPdfOcr onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'reverse-prompt') return <ReversePromptBuilder onBack={() => setActiveTool(null)} />;
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
@@ -81,7 +84,9 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
                 ? 'border-[#6366f1] dark:border-[#818cf8] ring-1 ring-[#6366f1]/30'
                 : tool.id === 'arabic-pdf-ocr'
                   ? 'border-[#b45309] dark:border-amber-700 ring-1 ring-[#b45309]/20'
-                  : 'border-gray-200 dark:border-gray-700'
+                  : tool.id === 'reverse-prompt'
+                    ? 'border-[#9333ea] dark:border-purple-700 ring-1 ring-[#9333ea]/20'
+                    : 'border-gray-200 dark:border-gray-700'
             }`}
           >
             <div className="flex items-center gap-3 mb-2">
