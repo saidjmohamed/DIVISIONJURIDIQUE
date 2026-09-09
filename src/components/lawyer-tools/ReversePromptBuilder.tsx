@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { extractTextFromFile } from '@/lib/extract-text';
 
 interface Props { onBack: () => void }
 
@@ -9,10 +10,11 @@ export default function ReversePromptBuilder({ onBack }: Props) {
   const [fileName, setFileName] = useState('');
   const [result, setResult] = useState('');
   const [loading, setLoading] = useState(false);
+  const [readingFile, setReadingFile] = useState(false);
   const [error, setError] = useState('');
 
   async function analyze() {
-    if (!text.trim()) return setError('يرجى إدخال نص المذكرة أو تحميل ملف نصي.');
+    if (!text.trim()) return setError('يرجى إدخال نص المذكرة أو تحميل ملف PDF أو DOCX أو TXT.');
     setLoading(true); setError(''); setResult('');
     try {
       const res = await fetch('/api/tools/reverse-prompt', {
@@ -27,11 +29,33 @@ export default function ReversePromptBuilder({ onBack }: Props) {
   }
 
   async function readFile(file: File) {
-    setFileName(file.name); setError('');
-    if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
-      setText(await file.text()); return;
+    setFileName(file.name); setError(''); setReadingFile(true);
+    try {
+      const name = file.name.toLowerCase();
+      if (name.endsWith('.txt')) {
+        setText(await file.text());
+        return;
+      }
+
+      if (name.endsWith('.pdf') || name.endsWith('.docx')) {
+        const extracted = await extractTextFromFile(file);
+        if (!extracted.trim()) {
+          throw new Error(
+            name.endsWith('.pdf')
+              ? 'لم يتم العثور على نص داخل PDF. إذا كان الملف مصوّراً، استخدم أداة OCR عربي أولاً ثم أرسل النص المستخرج.'
+              : 'لم يتم العثور على نص قابل للقراءة داخل ملف Word.'
+          );
+        }
+        setText(extracted);
+        return;
+      }
+
+      throw new Error('الصيغة غير مدعومة. يمكنك رفع PDF أو DOCX أو TXT.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'تعذر قراءة الملف.');
+    } finally {
+      setReadingFile(false);
     }
-    setError('في هذه النسخة يمكن إدخال النص مباشرة أو تحميل TXT. لتحليل PDF/DOCX استخدم OCR أو حوّل الملف إلى نص أولاً.');
   }
 
   async function copy() {
@@ -52,12 +76,14 @@ export default function ReversePromptBuilder({ onBack }: Props) {
       <textarea value={text} onChange={e => setText(e.target.value)} placeholder="ألصق هنا نص المذكرة أو العريضة..." className="w-full min-h-[280px] rounded-xl border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 p-4 text-sm leading-7 outline-none focus:ring-2 focus:ring-[#1a3a5c]" />
       <div className="flex flex-wrap items-center gap-3 mt-3">
         <label className="cursor-pointer px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-bold">
-          📄 تحميل TXT
-          <input type="file" accept=".txt,text/plain" className="hidden" onChange={e => e.target.files?.[0] && readFile(e.target.files[0])} />
+          📎 تحميل PDF / DOCX / TXT
+          <input type="file" accept=".pdf,.docx,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain" className="hidden" onChange={e => e.target.files?.[0] && readFile(e.target.files[0])} />
         </label>
-        {fileName && <span className="text-xs text-gray-500">{fileName}</span>}
-        <button onClick={analyze} disabled={loading || !text.trim()} className="mr-auto px-5 py-2 rounded-lg bg-[#1a3a5c] text-white text-sm font-bold disabled:opacity-50">{loading ? 'جاري التحليل...' : 'استخراج الوصف العكسي'}</button>
+        {fileName && <span className="text-xs text-gray-500 truncate max-w-[180px]">{fileName}</span>}
+        {readingFile && <span className="text-xs text-[#1a3a5c] font-bold">جاري قراءة الملف...</span>}
+        <button onClick={analyze} disabled={loading || readingFile || !text.trim()} className="mr-auto px-5 py-2 rounded-lg bg-[#1a3a5c] text-white text-sm font-bold disabled:opacity-50">{loading ? 'جاري التحليل...' : 'استخراج الوصف العكسي'}</button>
       </div>
+      <p className="mt-3 text-xs text-gray-500">يدعم PDF وDOCX وTXT. ملفات PDF المصوّرة التي لا تحتوي على نص تحتاج إلى OCR أولاً.</p>
       {error && <div className="mt-4 text-sm text-red-600 bg-red-50 dark:bg-red-950/30 p-3 rounded-lg">{error}</div>}
       {result && <div className="mt-6">
         <div className="flex items-center justify-between mb-2"><h3 className="font-black text-[#1a3a5c] dark:text-white">البرومبت الناتج</h3><button onClick={copy} className="px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-xs font-bold">📋 نسخ البرومبت</button></div>
