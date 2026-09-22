@@ -21,6 +21,8 @@ import NanoBananaBuilder from './NanoBananaBuilder';
 import HtmlToMarkdown from './HtmlToMarkdown';
 import ArabicPdfOcr from './ArabicPdfOcr';
 import ReversePromptBuilder from './ReversePromptBuilder';
+import StirlingPdfTool from './StirlingPdfTool';
+
 
 const tools = [
   { id: 'quiz', title: 'الكويز القانوني الذكي', icon: '🧠', desc: 'أسئلة اختيار من متعدد تُولَّد بالذكاء الاصطناعي مع التعليل بنص القانون الجزائري — 8 قوانين، 3 مستويات', color: '#6366f1', badge: 'جديد' },
@@ -42,6 +44,7 @@ const tools = [
   { id: 'html-to-md', title: 'تحويل HTML إلى Markdown', icon: '📝', desc: 'تحويل ملفات HTML إلى Markdown بالجملة — يعمل بالكامل أوفلاين بدون اتصال بالإنترنت', color: '#6366f1', badge: 'جديد' },
   { id: 'arabic-pdf-ocr', title: 'OCR عربي للملفات المصوّرة', icon: '🔤', desc: 'تحويل PDF القضائي المصوّر إلى نص عربي قابل للنسخ باستخدام PaddleOCR وPP-OCRv5', color: '#b45309', badge: 'جديد' },
   { id: 'reverse-prompt', title: 'برومبت وصف عكسي لأي مذكرة', icon: '🧩', desc: 'استخراج برومبت يعكس بنية وشكل وصياغة أي مذكرة دون كشف موضوع القضية أو الأطراف', color: '#9333ea', badge: 'جديد' },
+  { id: 'stirling-pdf', title: 'أدوات PDF للمحامي', icon: '🛠️', desc: 'دمج، تقسيم، ضغط وOCR عربي لملفات PDF عبر Stirling-PDF', color: '#0f766e', badge: 'جديد' },
 ];
 
 export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
@@ -66,6 +69,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
   if (activeTool === 'arabic-pdf-ocr') return <ArabicPdfOcr onBack={() => setActiveTool(null)} />;
   if (activeTool === 'reverse-prompt') return <ReversePromptBuilder onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'stirling-pdf') return <StirlingPdfTool onBack={() => setActiveTool(null)} />;
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
