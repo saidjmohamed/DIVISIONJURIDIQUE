@@ -77,7 +77,6 @@ DIVISIONJURIDIQUE/
 │   │   ├── 📁 jurisprudence/           # الاجتهاد القضائي
 │   │   │   └── JurisprudenceTab.tsx    # تبويب الاجتهادات
 │   │   ├── 📁 lawyer-tools/            # أدوات المحامي
-│   │   │   ├── AiPromptsGuide.tsx      # دليل محفزات AI
 │   │   │   ├── CompensationCalculator.tsx # حاسبة التعويضات
 │   │   │   │   │   ├── DeadlineCalculatorTool.tsx # أداة حساب الآجال
 │   │   │   ├── DeadlinesFullView.tsx   # عرض كامل الآجال
@@ -121,7 +120,6 @@ DIVISIONJURIDIQUE/
 │       ├── legal-search.ts             # بحث قانوني
 │       ├── legal-cache.ts              # تخزين مؤقت قانوني
 │       ├── deadline-calculator.ts      # حساب الآجال
-│       ├── extract-text.ts             # استخراج النص للملفات
 │       ├── cloud-storage.ts            # تخزين سحابي (Redis + Telegram)
 │       └── utils.ts                    # أدوات مساعدة عامة (cn, etc.)
 │
@@ -169,7 +167,7 @@ DIVISIONJURIDIQUE/
 | عدد مكونات React | ~55 مكون |
 | عدد واجهات API | حسب المسارات الحالية |
 | عدد ملفات القوانين JSON | 270+ ملف |
-| عدد أدوات المحامي | 7 أدوات |
+| عدد أدوات المحامي | 5 أدوات |
 | عدد مكونات shadcn/ui | 38 مكون |
 | عدد React Hooks | حسب الاستخدام الحالي |
 | عدد مكتبات lib | 12 مكتبة |
