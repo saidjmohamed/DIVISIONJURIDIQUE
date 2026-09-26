@@ -81,7 +81,6 @@ DIVISIONJURIDIQUE/
 │   │   │   │   │   ├── DeadlineCalculatorTool.tsx # أداة حساب الآجال
 │   │   │   ├── DeadlinesFullView.tsx   # عرض كامل الآجال
 │   │   │   │   │   │   ├── LawyerToolsTab.tsx      # تبويب أدوات المحامي
-│   │   │   ├── LegalDictionary.tsx     # القاموس القانوني
 │   │   │   │   │   │   │   │   ├── ProceduresComparison.tsx # مقارنة الإجراءات
 │   │   │   │   ├── AiAssistant.tsx             # مساعد AI الرئيسي
 │   │   ├── DeveloperInfo.tsx           # معلومات المطور
@@ -167,7 +166,7 @@ DIVISIONJURIDIQUE/
 | عدد مكونات React | ~55 مكون |
 | عدد واجهات API | حسب المسارات الحالية |
 | عدد ملفات القوانين JSON | 270+ ملف |
-| عدد أدوات المحامي | 5 أدوات |
+| عدد أدوات المحامي | 4 أدوات |
 | عدد مكونات shadcn/ui | 38 مكون |
 | عدد React Hooks | حسب الاستخدام الحالي |
 | عدد مكتبات lib | 12 مكتبة |
