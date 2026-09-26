@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import DeadlineCalculatorTool from './DeadlineCalculatorTool';
 import DeadlinesFullView from './DeadlinesFullView';
 import CompensationCalculator from './CompensationCalculator';
 import ProceduresComparison from './ProceduresComparison';
@@ -30,7 +29,6 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'ai-prompts') return <AiPromptsGuide onBack={() => setActiveTool(null)} />;
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
   if (activeTool === 'reverse-prompt') return <ReversePromptBuilder onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'deadline-calculator') return <DeadlineCalculatorTool onBack={() => setActiveTool(null)} />;
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
