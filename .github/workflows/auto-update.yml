@@ -1,40 +1,28 @@
-name: Auto Update Project
+name: Project Health Check
 
 on:
   push:
     branches:
       - master
       - main
-
   schedule:
-    - cron: "0 */6 * * *"  # كل 6 ساعات
+    - cron: "0 */6 * * *"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  build:
+  health-check:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          persist-credentials: true
+          fetch-depth: 1
 
-      - name: Set up Git
+      - name: Validate repository
         run: |
-          git config user.name "AI Bot"
-          git config user.email "bot@github.com"
-
-      - name: Make changes
-        run: |
-          echo "Last update: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> auto-log.txt
-
-      - name: Commit changes
-        run: |
-          git add auto-log.txt
-          git diff --cached --quiet || git commit -m "auto: update project"
-
-      - name: Push changes
-        run: git push origin HEAD:${GITHUB_REF_NAME}
+          git diff --check
+          test -f package.json
+          test -f src/data/jurisdictions-data.ts
+          echo "Repository validation passed."
