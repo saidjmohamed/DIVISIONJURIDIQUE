@@ -58,12 +58,6 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
       color: "from-emerald-600 to-emerald-800"
     },
     {
-      title: "اجتهادات المحكمة العليا",
-      description: "تصفح وابحث في أهم قرارات واجتهادات المحكمة العليا لتوجيه عملك القانوني وضمان مطابقة مذكراتك لأحدث التوجهات القضائية.",
-      icon: "⚖️",
-      color: "from-purple-600 to-purple-800"
-    },
-    {
       title: "أدوات المحامي المهنية",
       description: "مجموعة أدوات متخصصة للتحقق من البيانات الإلزامية للعرائض، صياغة المذكرات القانونية الجاهزة، وتحليل منطوق الأحكام واستخراج طرق الطعن.",
       icon: "💼",

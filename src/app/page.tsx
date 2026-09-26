@@ -14,7 +14,6 @@ import TabDescription from '@/components/TabDescription';
 const GlobalLawSearch = dynamic(() => import('@/components/GlobalLawSearch'), { ssr: false });
 const AiAssistant = dynamic(() => import('@/components/AiAssistant'), { ssr: false, loading: () => <div className="fixed bottom-6 left-6 w-14 h-14 bg-gray-200 animate-pulse rounded-full shadow-lg z-50" /> });
 const ElectronicLitigationTab = dynamic(() => import('@/components/ElectronicLitigationTab'), { ssr: false });
-const JurisprudenceTab = dynamic(() => import('@/components/jurisprudence/JurisprudenceTab'), { ssr: false });
 const LawyerToolsTab = dynamic(() => import('@/components/lawyer-tools/LawyerToolsTab'), { ssr: false });
 const JudicialHierarchy = dynamic(() => import('@/components/JudicialHierarchy'), { ssr: false });
 const JudicialInstitutionsInfo = dynamic(() => import('@/components/JudicialInstitutionsInfo'), { ssr: false });
@@ -22,7 +21,7 @@ const PlatformUpdates = dynamic(() => import('@/components/PlatformUpdates'), { 
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
-  const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'jurisprudence' | 'platform-updates' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
+  const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'platform-updates' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
@@ -36,7 +35,6 @@ export default function HomePage() {
     { id: 'judicial-info', label: 'دليل الهيئات والمندوبيات', icon: '📞', description: 'الدليل الرئيسي لأرقام مندوبيات المحامين ومعلومات الهيئات القضائية، بمساهمة الزملاء وتحديثاتهم.' },
     { id: 'judicial', label: 'التقسيم القضائي للبلديات', icon: '🏛️', description: 'حدد الاختصاص الإقليمي للمحاكم والمجالس لكل بلدية في الوطن.' },
     { id: 'search', label: 'القوانين', icon: '📜', description: 'تصفح وابحث في القوانين الجزائرية المحدثة.' },
-    { id: 'jurisprudence', label: 'الاجتهاد القضائي', icon: '⚖️', description: 'قرارات واجتهادات المحكمة العليا لتوجيه العمل القانوني.' },
     { id: 'platform-updates', label: 'آخر تحديثات المنصة', icon: '🆕', description: 'تابع آخر الإضافات والتحسينات التي تمت على منصة الشامل القانوني.' },
     { id: 'e-litigation', label: 'التقاضي الإلكتروني', icon: '💻', description: 'منصات التقاضي الإلكتروني وأدوات تجهيز الملفات.' },
     { id: 'lawyer-tools', label: 'أدوات المحامي', icon: '💼', description: 'أدوات مهنية متخصصة للعمل القانوني.' },
@@ -63,7 +61,6 @@ export default function HomePage() {
             {activeTab === 'search' && <GlobalLawSearch />}
             {activeTab === 'judicial' && <JudicialHierarchy />}
             {activeTab === 'judicial-info' && <JudicialInstitutionsInfo />}
-            {activeTab === 'jurisprudence' && <JurisprudenceTab />}
             {activeTab === 'platform-updates' && <PlatformUpdates />}
             {activeTab === 'e-litigation' && <ElectronicLitigationTab />}
             {activeTab === 'lawyer-tools' && <LawyerToolsTab onBack={() => setActiveTab('judicial-info')} />}
