@@ -5,9 +5,7 @@ import DeadlinesFullView from './DeadlinesFullView';
 import CompensationCalculator from './CompensationCalculator';
 import ProceduresComparison from './ProceduresComparison';
 import LegalDictionary from './LegalDictionary';
-import AiPromptsGuide from './AiPromptsGuide';
 import HtmlToMarkdown from './HtmlToMarkdown';
-import ReversePromptBuilder from './ReversePromptBuilder';
 
 const tools = [
   { id: 'deadlines-full', title: 'الآجال القضائية', icon: '📅', desc: 'حاسبة الآجال الكاملة وحوسبة المواعيد وعرض جدول الآجال الشائع.', color: '#059669' },
@@ -26,9 +24,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'compensation') return <CompensationCalculator onBack={() => setActiveTool(null)} />;
   if (activeTool === 'procedures') return <ProceduresComparison onBack={() => setActiveTool(null)} />;
   if (activeTool === 'dictionary') return <LegalDictionary onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'ai-prompts') return <AiPromptsGuide onBack={() => setActiveTool(null)} />;
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'reverse-prompt') return <ReversePromptBuilder onBack={() => setActiveTool(null)} />;
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
