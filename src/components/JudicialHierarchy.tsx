@@ -88,7 +88,7 @@ export default function JudicialHierarchy() {
 
         const wilaya = Object.entries(wilayaToCouncil).find(([, v]) => v === entry.council)?.[0] || entry.council;
         const admin = adminCourtsData[wilaya] || { court: `المحكمة الإدارية بـ ${wilaya}`, appellate: 'قيد التحديد' };
-        const commercial = commercialCourtsMap[entry.council] || null;
+        const commercial = commercialCourtsMap[wilaya] || null;
 
         idx.push({
           municipality: muni,
