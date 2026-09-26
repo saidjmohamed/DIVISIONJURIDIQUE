@@ -4,7 +4,6 @@ import { useState } from 'react';
 import DeadlinesFullView from './DeadlinesFullView';
 import CompensationCalculator from './CompensationCalculator';
 import ProceduresComparison from './ProceduresComparison';
-import LegalDictionary from './LegalDictionary';
 import HtmlToMarkdown from './HtmlToMarkdown';
 
 const tools = [
@@ -23,7 +22,6 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'deadlines-full') return <DeadlinesFullView onBack={() => setActiveTool(null)} />;
   if (activeTool === 'compensation') return <CompensationCalculator onBack={() => setActiveTool(null)} />;
   if (activeTool === 'procedures') return <ProceduresComparison onBack={() => setActiveTool(null)} />;
-  if (activeTool === 'dictionary') return <LegalDictionary onBack={() => setActiveTool(null)} />;
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
 
   return (
