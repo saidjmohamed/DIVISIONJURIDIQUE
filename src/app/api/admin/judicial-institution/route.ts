@@ -5,3 +5,15 @@ function token(req:Request){return req.headers.get('cookie')?.match(/(?:^|;\s*)d
 async function rpc(name:string,body:any){const r=await fetch(`${URL}/rest/v1/rpc/${name}`,{method:'POST',headers:{apikey:KEY,Authorization:`Bearer ${KEY}`,'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store'});return {ok:r.ok,data:await r.json()}}
 export async function POST(req:Request){const t=token(req);if(!t)return NextResponse.json({error:'غير مصرح'},{status:401});try{const b=await req.json();const x=await rpc('admin_create_institution',{p_token:t,p_name:b.name,p_type:b.type,p_wilaya:b.wilaya||'',p_parent:b.parentId||null,p_address:b.address||'',p_website:b.website||'',p_email:b.email||'',p_notes:b.notes||''});if(!x.ok||!x.data)return NextResponse.json({error:'تعذر إضافة الهيئة'},{status:401});return NextResponse.json({id:x.data})}catch{return NextResponse.json({error:'طلب غير صالح'},{status:400})}}
 export async function PATCH(req:Request){const t=token(req);if(!t)return NextResponse.json({error:'غير مصرح'},{status:401});try{const b=await req.json();const x=await rpc('admin_update_institution',{p_token:t,p_id:b.id,p_name:b.name,p_type:b.type,p_wilaya:b.wilaya||'',p_parent:b.parentId||null,p_address:b.address||'',p_website:b.website||'',p_email:b.email||'',p_notes:b.notes||''});if(!x.ok||x.data!==true)return NextResponse.json({error:'تعذر تعديل الهيئة'},{status:401});return NextResponse.json({ok:true})}catch{return NextResponse.json({error:'طلب غير صالح'},{status:400})}}
+
+export async function DELETE(req:Request){
+  const t=token(req);
+  if(!t)return NextResponse.json({error:'غير مصرح'},{status:401});
+  try{
+    const b=await req.json();
+    const x=await rpc('admin_delete_institution',{p_token:t,p_id:b.id});
+    if(!x.ok)return NextResponse.json({error:'تعذر الاتصال بقاعدة البيانات'},{status:500});
+    if(!x.data?.ok)return NextResponse.json({error:x.data?.error||'تعذر حذف الهيئة'},{status:400});
+    return NextResponse.json({ok:true});
+  }catch{return NextResponse.json({error:'طلب غير صالح'},{status:400})}
+}
