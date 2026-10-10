@@ -2468,7 +2468,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   },,
 
   {
-    id: "book-template-127",
+    id: "book-template-142",
     title: "عريضة استئناف إداري أمام مجلس الدولة",
     category: "طرق الطعن الإدارية",
     sourcePart: "الكتاب، الصفحة 336",
@@ -2505,7 +2505,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
     ]
   },
   {
-    id: "book-template-128",
+    id: "book-template-143",
     title: "مقال جوابي أمام مجلس الدولة بشأن طلب وقف التنفيذ",
     category: "مذكرات جوابية إدارية",
     sourcePart: "الكتاب، الصفحة 336–338",
