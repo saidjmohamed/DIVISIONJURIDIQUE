@@ -283,7 +283,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "forgery-incident",
     title: "عريضة دعوى فرعية بالتزوير",
-    category: "المنازعات المدنية",
+    category: "إجراءات الخصومة والإثبات",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة دعوى فرعية بالتزوير",
     sourceMatchStatus: "not-verified",
@@ -535,7 +535,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "appeal-material-error",
     title: "مذكرة جوابية على طعن بالنقض",
-    category: "الطعون وطرق الطعن",
+    category: "المذكرات الجوابية والردود",
     sourcePart: "الجزء 6",
     sourceHeading: "مذكرة جوابية عقاري / مذكرة جوابية أمام المحكمة العليا",
     sourceMatchStatus: "not-verified",
@@ -1725,7 +1725,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "book-template-085",
     title: "عريضة إلغاء قرار استفادة من محل أو عقار",
-    category: "المنازعات العقارية والحيازة",
+    category: "المنازعات الإدارية",
     sourcePart: "الكتاب، الصفحة 264–266",
     sourceHeading: "عريضة افتتاح دعوى إلغاء قرار استفادة",
     sourceMatchStatus: "toc-matched",
@@ -2033,7 +2033,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "book-template-107",
     title: "مقال للرد بطلب رفض الاستئناف الفرعي",
-    category: "الطعون وطرق الطعن",
+    category: "المذكرات الجوابية والردود",
     sourcePart: "الكتاب، الصفحة 353–354",
     sourceHeading: "مقال للرد بطلب رفض الاستئناف الفرعي",
     sourceMatchStatus: "toc-matched",
@@ -2395,7 +2395,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "book-template-135",
     title: "مقال جوابي أمام مجلس الدولة لطلب رفض وقف التنفيذ",
-    category: "منازعات التنفيذ والحجوز",
+    category: "المذكرات الجوابية والردود",
     sourcePart: "الكتاب، الصفحة 336–338",
     sourceHeading: "مقال جوابي أمام مجلس الدولة لطلب رفض وقف التنفيذ",
     sourceMatchStatus: "toc-matched",
@@ -2573,7 +2573,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "book-template-122",
     title: "عريضة دعوى فرعية بالتزوير",
-    category: "المنازعات المدنية",
+    category: "إجراءات الخصومة والإثبات",
     sourcePart: "الكتاب، الصفحة 203–204",
     sourceHeading: "عريضة دعوى فرعية بالتزوير",
     sourceMatchStatus: "toc-matched",
@@ -2587,7 +2587,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "book-template-129",
     title: "مذكرة مقارنة بين دعوى الاسترداد ودعوى الاستحقاق الفرعية",
-    category: "منازعات التنفيذ والحجوز",
+    category: "المذكرات الجوابية والردود",
     sourcePart: "الكتاب، الصفحة 250",
     sourceHeading: "مقارنة بين دعوى الاسترداد ودعوى الاستحقاق",
     sourceMatchStatus: "toc-matched",
