@@ -54,7 +54,24 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
         </div>
         <div className="min-w-0">
           <h2 className="text-xl font-black text-[#1a3a5c] dark:text-[#f0c040]">نماذج مذكرات</h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">برومبتات متخصصة للصياغة القضائية الجزائرية والتحقق القانوني</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">برومبتات متخصصة تتضمن أسئلة توضيحية قبل صياغة المذكرة والتحقق القانوني</p>
+        </div>
+      </div>
+
+      <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm leading-6 text-blue-950 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-100">
+        <div className="flex items-start gap-2">
+          <FileText size={19} className="mt-1 shrink-0" />
+          <div>
+            <p className="font-bold">آلية العمل قبل تحرير أي مذكرة</p>
+            <ol className="mt-1 list-inside list-decimal space-y-1">
+              <li>أرفق ملف القضية مع البرومبت المنسوخ.</li>
+              <li>يقرأ النموذج الملف أولًا ويستخرج المعلومات الموجودة فيه.</li>
+              <li>يطرح أسئلة توضيحية مخصصة للقضية، ويتجنب تكرار المعلومات الواضحة في الملف.</li>
+              <li>ينتظر إجاباتك عن المسائل الجوهرية، ثم يطرح أسئلة متابعة إذا بقي نقص مؤثر.</li>
+              <li>بعد اكتمال الإجابات، يصوغ المذكرة ويقدم تقرير تحقق منفصلًا.</li>
+            </ol>
+            <p className="mt-2 text-xs">يمكنك الإجابة جزئيًا أو قول «لا أعلم»؛ ولا يجوز للنموذج افتراض الوقائع الناقصة.</p>
+          </div>
         </div>
       </div>
 
@@ -160,7 +177,7 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
                   aria-label="نص البرومبت الكامل"
                 />
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">البرومبت مستقل عن محادثة سابقة، ويطلب من نموذج الذكاء الاصطناعي إنتاج المذكرة وتقرير التحقق بشكل منفصل.</p>
+                  <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">البرومبت يفرض قراءة ملف القضية وطرح أسئلة توضيحية وانتظار الإجابات قبل الصياغة، ثم إنتاج المذكرة وتقرير التحقق بشكل منفصل.</p>
                   <button type="button" onClick={copyPrompt} className="inline-flex items-center gap-2 rounded-xl border border-gray-300 px-4 py-2 text-sm font-bold hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800">
                     {copied ? <Check size={16} /> : <Copy size={16} />}
                     {copied ? 'تم النسخ' : 'نسخ النص'}
