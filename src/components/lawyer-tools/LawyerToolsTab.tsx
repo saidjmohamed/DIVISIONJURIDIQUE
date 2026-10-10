@@ -33,8 +33,10 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tools.map(tool => (
           <button
+            type="button"
             key={tool.id}
             onClick={() => setActiveTool(tool.id)}
+            aria-label={`فتح أداة ${tool.title}`}
             className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-right hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
             <div className="flex items-center gap-3 mb-2">
