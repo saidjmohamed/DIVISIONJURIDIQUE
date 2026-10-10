@@ -1734,6 +1734,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
     id: "book-template-098",
     title: "عريضة استئناف فرعي",
     category: "الطعون والاستئناف",
+    sourceReviewStatus: "content-reviewed",
     sourcePart: "الكتاب، الصفحة 335",
     sourceHeading: "عريضة استئناف فرعي",
     objective: "إعداد عريضة استئناف فرعي وفق المنهجية المشار إليها في كتاب الدليل العملي للمحامي في المواد المدنية: تحرير العرائض، مع تكييفها حصريًا على وقائع الملف والنصوص الجزائرية النافذة التي يتم التحقق منها.",
