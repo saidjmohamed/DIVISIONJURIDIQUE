@@ -139,6 +139,13 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
                     <span className="mb-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-200">{selected.category}</span>
                     <h3 className="text-lg font-black leading-7 text-gray-900 dark:text-white">{selected.title}</h3>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">مرجع المنهجية: {selected.sourcePart} — {selected.sourceHeading}</p>
+                    <p className={`mt-1 text-xs font-semibold ${selected.sourceReviewStatus === 'content-reviewed' ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                      حالة المصدر: {selected.sourceReviewStatus === 'content-reviewed'
+                        ? 'مراجعة أولية لمقاطع من المحتوى — الإحالات القانونية تحتاج تحققًا مستقلًا'
+                        : selected.sourceReviewStatus === 'needs-review'
+                          ? 'يحتاج إلى تدقيق إضافي قبل الاعتماد'
+                          : 'عنوان وصفحة من الفهرس فقط — المحتوى الأصلي لم يُطابق بعد'}
+                    </p>
                   </div>
                   <button type="button" onClick={copyPrompt} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#1a3a5c] px-4 py-2.5 text-sm font-bold text-white hover:opacity-90 dark:bg-[#f0c040] dark:text-[#1a3a5c]">
                     {copied ? <Check size={17} /> : <Copy size={17} />}
