@@ -9,20 +9,35 @@ import {
   type LegalMemoPrompt,
 } from '@/data/legal-memo-prompts';
 
+function normalizeSearchText(value: string) {
+  return value
+    .toLocaleLowerCase('ar')
+    .normalize('NFD')
+    .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ى/g, 'ي')
+    .replace(/ة/g, 'ه');
+}
+
 export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('الكل');
+  const [sourceMatch, setSourceMatch] = useState('الكل');
   const [selectedId, setSelectedId] = useState(LEGAL_MEMO_PROMPTS[0]?.id ?? '');
   const [copied, setCopied] = useState(false);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLocaleLowerCase('ar');
+    const q = normalizeSearchText(query.trim());
     return LEGAL_MEMO_PROMPTS.filter((item) => {
       const matchesCategory = category === 'الكل' || item.category === category;
-      const haystack = [item.title, item.category, item.sourcePart, item.sourceHeading, item.objective].join(' ').toLocaleLowerCase('ar');
-      return matchesCategory && (!q || haystack.includes(q));
+      const matchesSource = sourceMatch === 'الكل' || (item.sourceMatchStatus ?? 'not-verified') === sourceMatch;
+      const haystack = normalizeSearchText([
+        item.id, item.title, item.category, item.sourcePart, item.sourceHeading, item.objective,
+        ...item.structure, ...item.requiredInputs, ...item.specialRules, ...item.checklist,
+      ].join(' '));
+      return matchesCategory && matchesSource && (!q || haystack.includes(q));
     });
-  }, [query, category]);
+  }, [query, category, sourceMatch]);
 
   const selected: LegalMemoPrompt | undefined =
     filtered.find((item) => item.id === selectedId) ?? filtered[0];
@@ -55,7 +70,9 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
         <div className="min-w-0">
           <h2 className="text-xl font-black text-[#1a3a5c] dark:text-[#f0c040]">نماذج عرائض الذكاء الاصطناعي</h2>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">مكتبة عرائض جزائرية موسعة مستندة إلى فهرس الكتاب، مع أسئلة توضيحية وتحقق قانوني</p>
-          <p className="mt-1 text-xs font-semibold text-[#1a3a5c] dark:text-[#f0c040]">{LEGAL_MEMO_PROMPTS.length.toLocaleString("ar-DZ")} نموذجًا قانونيًا — حسين بوشينة ونبيل صقر</p>
+          <p className="mt-1 text-xs font-semibold text-[#1a3a5c] dark:text-[#f0c040]">
+            {LEGAL_MEMO_PROMPTS.length.toLocaleString("ar-DZ")} نموذجًا في المكتبة — {LEGAL_MEMO_PROMPTS.filter((item) => item.id.startsWith("book-template-")).length.toLocaleString("ar-DZ")} نموذجًا مفهرسًا من كتاب حسين بوشينة ونبيل صقر
+          </p>
         </div>
       </div>
 
@@ -92,7 +109,7 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
               id="memo-prompt-search"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="اسم العريضة أو المذكرة..."
+              placeholder="ابحث في العنوان والتصنيف والبيانات والقواعد..."
               className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2.5 pr-9 pl-3 text-sm outline-none focus:border-[#1a3a5c] dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
@@ -110,6 +127,19 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
             </select>
             <ChevronDown size={16} className="pointer-events-none absolute left-3 top-3 text-gray-400" />
           </div>
+
+          <label htmlFor="memo-prompt-source" className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">حالة المطابقة مع الكتاب</label>
+          <select
+            id="memo-prompt-source"
+            value={sourceMatch}
+            onChange={(event) => setSourceMatch(event.target.value)}
+            className="mb-3 w-full rounded-xl border border-gray-200 bg-white py-2.5 px-3 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+          >
+            <option value="الكل">كل حالات المطابقة</option>
+            <option value="toc-matched">مطابق مع الفهرس</option>
+            <option value="needs-review">يحتاج تدقيقًا</option>
+            <option value="not-verified">غير متحقق من المصدر</option>
+          </select>
 
           <label htmlFor="memo-prompt-select" className="mb-2 block text-sm font-bold text-gray-700 dark:text-gray-200">قائمة منسدلة بالنماذج</label>
           <select
@@ -139,12 +169,19 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
                     <span className="mb-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-800 dark:bg-blue-950 dark:text-blue-200">{selected.category}</span>
                     <h3 className="text-lg font-black leading-7 text-gray-900 dark:text-white">{selected.title}</h3>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">مرجع المنهجية: {selected.sourcePart} — {selected.sourceHeading}</p>
-                    <p className={`mt-1 text-xs font-semibold ${selected.sourceReviewStatus === 'content-reviewed' ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400'}`}>
-                      حالة المصدر: {selected.sourceReviewStatus === 'content-reviewed'
-                        ? 'مراجعة أولية لمقاطع من المحتوى — الإحالات القانونية تحتاج تحققًا مستقلًا'
+                    <p className={`mt-1 text-xs font-semibold ${selected.sourceMatchStatus === 'toc-matched' ? 'text-emerald-700 dark:text-emerald-300' : selected.sourceMatchStatus === 'needs-review' ? 'text-amber-700 dark:text-amber-300' : 'text-gray-500 dark:text-gray-400'}`}>
+                      مطابقة الفهرس: {selected.sourceMatchStatus === 'toc-matched'
+                        ? 'تمت مطابقة العنوان والصفحة مع الفهرس؛ لا يعني ذلك مطابقة حرفية للمتن'
+                        : selected.sourceMatchStatus === 'needs-review'
+                          ? 'مطابقة المتن أو الإحالة تحتاج إلى استكمال'
+                          : 'لم تثبت مطابقة هذا النموذج للكتاب'}
+                    </p>
+                    <p className={`mt-1 text-xs ${selected.sourceReviewStatus === 'content-reviewed' ? 'text-gray-600 dark:text-gray-300' : 'text-amber-700 dark:text-amber-300'}`}>
+                      مراجعة المحتوى: {selected.sourceReviewStatus === 'content-reviewed'
+                        ? 'مراجعة أولية لمقاطع من المحتوى؛ النصوص القانونية تحتاج تحققًا مستقلًا'
                         : selected.sourceReviewStatus === 'needs-review'
-                          ? 'يحتاج إلى تدقيق إضافي قبل الاعتماد'
-                          : 'مطابقة المحتوى الأصلي للمصدر لم تكتمل بعد'}
+                          ? 'المتن يحتاج تدقيقًا إضافيًا قبل الاعتماد'
+                          : 'لم تتم مراجعة هذا النموذج مقابل الكتاب'}
                     </p>
                   </div>
                   <button type="button" onClick={copyPrompt} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#1a3a5c] px-4 py-2.5 text-sm font-bold text-white hover:opacity-90 dark:bg-[#f0c040] dark:text-[#1a3a5c]">
