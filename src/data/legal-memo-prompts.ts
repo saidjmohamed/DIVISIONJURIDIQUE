@@ -51,7 +51,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "inheritance-partition",
     title: "عريضة قسمة تركة",
-    category: "المواد المدنية",
+    category: "نماذج مدنية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة افتتاح دعوى قسمة تركة",
     objective: "إعداد عريضة بشأن قسمة التركة وفق طبيعة الأموال والحقوق الثابتة في الملف، دون اختلاق الورثة أو الأنصبة أو الملكية.",
@@ -63,7 +63,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "commercial-lease-petition",
     title: "عريضة افتتاحية في نزاع إيجار تجاري",
-    category: "المواد التجارية",
+    category: "نماذج تجارية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة افتتاح دعوى إيجار تجاري",
     objective: "صياغة عريضة في نزاع إيجار تجاري تحدد الالتزامات والإخلال المدعى به والطلبات المرتبطة به.",
@@ -75,7 +75,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "wrongful-dismissal",
     title: "عريضة دعوى الطرد التعسفي",
-    category: "المواد الاجتماعية",
+    category: "نماذج اجتماعية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة افتتاح دعوى اجتماعي طرد تعسفي",
     objective: "إعداد عريضة اجتماعية بشأن الطرد المدعى أنه تعسفي، مع ربط كل طلب بالوقائع والوثائق والنصوص السارية.",
@@ -87,7 +87,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "work-accident",
     title: "عريضة دعوى حادث عمل",
-    category: "المواد الاجتماعية",
+    category: "نماذج اجتماعية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة افتتاحية اجتماعي حادث عمل",
     objective: "صياغة عريضة تتعلق بحادث عمل وفق الوقائع الطبية والمهنية والإدارية المقدمة وبالقواعد الجزائرية المتحقق منها.",
@@ -99,7 +99,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "civil-damages",
     title: "عريضة تعويض عن ضرر مادي وأدبي",
-    category: "المواد المدنية",
+    category: "نماذج مدنية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة افتتاح دعوى مدنية تعويض لضرر مادي وأدبي",
     objective: "إعداد عريضة تعويض تربط الفعل المنسوب والضرر والعلاقة السببية والأسانيد المثبتة بطلبات واضحة.",
@@ -111,7 +111,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "medical-malpractice",
     title: "عريضة تعويض عن خطأ طبي",
-    category: "المواد المدنية",
+    category: "نماذج مدنية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة دعوى مدنية مطالبة طبيب بتعويض لخطئه في الجراحة",
     objective: "صياغة عريضة تعويض عن خطأ طبي دون الجزم بخطأ فني أو علاقة سببية لا تثبتها المستندات.",
@@ -123,7 +123,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "fraudulent-conveyance",
     title: "عريضة دعوى عدم نفاذ التصرف",
-    category: "المواد المدنية",
+    category: "نماذج مدنية",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة دعوى عدم نفاذ التصرف الدعوى البوليسية",
     objective: "إعداد عريضة دعوى عدم نفاذ التصرف وفق التكييف الذي تدعمه الوقائع والنصوص المتحقق منها.",
@@ -135,7 +135,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "possession-recovery",
     title: "عريضة استرداد الحيازة",
-    category: "المواد المدنية والعقارية",
+    category: "نماذج عقارية",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة افتتاحية من أجل استرداد الحيازة",
     objective: "إعداد عريضة لاسترداد الحيازة مع فصل وقائع الحيازة عن الملكية وتحديد الأفعال المدعى بها.",
@@ -147,7 +147,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "execution-objection",
     title: "عريضة إشكال في التنفيذ مع طلب وقف التنفيذ",
-    category: "التنفيذ",
+    category: "التنفيذ والحجوز",
     sourcePart: "الجزء 4",
     sourceHeading: "عريضة افتتاحية إشكال في التنفيذ تتضمن طلب وقف تنفيذ حكم",
     objective: "صياغة عريضة إشكال في التنفيذ مع طلب وقف التنفيذ عند وجود أساس قانوني ووقائعي يقدمه المحامي.",
@@ -159,7 +159,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "penalty-liquidation",
     title: "عريضة تصفية الغرامة التهديدية",
-    category: "التنفيذ",
+    category: "التنفيذ والحجوز",
     sourcePart: "الجزء 4",
     sourceHeading: "عريضة افتتاحية لدعوى من أجل تصفية الغرامة التهديدية",
     objective: "إعداد عريضة تصفية غرامة تهديدية استنادًا إلى الحكم أو الأمر السابق ومدى ثبوت عدم التنفيذ.",
@@ -231,7 +231,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "expert-report-followup",
     title: "عريضة رجوع بعد الخبرة",
-    category: "المواد المدنية",
+    category: "نماذج مدنية",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة رجوع القضية بعد الخبرة",
     objective: "إعداد مذكرة أو عريضة بعد إيداع الخبرة، مع مناقشة ما ورد في التقرير والرد على نقاطه وفق موقف الموكل.",
@@ -339,7 +339,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "supreme-court-commercial-response",
     title: "مذكرة جوابية أمام المحكمة العليا — تجاري",
-    category: "المحكمة العليا",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 6",
     sourceHeading: "مذكرة جوابية محكمة عليا تجاري",
     objective: "إعداد مذكرة جوابية على أوجه طعن بالنقض تجاري، بالرد على كل وجه وفق القرار المطعون فيه والملف والنصوص المتحقق منها.",
@@ -351,7 +351,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "real-estate-response",
     title: "مذكرة جوابية في نزاع عقاري",
-    category: "المواد المدنية والعقارية",
+    category: "نماذج عقارية",
     sourcePart: "الجزء 6",
     sourceHeading: "مذكرة جوابية عقاري",
     objective: "إعداد مذكرة جوابية عقارية ترد على طلبات الخصم ودفوعه بالاستناد إلى السندات والوقائع الثابتة.",
@@ -363,7 +363,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "general-response-memo",
     title: "مذكرة جوابية عامة",
-    category: "المذكرات الجوابية",
+    category: "العرائض الجوابية والرد",
     sourcePart: "الجزء 6",
     sourceHeading: "عريضة جوابية / مقال للرد مدني",
     objective: "إعداد مذكرة جوابية ترد بصورة منظمة على ادعاءات الخصم ودفوعه دون إغفال طلباته الأساسية.",
@@ -375,7 +375,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "reply-after-expert",
     title: "مقال للرد على تقرير أو ملاحظات الخبرة",
-    category: "المذكرات الجوابية",
+    category: "العرائض الجوابية والرد",
     sourcePart: "الجزء 5",
     sourceHeading: "عريضة الرجوع بعد الخبرة / مقال جوابي",
     objective: "إعداد رد مهني على تقرير الخبرة أو ملاحظات الخصم مع تحديد المسائل التي تحتاج إلى مناقشة فنية أو قانونية.",
@@ -423,7 +423,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "attachment-lift",
     title: "عريضة رفع الحجز",
-    category: "التنفيذ",
+    category: "التنفيذ والحجوز",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة افتتاحية لدعوى رفع الحجز",
     objective: "صياغة طلب رفع الحجز وفق نوع الحجز وسببه والوثائق المثبتة، مع التحقق من الطريق الإجرائي الصحيح.",
@@ -435,7 +435,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "subrogation-injury",
     title: "عريضة رجوع المضرور على المتبوع والتابع",
-    category: "المواد المدنية",
+    category: "نماذج مدنية",
     sourcePart: "الجزء 2",
     sourceHeading: "عريضة افتتاحية لدعوى رجوع المضرور على المتبوع والتابع",
     objective: "إعداد عريضة مسؤولية مدنية تحدد دور كل طرف والوقائع التي تربط الفعل بالضرر.",
@@ -459,7 +459,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "appeal-material-error",
     title: "مذكرة جوابية على طعن بالنقض",
-    category: "المحكمة العليا",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 6",
     sourceHeading: "مذكرة جوابية عقاري / مذكرة جوابية أمام المحكمة العليا",
     objective: "تحرير مذكرة جوابية على طعن بالنقض ترد على الأوجه كما وردت فعليًا في الطعن وتستند إلى القرار والملف.",
@@ -1778,7 +1778,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   },
   {
     id: "book-template-110",
-    title: "مقال للرد مدني",
+    title: "مقال للرد مدني (نموذج ثانٍ)",
     category: "العرائض الجوابية والرد",
     sourcePart: "الكتاب، الصفحة 359",
     sourceHeading: "مقال للرد مدني",
@@ -1886,7 +1886,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   },
   {
     id: "book-template-119",
-    title: "عريضة جوابية عامة",
+    title: "عريضة جوابية عامة (نموذج ثانٍ)",
     category: "العرائض الجوابية والرد",
     sourcePart: "الكتاب، الصفحة 400",
     sourceHeading: "عريضة جوابية عامة",
