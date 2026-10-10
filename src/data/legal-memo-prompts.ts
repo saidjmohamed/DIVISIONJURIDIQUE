@@ -4,7 +4,7 @@ export type LegalMemoPrompt = {
   category: string;
   sourcePart: string;
   sourceHeading: string;
-  sourceReviewStatus?: "index-only" | "content-reviewed" | "needs-review";
+  sourceReviewStatus?: "not-verified" | "content-reviewed" | "needs-review";
   objective: string;
   structure: string[];
   requiredInputs: string[];
@@ -1950,7 +1950,7 @@ export function buildLegalMemoPrompt(item: LegalMemoPrompt): string {
     "نوع الوثيقة وتصنيفها: " + item.category,
     "الهدف: " + item.objective,
     "مرجع المنهجية: " + item.sourcePart + "، عنوان النموذج في الفهرس: " + item.sourceHeading + ". هذا مرجع لتحديد النوع والبنية فقط، وليس نصًا مطلوبًا نسخه.",
-    "حالة مراجعة المصدر: " + (item.sourceReviewStatus === "content-reviewed" ? "تمت مراجعة مقاطع من محتوى النموذج مراجعة أولية، ولم يُحسم بعد نفاذ الإحالات التشريعية." : item.sourceReviewStatus === "needs-review" ? "النموذج يحتاج إلى تدقيق إضافي؛ لا تدّعِ مطابقته للمصدر." : "المتاح حاليًا عنوان الفهرس ورقم الصفحة فقط؛ لا تدّعِ أن محتوى النموذج أو بنيته التفصيلية قد استُخرج من الكتاب."),
+    "حالة مراجعة المصدر: " + (item.sourceReviewStatus === "content-reviewed" ? "تمت مراجعة مقاطع من محتوى النموذج مراجعة أولية، ولم يُحسم بعد نفاذ الإحالات التشريعية." : item.sourceReviewStatus === "needs-review" ? "النموذج يحتاج إلى تدقيق إضافي؛ لا تدّعِ مطابقته للمصدر." : "مطابقة المحتوى الأصلي للمصدر لم تكتمل بعد؛ لا تدّعِ أن محتوى النموذج أو بنيته التفصيلية قد استُخرج من الكتاب."),
     "البنية المطلوب مراعاتها بحسب طبيعة القضية:",
     ...item.structure.map((part, index) => (index + 1) + ". " + part),
     "البيانات التي يجب طلبها أو التحقق من توافرها:",
