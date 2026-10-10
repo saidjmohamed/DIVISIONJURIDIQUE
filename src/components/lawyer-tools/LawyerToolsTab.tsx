@@ -5,11 +5,13 @@ import DeadlinesFullView from './DeadlinesFullView';
 import CompensationCalculator from './CompensationCalculator';
 import ProceduresComparison from './ProceduresComparison';
 import HtmlToMarkdown from './HtmlToMarkdown';
+import LegalMemoPrompts from './LegalMemoPrompts';
 
 const tools = [
   { id: 'deadlines-full', title: 'الآجال القضائية', icon: '📅', desc: 'حاسبة الآجال الكاملة وحوسبة المواعيد وعرض جدول الآجال الشائع.', color: '#059669' },
   { id: 'compensation', title: 'حاسبة التعويضات والفوائد', icon: '💰', desc: 'حساب التعويضات عن الأضرار والفوائد القانونية وفق المعايير المعتمدة.', color: '#059669' },
   { id: 'procedures', title: 'مقارنة الإجراءات ومسار القضية', icon: '🔄', desc: 'مقارنة الإجراءات القضائية وعرض مسار الدعوى بصرياً.', color: '#0891b2' },
+  { id: 'ai-petitions', title: 'نماذج عرائض الذكاء الاصطناعي', icon: '⚖️', desc: 'نماذج قانونية جاهزة للنسخ، مع أسئلة توضيحية قبل الصياغة والتحقق القانوني.', color: '#1a3a5c', badge: 'جديد' },
   { id: 'ai-prompts', title: 'دليل برومبتات الذكاء الاصطناعي', icon: '💡', desc: 'برومبتات جاهزة للنسخ للتحليل والصياغة والبحث والاستراتيجية والترجمة.', color: '#8b5cf6' },
   { id: 'dictionary', title: 'معجم المصطلحات القانونية', icon: '📖', desc: 'قاموس عربي-فرنسي للمصطلحات القانونية مع الشرح والمراجع.', color: '#6366f1' },
   { id: 'html-to-md', title: 'تحويل HTML إلى Markdown', icon: '📝', desc: 'تحويل ملفات HTML إلى Markdown بالجملة، ويعمل بالكامل أوفلاين.', color: '#6366f1' },
@@ -22,6 +24,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'deadlines-full') return <DeadlinesFullView onBack={() => setActiveTool(null)} />;
   if (activeTool === 'compensation') return <CompensationCalculator onBack={() => setActiveTool(null)} />;
   if (activeTool === 'procedures') return <ProceduresComparison onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'ai-petitions') return <LegalMemoPrompts onBack={() => setActiveTool(null)} />;
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
 
   return (
@@ -33,6 +36,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {tools.map(tool => (
           <button
+            type="button"
             key={tool.id}
             onClick={() => setActiveTool(tool.id)}
             className="bg-white dark:bg-gray-800 rounded-xl p-4 border border-gray-200 dark:border-gray-700 text-right hover:shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
