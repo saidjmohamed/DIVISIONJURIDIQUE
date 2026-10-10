@@ -144,7 +144,7 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
                         ? 'مراجعة أولية لمقاطع من المحتوى — الإحالات القانونية تحتاج تحققًا مستقلًا'
                         : selected.sourceReviewStatus === 'needs-review'
                           ? 'يحتاج إلى تدقيق إضافي قبل الاعتماد'
-                          : 'عنوان وصفحة من الفهرس فقط — المحتوى الأصلي لم يُطابق بعد'}
+                          : 'مطابقة المحتوى الأصلي للمصدر لم تكتمل بعد'}
                     </p>
                   </div>
                   <button type="button" onClick={copyPrompt} className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-[#1a3a5c] px-4 py-2.5 text-sm font-bold text-white hover:opacity-90 dark:bg-[#f0c040] dark:text-[#1a3a5c]">
