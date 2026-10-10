@@ -54,7 +54,8 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
         </div>
         <div className="min-w-0">
           <h2 className="text-xl font-black text-[#1a3a5c] dark:text-[#f0c040]">نماذج عرائض الذكاء الاصطناعي</h2>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">برومبتات متخصصة تتضمن أسئلة توضيحية قبل صياغة المذكرة والتحقق القانوني</p>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">مكتبة عرائض جزائرية موسعة مستندة إلى فهرس الكتاب، مع أسئلة توضيحية وتحقق قانوني</p>
+          <p className="mt-1 text-xs font-semibold text-[#1a3a5c] dark:text-[#f0c040]">{LEGAL_MEMO_PROMPTS.length.toLocaleString("ar-DZ")} نموذجًا قانونيًا — حسين بوشينة ونبيل صقر</p>
         </div>
       </div>
 
@@ -115,7 +116,6 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
             id="memo-prompt-select"
             value={selected?.id ?? ''}
             onChange={(event) => setSelectedId(event.target.value)}
-            size={Math.min(Math.max(filtered.length, 2), 8)}
             className="w-full rounded-xl border border-gray-200 bg-white p-2 text-sm leading-6 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
           >
             {filtered.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
