@@ -171,7 +171,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "admin-annulment",
     title: "عريضة إلغاء قرار إداري",
-    category: "المنازعات الإدارية",
+    category: "نماذج إدارية",
     sourcePart: "الجزء 4",
     sourceHeading: "عريضة افتتاح دعوى إدارية إلغاء قرار",
     objective: "صياغة عريضة إلغاء قرار إداري مع تحديد القرار المطعون فيه وأوجه عدم المشروعية التي تدعمها الوقائع.",
@@ -183,7 +183,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "admin-stay-execution",
     title: "طلب وقف تنفيذ قرار أمام القضاء الإداري",
-    category: "المنازعات الإدارية",
+    category: "نماذج إدارية",
     sourcePart: "الجزء 4",
     sourceHeading: "عريضة من أجل طلب وقف تنفيذ قرار لمجلس الدولة",
     objective: "إعداد طلب وقف تنفيذ مرتبط بطعن إداري، مع التحقق من الشروط القانونية الحالية والجهة المختصة.",
@@ -195,7 +195,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "admin-compensation",
     title: "عريضة تعويض عن قرار إداري",
-    category: "المنازعات الإدارية",
+    category: "نماذج إدارية",
     sourcePart: "الجزء 4",
     sourceHeading: "عريضة افتتاح دعوى تعويض لتعسف في قرار",
     objective: "صياغة دعوى تعويض عن قرار أو تصرف إداري مع إثبات عناصر المسؤولية والضرر وفق الوقائع المقدمة.",
@@ -207,7 +207,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "material-error-correction",
     title: "طلب تصحيح خطأ مادي في حكم",
-    category: "إجراءات قضائية خاصة",
+    category: "إجراءات الدعوى",
     sourcePart: "الجزء 3",
     sourceHeading: "مذكرة تصحيح خطأ مادي",
     objective: "إعداد طلب تصحيح خطأ مادي مع التمييز بين الخطأ المادي وبين إعادة مناقشة الموضوع أو تعديل قضاء الحكم.",
@@ -219,7 +219,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "judgment-interpretation",
     title: "عريضة تفسير حكم غامض",
-    category: "إجراءات قضائية خاصة",
+    category: "إجراءات الدعوى",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة دعوى تفسير حكم غامض",
     objective: "إعداد طلب تفسير يحدد الغموض أو الإبهام في الحكم دون تحويله إلى طعن في الموضوع.",
@@ -243,7 +243,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "forgery-incident",
     title: "عريضة دعوى فرعية بالتزوير",
-    category: "إجراءات قضائية خاصة",
+    category: "إجراءات الدعوى",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة دعوى فرعية بالتزوير",
     objective: "صياغة طلب أو عريضة متعلقة بالادعاء بالتزوير وفق الإجراءات الجزائرية الحالية، مع تحديد المحرر وأوجه الطعن فيه.",
@@ -255,7 +255,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "reconsideration-petition",
     title: "عريضة التماس إعادة النظر",
-    category: "الطعون",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 3",
     sourceHeading: "عريضة التماس إعادة النظر",
     objective: "تقييم وصياغة التماس إعادة النظر فقط إذا كان سبب من الأسباب القانونية المحددة قابلًا للتطبيق ومثبتًا بالملف.",
@@ -267,7 +267,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "civil-appeal",
     title: "عريضة استئناف مدني",
-    category: "الطعون",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 5",
     sourceHeading: "عريضة استئناف مدني",
     objective: "إعداد عريضة استئناف مدني تركز على أوجه الخطأ أو القصور في الحكم المستأنف وتربط كل وجه بطلب محدد.",
@@ -279,7 +279,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "family-appeal",
     title: "عريضة استئناف في شؤون الأسرة",
-    category: "الطعون",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 5",
     sourceHeading: "عريضة استئناف أسرة",
     objective: "إعداد استئناف في شؤون الأسرة مع مراعاة طبيعة الحكم والطلبات المطروحة أمام الدرجة الأولى.",
@@ -291,7 +291,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "commercial-appeal",
     title: "عريضة استئناف حكم تجاري",
-    category: "الطعون",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 5",
     sourceHeading: "عريضة استئناف حكم تجاري",
     objective: "صياغة استئناف تجاري يحدد أخطاء الحكم في الوقائع أو التكييف أو تطبيق القانون بناءً على الملف.",
@@ -303,7 +303,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "social-appeal",
     title: "عريضة استئناف اجتماعي",
-    category: "الطعون",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 5",
     sourceHeading: "عريضة استئناف اجتماعي لإلغاء حكم أول درجة",
     objective: "إعداد استئناف اجتماعي يعالج الحكم في ضوء عقد العمل والوثائق والإجراءات الخاصة بالنزاع.",
@@ -315,7 +315,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "admin-appeal",
     title: "عريضة استئناف أو طعن إداري أمام مجلس الدولة",
-    category: "المنازعات الإدارية",
+    category: "نماذج إدارية",
     sourcePart: "الجزء 5",
     sourceHeading: "عريضة استئناف إداري أمام مجلس الدولة",
     objective: "إعداد عريضة طعن إداري أمام الجهة المختصة بعد التحقق من طبيعة الحكم والطريق الإجرائي المتاح.",
@@ -327,7 +327,7 @@ export const LEGAL_MEMO_PROMPTS: LegalMemoPrompt[] = [
   {
     id: "cassation-social",
     title: "عريضة طعن بالنقض اجتماعي",
-    category: "الطعون",
+    category: "الطعون والاستئناف",
     sourcePart: "الجزء 6",
     sourceHeading: "عريضة طعن بالنقض اجتماعي",
     objective: "إعداد مشروع عريضة طعن بالنقض في نزاع اجتماعي، مبني على أوجه قانونية قابلة للنقض لا على مجرد إعادة مناقشة الوقائع.",
