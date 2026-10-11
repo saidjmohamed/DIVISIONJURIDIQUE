@@ -5,12 +5,14 @@ import DeadlinesFullView from './DeadlinesFullView';
 import CompensationCalculator from './CompensationCalculator';
 import HtmlToMarkdown from './HtmlToMarkdown';
 import LegalMemoPrompts from './LegalMemoPrompts';
+import MistralPdfToMarkdown from './MistralPdfToMarkdown';
 
 const tools = [
   { id: 'deadlines-full', title: 'الآجال القضائية', icon: '📅', desc: 'حاسبة الآجال الكاملة وحوسبة المواعيد وعرض جدول الآجال الشائع.', color: '#059669' },
   { id: 'compensation', title: 'حاسبة التعويضات والفوائد', icon: '💰', desc: 'حساب التعويضات عن الأضرار والفوائد القانونية وفق المعايير المعتمدة.', color: '#059669' },
   { id: 'ai-petitions', title: 'نماذج عرائض الذكاء الاصطناعي', icon: '⚖️', desc: 'نماذج قانونية جاهزة للنسخ، مع أسئلة توضيحية قبل الصياغة والتحقق القانوني.', color: '#1a3a5c', badge: 'جديد' },
   { id: 'html-to-md', title: 'تحويل HTML إلى Markdown', icon: '📝', desc: 'تحويل ملفات HTML إلى Markdown بالجملة، ويعمل بالكامل أوفلاين.', color: '#6366f1' },
+  { id: 'mistral-pdf-to-md', title: 'تحويل PDF إلى Markdown (Mistral)', icon: '📄', desc: 'استخراج النص من ملفات PDF الممسوحة وتحويله إلى Markdown قابل للتنزيل.', color: '#4f46e5', badge: 'OCR' },
 ];
 
 export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
@@ -20,6 +22,7 @@ export default function LawyerToolsTab({ onBack }: { onBack?: () => void }) {
   if (activeTool === 'compensation') return <CompensationCalculator onBack={() => setActiveTool(null)} />;
   if (activeTool === 'ai-petitions') return <LegalMemoPrompts onBack={() => setActiveTool(null)} />;
   if (activeTool === 'html-to-md') return <HtmlToMarkdown onBack={() => setActiveTool(null)} />;
+  if (activeTool === 'mistral-pdf-to-md') return <MistralPdfToMarkdown onBack={() => setActiveTool(null)} />;
 
   return (
     <div className="max-w-4xl mx-auto px-2 sm:px-4" dir="rtl">
