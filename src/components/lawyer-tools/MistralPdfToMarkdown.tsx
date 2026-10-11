@@ -41,6 +41,7 @@ export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownPro
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
+  const [accessCode, setAccessCode] = useState("");
 
   const chooseFile = async (candidate?: File) => {
     setError("");
@@ -81,6 +82,7 @@ export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownPro
       body.append("file", file);
       const response = await fetch("/api/mistral-pdf-to-md", {
         method: "POST",
+        headers: { "x-mistral-tool-code": accessCode.trim() },
         body,
       });
       const data = await response.json() as Partial<ConversionResult> & { error?: string };
@@ -166,6 +168,24 @@ export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownPro
         </p>
       </div>
 
+      <div className="mb-4 rounded-xl border border-gray-200 p-4 dark:border-gray-700">
+        <label htmlFor="mistral-access-code" className="mb-2 block text-sm font-bold text-gray-800 dark:text-gray-100">
+          رمز استخدام الأداة
+        </label>
+        <input
+          id="mistral-access-code"
+          type="password"
+          autoComplete="off"
+          value={accessCode}
+          onChange={(event) => setAccessCode(event.target.value)}
+          placeholder="أدخل الرمز الذي ضبطه مسؤول التطبيق"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+        />
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          يحمي الرمز نقطة التحويل من الاستخدام العام. يبقى مفتاح Mistral على الخادم ولا يُرسل إلى المتصفح.
+        </p>
+      </div>
+
       <div
         onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
@@ -231,7 +251,7 @@ export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownPro
         <button
           type="button"
           onClick={convert}
-          disabled={!file || busy}
+          disabled={!file || busy || !accessCode.trim()}
           className="inline-flex items-center gap-2 rounded-xl bg-[#1a3a5c] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#274c73] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-[#f0c040] dark:text-[#1a3a5c]"
         >
           {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />}

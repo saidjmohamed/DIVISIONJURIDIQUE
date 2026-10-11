@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import { checkRateLimit } from "@/lib/ai-core";
 import { getClientIp } from "@/lib/rate-limit";
 
@@ -53,6 +54,25 @@ export async function POST(req: NextRequest) {
       { error: rateLimit.errorMessage || "تجاوزت الحد المسموح. حاول لاحقًا." },
       { status: 429 },
     );
+  }
+
+  const expectedAccessCode = process.env.MISTRAL_TOOL_ACCESS_CODE;
+  if (!expectedAccessCode) {
+    return NextResponse.json(
+      { error: "الأداة غير مهيأة بعد. أضف MISTRAL_TOOL_ACCESS_CODE وMISTRAL_API_KEY في متغيرات البيئة على Vercel." },
+      { status: 503 },
+    );
+  }
+
+  const providedAccessCode = req.headers.get("x-mistral-tool-code") || "";
+  const expectedBytes = Buffer.from(expectedAccessCode);
+  const providedBytes = Buffer.from(providedAccessCode);
+  if (
+    expectedBytes.length === 0 ||
+    expectedBytes.length !== providedBytes.length ||
+    !timingSafeEqual(expectedBytes, providedBytes)
+  ) {
+    return NextResponse.json({ error: "رمز استخدام الأداة غير صحيح." }, { status: 401 });
   }
 
   const apiKey = process.env.MISTRAL_API_KEY;
