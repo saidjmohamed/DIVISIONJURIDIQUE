@@ -13,7 +13,7 @@ function normalizeSearchText(value: string) {
   return value
     .toLocaleLowerCase('ar')
     .normalize('NFD')
-    .replace(/[\\u064B-\\u065F\\u0670\\u0640]/g, '')
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
     .replace(/[أإآٱ]/g, 'ا')
     .replace(/ى/g, 'ي')
     .replace(/ة/g, 'ه');
