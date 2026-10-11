@@ -104,14 +104,14 @@ export async function POST(req: NextRequest) {
     const upstream = await fetch("https://api.mistral.ai/v1/ocr", {
       method: "POST",
       headers: {
-        Authorization: \`Bearer \${apiKey}\`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         model: "mistral-ocr-latest",
         document: {
           type: "document_url",
-          document_url: \`data:application/pdf;base64,\${base64}\`,
+          document_url: `data:application/pdf;base64,${base64}`,
         },
         include_image_base64: false,
         include_blocks: false,
@@ -155,10 +155,10 @@ export async function POST(req: NextRequest) {
         const pageText = typeof page.markdown === "string" ? page.markdown.trim() : "";
         if (!pageText) return "";
         const pageNumber = Number.isInteger(page.index) ? Number(page.index) + 1 : index + 1;
-        return \`<!-- الصفحة \${pageNumber} -->\\n\\n\${pageText}\`;
+        return `<!-- الصفحة ${pageNumber} -->\n\n${pageText}`;
       })
       .filter(Boolean)
-      .join("\\n\\n---\\n\\n");
+      .join("\n\n---\n\n");
 
     if (!markdown) {
       return NextResponse.json(
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       pages: pages.length,
       characters: markdown.length,
       model: payload.model || "mistral-ocr-latest",
-      filename: file.name.replace(/\\.pdf$/i, "") + ".md",
+      filename: file.name.replace(/\.pdf$/i, "") + ".md",
     });
   } catch (error) {
     const isTimeout = error instanceof Error && error.name === "TimeoutError";

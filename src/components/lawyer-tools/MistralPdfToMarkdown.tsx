@@ -29,8 +29,8 @@ const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
 function formatSize(bytes: number): string {
   return bytes < 1024 * 1024
-    ? \`\${(bytes / 1024).toFixed(0)} كيلوبايت\`
-    : \`\${(bytes / (1024 * 1024)).toFixed(2)} ميغابايت\`;
+    ? `${(bytes / 1024).toFixed(0)} كيلوبايت`
+    : `${(bytes / (1024 * 1024)).toFixed(2)} ميغابايت`;
 }
 
 export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownProps) {
@@ -95,7 +95,7 @@ export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownPro
         pages: Number(data.pages) || 0,
         characters: Number(data.characters) || data.markdown.length,
         model: data.model || "mistral-ocr-latest",
-        filename: data.filename || file.name.replace(/\\.pdf$/i, "") + ".md",
+        filename: data.filename || file.name.replace(/\.pdf$/i, "") + ".md",
       });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "حدث خطأ غير متوقع.");
@@ -175,11 +175,11 @@ export default function MistralPdfToMarkdown({ onBack }: MistralPdfToMarkdownPro
           void chooseFile(event.dataTransfer.files?.[0]);
         }}
         onClick={() => inputRef.current?.click()}
-        className={\`cursor-pointer rounded-2xl border-2 border-dashed p-7 text-center transition sm:p-10 \${
+        className={`cursor-pointer rounded-2xl border-2 border-dashed p-7 text-center transition sm:p-10 ${
           dragging
             ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
             : "border-gray-300 bg-gray-50 hover:border-indigo-400 dark:border-gray-700 dark:bg-gray-800/60"
-        }\`}
+        }`}
       >
         <input
           ref={inputRef}
