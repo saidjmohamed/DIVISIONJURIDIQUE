@@ -35,7 +35,7 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
       ].join(' '));
       return matchesCategory && (!q || haystack.includes(q));
     });
-  }, [query, category, sourceMatch]);
+  }, [query, category]);
 
   const selected: LegalMemoPrompt | undefined =
     filtered.find((item) => item.id === selectedId) ?? filtered[0];
