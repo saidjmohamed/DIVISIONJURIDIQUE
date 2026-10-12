@@ -226,6 +226,11 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         </motion.div>
       </div>
 
+      <div className="max-w-4xl mx-auto mb-10 px-4">
+        <div role="note" className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm leading-7 text-amber-100">
+          <strong>تنبيه وإخلاء مسؤولية:</strong> «الشامل» أداة مساعدة للوصول إلى المعلومات وتنظيم العمل، وليس مصدرًا رسميًا ولا بديلًا عن المراجعة المهنية. قد تتضمن نتائجه أخطاء أو نقصًا أو معلومات غير محدثة. يجب التحقق من المصادر الرسمية قبل الاعتماد على أي معلومة أو اتخاذ إجراء. لا يضمن مطوّر التطبيق صحة جميع المخرجات ولا يتحمل تبعات الاعتماد عليها دون تحقق مستقل، في الحدود التي يسمح بها القانون.
+        </div>
+      </div>
       {/* Footer */}
       <footer className="py-10 border-t border-white/5 text-center text-gray-500 text-xs font-medium">
         <p>© {new Date().getFullYear()} الشامل القانوني - جميع الحقوق محفوظة للأستاذ سايج محمد (أبو جواد)</p>
