@@ -24,6 +24,7 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
   const [category, setCategory] = useState('الكل');
   const [selectedId, setSelectedId] = useState(LEGAL_MEMO_PROMPTS[0]?.id ?? '');
   const [copied, setCopied] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
 
   const filtered = useMemo(() => {
     const q = normalizeSearchText(query.trim());
@@ -204,9 +205,14 @@ export default function LegalMemoPrompts({ onBack }: { onBack?: () => void }) {
         </div>
       </div>
 
-      <div className="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 text-xs leading-6 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-        <strong>إخلاء مسؤولية:</strong> هذه المكتبة أداة مساعدة لإعداد المسودات وليست بديلًا عن التقدير المهني أو مراجعة ملف القضية. قد تتضمن المخرجات أخطاء أو نقصًا أو معلومات غير محدثة؛ يجب التحقق مستقلًا من الوقائع والنصوص والآجال والاجتهادات قبل اعتماد أي وثيقة. لا يضمن مطوّر التطبيق خلوّ النتائج من الأخطاء، ولا يتحمل المسؤولية عن الاعتماد عليها دون مراجعة مهنية، في الحدود التي يسمح بها القانون.
-      </div>
+      {showDisclaimer && (
+        <div className="relative mt-5 rounded-xl border border-amber-300 bg-amber-50 p-3 pl-10 text-xs leading-5 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+          <button type="button" onClick={() => setShowDisclaimer(false)} aria-label="إغلاق إخلاء المسؤولية" title="إغلاق" className="absolute left-2 top-2 rounded-md p-1 hover:bg-amber-100 dark:hover:bg-amber-900">
+            <span aria-hidden="true" className="text-lg leading-none">×</span>
+          </button>
+          <strong>تنبيه:</strong> النماذج إرشادية وقد تتضمن أخطاء؛ راجع ملف القضية والنصوص الرسمية قبل اعتماد أي مسودة.
+        </div>
+      )}
     </section>
   );
 }
