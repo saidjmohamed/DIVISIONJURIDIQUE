@@ -21,6 +21,7 @@ const PlatformUpdates = dynamic(() => import('@/components/PlatformUpdates'), { 
 
 export default function HomePage() {
   const [showWelcome, setShowWelcome] = useState(true);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
   const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'platform-updates' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -53,11 +54,16 @@ export default function HomePage() {
           <div className="flex items-center gap-2"><VisitorCounter /><button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 rounded-xl bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all">{theme === 'dark' ? '☀️' : '🌙'}</button></div>
         </div></div>
       </nav>
-      <div role="note" className="mx-auto mt-3 max-w-7xl px-3 sm:px-6 lg:px-8 w-full">
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-xs sm:text-sm leading-6 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
-          <strong>تنبيه وإخلاء مسؤولية:</strong> منصة «الشامل» أداة معلوماتية مساعدة فقط، ولا تُعدّ مصدرًا رسميًا أو بديلًا عن التحقق من المصادر الرسمية أو التقدير المهني. قد تتضمن البيانات أو الحسابات أو نتائج البحث أو المخرجات الآلية أخطاءً أو نقصًا أو معلومات غير محدثة. يتحمل المستخدم مسؤولية التحقق المستقل قبل اتخاذ أي إجراء أو اعتماد أي وثيقة. ولا يضمن مطوّر التطبيق صحة جميع النتائج أو خلوّها من الأخطاء، ولا يتحمل تبعات الاعتماد عليها دون تحقق مستقل، في الحدود التي يسمح بها القانون، دون استبعاد أي مسؤولية لا يجوز قانونًا استبعادها.
+      {showDisclaimer && (
+        <div role="note" className="mx-auto mt-3 max-w-7xl px-3 sm:px-6 lg:px-8 w-full">
+          <div className="relative rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 pl-10 text-xs sm:text-sm leading-6 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100">
+            <button type="button" onClick={() => setShowDisclaimer(false)} aria-label="إغلاق التنبيه" title="إغلاق" className="absolute left-2 top-2 rounded-md p-1 text-amber-800 hover:bg-amber-200 dark:text-amber-200 dark:hover:bg-amber-900">
+              <span aria-hidden="true" className="text-lg leading-none">×</span>
+            </button>
+            <strong>تنبيه:</strong> «الشامل» أداة مساعدة وليست مصدرًا رسميًا. تحقّق من النصوص والمعلومات من مصادرها الرسمية قبل الاعتماد عليها؛ فقد تتضمن النتائج أخطاء أو نقصًا.
+          </div>
         </div>
-      </div>
+      )}
       <main className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 pb-24 flex-grow w-full pt-6">
         <div className="sticky top-[64px] z-40 mb-6"><ModernTabs tabs={modernTabsData} activeTab={activeTab} onTabChange={(tabId) => setActiveTab(tabId as typeof activeTab)} variant="default" /></div>
         <div className="bg-white dark:bg-[#1e293b] rounded-2xl sm:rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 p-3 sm:p-10 min-h-[400px]">
@@ -73,7 +79,7 @@ export default function HomePage() {
         </div>
       </main>
       <AiAssistant /><ShareBubble /><DeveloperInfo />
-      <footer className="bg-white dark:bg-[#0f172a] border-t border-gray-200 dark:border-gray-800 py-6 mt-auto"><div className="max-w-7xl mx-auto px-4 text-center"><p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-sm">جميع الحقوق محفوظة © {new Date().getFullYear()} - الأستاذ سايج محمد</p><p className="text-amber-600 dark:text-amber-500 text-[8px] sm:text-xs mt-1 font-bold">صدقة جارية لروح الوالد سايج عبد النور رحمه الله</p><p className="mx-auto mt-3 max-w-4xl text-[10px] sm:text-xs leading-6 text-gray-500 dark:text-gray-400">«الشامل» أداة مساعدة ولا يضمن مطوّرها خلوّ المحتوى من الأخطاء أو اكتماله أو تحديثه. يجب التحقق من المعلومات والنصوص والمواعيد من مصادرها الرسمية قبل الاعتماد عليها. لا يقصد بهذا التنبيه استبعاد أي مسؤولية لا يجوز قانونًا استبعادها.</p></div></footer>
+      <footer className="bg-white dark:bg-[#0f172a] border-t border-gray-200 dark:border-gray-800 py-6 mt-auto"><div className="max-w-7xl mx-auto px-4 text-center"><p className="text-gray-500 dark:text-gray-400 text-[10px] sm:text-sm">جميع الحقوق محفوظة © {new Date().getFullYear()} - الأستاذ سايج محمد</p><p className="text-amber-600 dark:text-amber-500 text-[8px] sm:text-xs mt-1 font-bold">صدقة جارية لروح الوالد سايج عبد النور رحمه الله</p><p className="mx-auto mt-3 max-w-4xl text-[10px] sm:text-xs leading-5 text-gray-500 dark:text-gray-400">«الشامل» أداة مساعدة؛ يرجى التحقق من المعلومات من مصادرها الرسمية قبل الاعتماد عليها.</p></div></footer>
       <style jsx global>{`.no-scrollbar::-webkit-scrollbar{display:none}.no-scrollbar{-ms-overflow-style:none;scrollbar-width:none}input,button{touch-action:manipulation}[dir="rtl"] .border-blue-100.bg-blue-50.p-5>div:first-child>div:first-child>p.mt-2.text-sm.leading-7{font-size:0;line-height:1.9rem}[dir="rtl"] .border-blue-100.bg-blue-50.p-5>div:first-child>div:first-child>p.mt-2.text-sm.leading-7::after{content:"🤝 هذا العمل مبادرة جماعية من الزملاء المحامين، هدفها تسهيل الوصول إلى أرقام مندوبيات المحامين ومعلومات الهيئات القضائية عبر مختلف أنحاء الوطن. 🎯 هدفنا الأساسي هو الحفاظ على أرقام مندوبيات المحامين مُحدّثة ودقيقة، حتى يستفيد منها جميع الزملاء عند الحاجة. 📱 إذا كان لديك رقم غير موجود، أو لاحظت رقمًا خاطئًا أو تغيّر رقمًا سابقًا، يمكنك التواصل معنا للمساهمة في تحديث الدليل وإثرائه. ساهم بمعلومة صحيحة، ليستفيد منها الجميع. 🤝";font-size:14px;line-height:1.9rem;display:block;color:inherit}`}</style>
     </div>
   );
