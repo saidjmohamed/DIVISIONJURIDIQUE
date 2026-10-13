@@ -10,6 +10,7 @@ interface WelcomeScreenProps {
 export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [showDisclaimer, setShowDisclaimer] = useState(true);
 
   useEffect(() => {
     window.addEventListener('beforeinstallprompt', (e) => {
@@ -226,11 +227,16 @@ export default function WelcomeScreen({ onStart }: WelcomeScreenProps) {
         </motion.div>
       </div>
 
-      <div className="max-w-4xl mx-auto mb-10 px-4">
-        <div role="note" className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm leading-7 text-amber-100">
-          <strong>تنبيه وإخلاء مسؤولية:</strong> «الشامل» أداة مساعدة للوصول إلى المعلومات وتنظيم العمل، وليس مصدرًا رسميًا ولا بديلًا عن المراجعة المهنية. قد تتضمن نتائجه أخطاء أو نقصًا أو معلومات غير محدثة. يجب التحقق من المصادر الرسمية قبل الاعتماد على أي معلومة أو اتخاذ إجراء. لا يضمن مطوّر التطبيق صحة جميع المخرجات ولا يتحمل تبعات الاعتماد عليها دون تحقق مستقل، في الحدود التي يسمح بها القانون.
+      {showDisclaimer && (
+        <div className="max-w-4xl mx-auto mb-10 px-4">
+          <div role="note" className="relative rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 pl-10 text-sm leading-6 text-amber-100">
+            <button type="button" onClick={() => setShowDisclaimer(false)} aria-label="إغلاق التنبيه" title="إغلاق" className="absolute left-2 top-2 rounded-md p-1 text-amber-200 hover:bg-white/10">
+              <span aria-hidden="true" className="text-lg leading-none">×</span>
+            </button>
+            <strong>تنبيه:</strong> «الشامل» أداة مساعدة وليست مصدرًا رسميًا؛ تحقّق من المعلومات من مصادرها الرسمية قبل الاعتماد عليها.
+          </div>
         </div>
-      </div>
+      )}
       {/* Footer */}
       <footer className="py-10 border-t border-white/5 text-center text-gray-500 text-xs font-medium">
         <p>© {new Date().getFullYear()} الشامل القانوني - جميع الحقوق محفوظة للأستاذ سايج محمد (أبو جواد)</p>
