@@ -375,8 +375,8 @@ function PdfCompressTool() {
 
 
 // ===== Local PDF utilities =====
-const PDF_LIMIT_BYTES = 5_000_000; // Strict decimal 5 MB upload cap
-const PDF_SAFE_TARGET_BYTES = Math.floor(PDF_LIMIT_BYTES * 0.96);
+const PDF_LIMIT_BYTES = 4_900_000; // Keep every size-split result below the platform's 5 MB cap
+const PDF_SAFE_TARGET_BYTES = 4_800_000; // Preferred target with additional safety margin
 type PdfToolMode = 'compress' | 'merge' | 'split-pages' | 'split-size' | 'extract' | 'rotate';
 interface PdfOutput { name: string; blob: Blob; size: number; }
 
