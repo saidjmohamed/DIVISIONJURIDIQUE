@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, degrees as pdfDegrees } from 'pdf-lib';
 import EstablishmentDeclaration from './EstablishmentDeclaration';
 
 
@@ -372,6 +372,270 @@ function PdfCompressTool() {
   );
 }
 
+
+
+// ===== Local PDF utilities =====
+const PDF_LIMIT_BYTES = 5 * 1024 * 1024;
+const PDF_SAFE_TARGET_BYTES = Math.floor(PDF_LIMIT_BYTES * 0.96);
+type PdfToolMode = 'compress' | 'merge' | 'split-pages' | 'split-size' | 'extract' | 'rotate';
+interface PdfOutput { name: string; blob: Blob; size: number; }
+
+function downloadBlob(blob: Blob, name: string) {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function parsePageSelection(value: string, totalPages: number): number[] {
+  const indexes = new Set<number>();
+  for (const raw of value.split(',')) {
+    const part = raw.trim();
+    if (!part) continue;
+    const match = part.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (match) {
+      const start = Number(match[1]);
+      const end = Number(match[2]);
+      if (start < 1 || end < start || end > totalPages) throw new Error('النطاق ' + part + ' غير صحيح. عدد الصفحات ' + totalPages + '.');
+      for (let page = start; page <= end; page++) indexes.add(page - 1);
+    } else {
+      const page = Number(part);
+      if (!Number.isInteger(page) || page < 1 || page > totalPages) throw new Error('رقم الصفحة «' + part + '» غير صحيح. عدد الصفحات ' + totalPages + '.');
+      indexes.add(page - 1);
+    }
+  }
+  return [...indexes].sort((a, b) => a - b);
+}
+
+function PdfToolsSuite() {
+  const [mode, setMode] = useState<PdfToolMode>('compress');
+  const [files, setFiles] = useState<File[]>([]);
+  const [outputs, setOutputs] = useState<PdfOutput[]>([]);
+  const [pagesPerPart, setPagesPerPart] = useState('10');
+  const [pageSelection, setPageSelection] = useState('1-3');
+  const [rotation, setRotation] = useState('90');
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
+  const [error, setError] = useState('');
+
+  const modeOptions: { id: PdfToolMode; label: string; icon: string }[] = [
+    { id: 'compress', label: 'ضغط وتحسين', icon: '🗜️' },
+    { id: 'merge', label: 'دمج ملفات', icon: '🔗' },
+    { id: 'split-pages', label: 'تقسيم بالصفحات', icon: '✂️' },
+    { id: 'split-size', label: 'تقسيم إلى 5MB', icon: '📦' },
+    { id: 'extract', label: 'استخراج صفحات', icon: '📑' },
+    { id: 'rotate', label: 'تدوير الصفحات', icon: '🔄' },
+  ];
+
+  const chooseFiles = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const chosen = Array.from(event.target.files || []).filter(file => file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf');
+    setFiles(chosen);
+    setOutputs([]);
+    setError('');
+    setProgress('');
+    event.target.value = '';
+  };
+
+  const saveOutput = (name: string, bytes: Uint8Array): PdfOutput => ({
+    name,
+    blob: new Blob([bytes as BlobPart], { type: 'application/pdf' }),
+    size: bytes.byteLength,
+  });
+
+  const runTool = async () => {
+    setError('');
+    setOutputs([]);
+    setProgress('');
+    if (!files.length) { setError('اختر ملف PDF واحدًا على الأقل.'); return; }
+    if (files.some(file => file.size > 100 * 1024 * 1024)) { setError('يوجد ملف يتجاوز 100 ميغابايت؛ قسّمه أو قلّل حجمه قبل المعالجة.'); return; }
+    setBusy(true);
+    try {
+      const results: PdfOutput[] = [];
+      if (mode === 'merge') {
+        if (files.length < 2) throw new Error('اختر ملفين PDF على الأقل لدمجهما.');
+        const merged = await PDFDocument.create();
+        for (let i = 0; i < files.length; i++) {
+          setProgress('دمج الملف ' + (i + 1) + ' من ' + files.length + '…');
+          const source = await PDFDocument.load(await files[i].arrayBuffer());
+          const pages = await merged.copyPages(source, source.getPageIndices());
+          pages.forEach(page => merged.addPage(page));
+        }
+        const bytes = await merged.save({ useObjectStreams: true });
+        results.push(saveOutput('الملف المدمج.pdf', bytes));
+        if (bytes.byteLength > PDF_LIMIT_BYTES) setProgress('اكتمل الدمج، لكن الملف المدمج يتجاوز 5 ميغابايت؛ استخدم «تقسيم إلى 5MB».');
+      } else if (mode === 'split-size') {
+        if (files.length !== 1) throw new Error('اختر ملف PDF واحدًا في كل مرة لتقسيمه إلى أجزاء لا تتجاوز 5 ميغابايت.');
+        const file = files[0];
+        const source = await PDFDocument.load(await file.arrayBuffer());
+        const total = source.getPageCount();
+        let chunk: number[] = [];
+        let part = 1;
+        for (let index = 0; index < total; index++) {
+          setProgress('فحص الصفحة ' + (index + 1) + ' من ' + total + ' لتحديد حدود الأجزاء…');
+          const trialIndexes = [...chunk, index];
+          const trial = await PDFDocument.create();
+          const trialPages = await trial.copyPages(source, trialIndexes);
+          trialPages.forEach(page => trial.addPage(page));
+          const trialBytes = await trial.save({ useObjectStreams: true });
+          if (trialBytes.byteLength <= PDF_SAFE_TARGET_BYTES) {
+            chunk = trialIndexes;
+            continue;
+          }
+          if (chunk.length === 0) throw new Error('الصفحة ' + (index + 1) + ' وحدها تتجاوز حد 5 ميغابايت. جرّب ضغط الملف أولًا؛ لا يمكن ضمان تقليل حجم صفحة كبيرة دون إعادة تحويلها إلى صورة.');
+          const finished = await PDFDocument.create();
+          const finishedPages = await finished.copyPages(source, chunk);
+          finishedPages.forEach(page => finished.addPage(page));
+          const finishedBytes = await finished.save({ useObjectStreams: true });
+          if (finishedBytes.byteLength > PDF_LIMIT_BYTES) throw new Error('تعذر ضمان حد 5 ميغابايت لأحد الأجزاء؛ أعد المحاولة بعد الضغط.');
+          results.push(saveOutput(file.name.replace(/\.pdf$/i, '') + ' - الجزء ' + part + '.pdf', finishedBytes));
+          part++;
+          chunk = [index];
+          const single = await PDFDocument.create();
+          const singlePages = await single.copyPages(source, chunk);
+          singlePages.forEach(page => single.addPage(page));
+          const singleBytes = await single.save({ useObjectStreams: true });
+          if (singleBytes.byteLength > PDF_LIMIT_BYTES) throw new Error('الصفحة ' + (index + 1) + ' وحدها تتجاوز حد 5 ميغابايت. اضغط الملف أولًا ثم أعد التقسيم.');
+        }
+        if (chunk.length) {
+          const last = await PDFDocument.create();
+          const lastPages = await last.copyPages(source, chunk);
+          lastPages.forEach(page => last.addPage(page));
+          const lastBytes = await last.save({ useObjectStreams: true });
+          if (lastBytes.byteLength > PDF_LIMIT_BYTES) throw new Error('تجاوز الجزء الأخير 5 ميغابايت؛ اضغط الملف ثم أعد التقسيم.');
+          results.push(saveOutput(file.name.replace(/\.pdf$/i, '') + ' - الجزء ' + part + '.pdf', lastBytes));
+        }
+        setProgress('اكتمل التقسيم إلى ' + results.length + ' أجزاء. تم التحقق من أن حجم كل جزء لا يتجاوز 5 ميغابايت.');
+      } else if (mode === 'split-pages') {
+        const perPart = Number(pagesPerPart);
+        if (!Number.isInteger(perPart) || perPart < 1) throw new Error('أدخل عدد صفحات صحيحًا لكل جزء.');
+        if (files.length !== 1) throw new Error('اختر ملف PDF واحدًا لتقسيمه حسب عدد الصفحات.');
+        const file = files[0];
+        const source = await PDFDocument.load(await file.arrayBuffer());
+        const total = source.getPageCount();
+        let part = 1;
+        for (let start = 0; start < total; start += perPart) {
+          const indexes = Array.from({ length: Math.min(perPart, total - start) }, (_, offset) => start + offset);
+          const piece = await PDFDocument.create();
+          const pages = await piece.copyPages(source, indexes);
+          pages.forEach(page => piece.addPage(page));
+          const bytes = await piece.save({ useObjectStreams: true });
+          results.push(saveOutput(file.name.replace(/\.pdf$/i, '') + ' - الجزء ' + part + '.pdf', bytes));
+          part++;
+        }
+        setProgress('اكتمل التقسيم إلى ' + results.length + ' أجزاء حسب عدد الصفحات. إذا تجاوز أي جزء 5 ميغابايت، استخدم «تقسيم إلى 5MB».');
+      } else if (mode === 'extract') {
+        if (files.length !== 1) throw new Error('اختر ملف PDF واحدًا لاستخراج الصفحات منه.');
+        const file = files[0];
+        const source = await PDFDocument.load(await file.arrayBuffer());
+        const indexes = parsePageSelection(pageSelection, source.getPageCount());
+        if (!indexes.length) throw new Error('أدخل أرقام الصفحات المراد استخراجها.');
+        const extracted = await PDFDocument.create();
+        const pages = await extracted.copyPages(source, indexes);
+        pages.forEach(page => extracted.addPage(page));
+        results.push(saveOutput(file.name.replace(/\.pdf$/i, '') + ' - صفحات مستخرجة.pdf', await extracted.save({ useObjectStreams: true })));
+      } else if (mode === 'rotate') {
+        const angle = Number(rotation);
+        if (![90, 180, 270].includes(angle)) throw new Error('اختر زاوية 90 أو 180 أو 270 درجة.');
+        for (const file of files) {
+          setProgress('تدوير ' + file.name + '…');
+          const doc = await PDFDocument.load(await file.arrayBuffer());
+          doc.getPages().forEach(page => page.setRotation(pdfDegrees((page.getRotation().angle + angle) % 360)));
+          results.push(saveOutput(file.name.replace(/\.pdf$/i, '') + ' - مدوّر.pdf', await doc.save({ useObjectStreams: true })));
+        }
+      }
+      setOutputs(results);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'تعذرت معالجة الملف. تأكد من أنه PDF صالح وغير محمي بكلمة مرور.');
+    } finally {
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  const downloadZip = async () => {
+    const zipModule = await import('jszip');
+    const archive = new zipModule.default();
+    outputs.forEach(output => archive.file(output.name, output.blob));
+    const blob = await archive.generateAsync({ type: 'blob' });
+    downloadBlob(blob, 'أدوات-PDF-النتائج.zip');
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className="rounded-2xl border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 p-4">
+        <div className="flex items-start gap-3">
+          <span className="text-2xl">⚖️</span>
+          <div>
+            <h3 className="font-black text-amber-950 dark:text-amber-100">تجهيز ملفات منصة التقاضي الإلكتروني</h3>
+            <p className="mt-1 text-sm leading-6 text-amber-900 dark:text-amber-200">الحد المطلوب: <strong>5 ميغابايت كحد أقصى لكل ملف</strong>. التقسيم حسب الحجم يستهدف أقل من 5MB ويُراجع حجم كل جزء بعد إنشائه.</p>
+            <p className="mt-1 text-xs leading-5 text-amber-800 dark:text-amber-300">تتم المعالجة محليًا داخل المتصفح؛ لا تُرفع ملفاتك إلى خادم الشامل. قد يتعذر تصغير صفحة منفردة كبيرة إلى أقل من 5MB دون تحويلها إلى صورة.</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {modeOptions.map(option => (
+          <button key={option.id} type="button" onClick={() => { setMode(option.id); setOutputs([]); setError(''); setProgress(''); }}
+            className={'rounded-xl border p-3 text-sm font-bold transition-all ' + (mode === option.id ? 'border-[#1a3a5c] bg-[#1a3a5c] text-white shadow' : 'border-gray-200 bg-white text-gray-700 hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200')}>
+            <span className="block text-xl mb-1">{option.icon}</span>{option.label}
+          </button>
+        ))}
+      </div>
+
+      {mode === 'compress' ? (
+        <PdfCompressTool />
+      ) : (
+        <>
+          <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 p-4 space-y-3">
+            <label className="block text-sm font-bold text-gray-800 dark:text-gray-100">اختيار ملفات PDF</label>
+            <input type="file" accept="application/pdf,.pdf" multiple={mode === 'merge' || mode === 'rotate'} onChange={chooseFiles}
+              className="block w-full rounded-xl border border-dashed border-gray-300 p-3 text-sm dark:border-gray-600 dark:text-gray-100" />
+            <p className="text-xs text-gray-500 dark:text-gray-400">الحد الأقصى للملف المدخل 100 ميغابايت. الملفات تبقى على جهازك.</p>
+            {files.length > 0 && <div className="space-y-1">{files.map((file, index) => <div key={file.name + '-' + index} className="flex justify-between gap-3 rounded-lg bg-gray-50 dark:bg-gray-900/60 px-3 py-2 text-xs"><span className="truncate">{index + 1}. {file.name}</span><span className="shrink-0">{formatFileSize(file.size)}</span></div>)}</div>}
+          </div>
+
+          {mode === 'split-pages' && <label className="block text-sm font-bold">عدد الصفحات في كل جزء
+            <input type="number" min="1" max="10000" value={pagesPerPart} onChange={e => setPagesPerPart(e.target.value)} className="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-3 dark:border-gray-600 dark:bg-gray-800" />
+          </label>}
+          {mode === 'extract' && <label className="block text-sm font-bold">الصفحات المطلوبة (مثال: 1-3,5,8-10)
+            <input value={pageSelection} onChange={e => setPageSelection(e.target.value)} className="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-3 dark:border-gray-600 dark:bg-gray-800" />
+          </label>}
+          {mode === 'rotate' && <label className="block text-sm font-bold">زاوية التدوير
+            <select value={rotation} onChange={e => setRotation(e.target.value)} className="mt-2 block w-full rounded-xl border border-gray-300 bg-white p-3 dark:border-gray-600 dark:bg-gray-800"><option value="90">90 درجة</option><option value="180">180 درجة</option><option value="270">270 درجة</option></select>
+          </label>}
+          {mode === 'split-size' && <div className="rounded-xl bg-blue-50 p-3 text-sm leading-6 text-blue-900 dark:bg-blue-950/30 dark:text-blue-200">سيُنشأ كل جزء باسم «اسم الملف - الجزء 1.pdf»، «اسم الملف - الجزء 2.pdf» وهكذا. يتم تنزيل كل جزء منفردًا أو جمعها في ملف ZIP واحد.</div>}
+          {mode === 'merge' && <p className="text-xs leading-5 text-gray-500">سيُدمج الملفّان أو أكثر بالترتيب الظاهر في قائمة الاختيار. إذا تجاوز الناتج 5MB فقسّمه بعد الدمج.</p>}
+
+          <button type="button" disabled={busy || files.length === 0} onClick={runTool} className="w-full rounded-xl bg-[#1a3a5c] px-4 py-3 font-bold text-white transition hover:bg-[#244a70] disabled:cursor-not-allowed disabled:opacity-50">
+            {busy ? 'جارٍ التنفيذ…' : mode === 'merge' ? 'دمج الملفات' : mode === 'split-size' ? 'تقسيم إلى أجزاء لا تتجاوز 5MB' : mode === 'split-pages' ? 'تقسيم حسب عدد الصفحات' : mode === 'extract' ? 'استخراج الصفحات' : 'تدوير ملفات PDF'}
+          </button>
+          {busy && <p role="status" className="text-center text-sm text-blue-700 dark:text-blue-300">{progress || 'جارٍ تجهيز الملفات…'}</p>}
+        </>
+      )}
+
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">{error}</div>}
+      {outputs.length > 0 && (
+        <div className="space-y-3 rounded-2xl border border-green-200 bg-green-50/70 p-4 dark:border-green-900 dark:bg-green-950/20">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div><h4 className="font-black text-green-900 dark:text-green-200">اكتملت المعالجة — {outputs.length} ملف</h4><p className="text-xs text-green-800 dark:text-green-300">يمكنك تنزيل كل ملف أو تنزيل النتائج كلها في ZIP.</p></div>
+            {outputs.length > 1 && <button type="button" onClick={downloadZip} className="rounded-lg bg-green-700 px-3 py-2 text-xs font-bold text-white">تحميل الكل ZIP</button>}
+          </div>
+          <div className="space-y-2">{outputs.map((output, index) => (
+            <div key={output.name + '-' + index} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3 dark:bg-gray-800">
+              <div className="min-w-0"><p className="truncate text-sm font-bold text-gray-800 dark:text-gray-100">{output.name}</p><p className={'text-xs ' + (output.size > PDF_LIMIT_BYTES ? 'text-red-600 font-bold' : 'text-green-700 dark:text-green-300')}>{formatFileSize(output.size)}{mode === 'split-size' ? (output.size <= PDF_LIMIT_BYTES ? ' ✓ ضمن حد 5MB' : ' ⚠ يتجاوز 5MB') : ''}</p></div>
+              <button type="button" onClick={() => downloadBlob(output.blob, output.name)} className="shrink-0 rounded-lg bg-[#1a3a5c] px-3 py-2 text-xs font-bold text-white">تنزيل</button>
+            </div>
+          ))}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===== Main =====
 export default function ElectronicLitigationTab() {
   const [activeSection, setActiveSection] = useState<'platforms' | 'tools' | 'tasis'>('platforms');
@@ -382,7 +646,7 @@ export default function ElectronicLitigationTab() {
         <button onClick={() => setActiveSection('platforms')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'platforms' ? 'bg-emerald-600 text-white shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>🏛️ منصات التقاضي</button>
 
         <button onClick={() => setActiveSection('tasis')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tasis' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>📋 إعلان تأسيس</button>
-        <button onClick={() => setActiveSection('tools')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tools' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>📄 ضغط PDF</button>
+        <button onClick={() => setActiveSection('tools')} className={`flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm ${activeSection === 'tools' ? 'bg-[#1a3a5c] dark:bg-[#f0c040] text-white dark:text-[#1a3a5c] shadow-lg' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'}`}>🧰 أدوات PDF محلية</button>
       </div>
 
       {activeSection === 'platforms' ? (
@@ -411,7 +675,7 @@ export default function ElectronicLitigationTab() {
       ) : activeSection === 'tasis' ? (
         <EstablishmentDeclaration onBack={() => setActiveSection('platforms')} />
       ) : (
-        <PdfCompressTool />
+        <PdfToolsSuite />
       )}
     </div>
   );
