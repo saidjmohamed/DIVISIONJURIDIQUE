@@ -485,7 +485,13 @@ function PdfToolsSuite() {
             chunk = trialIndexes;
             continue;
           }
-          if (chunk.length === 0) throw new Error('الصفحة ' + (index + 1) + ' وحدها تتجاوز حد 5 ميغابايت. جرّب ضغط الملف أولًا؛ لا يمكن ضمان تقليل حجم صفحة كبيرة دون إعادة تحويلها إلى صورة.');
+          if (chunk.length === 0) {
+            if (trialBytes.byteLength <= PDF_LIMIT_BYTES) {
+              chunk = trialIndexes;
+              continue;
+            }
+            throw new Error('الصفحة ' + (index + 1) + ' وحدها تتجاوز حد 5 ميغابايت. جرّب ضغط الملف أولًا؛ لا يمكن ضمان تقليل حجم صفحة كبيرة دون إعادة تحويلها إلى صورة.');
+          }
           const finished = await PDFDocument.create();
           const finishedPages = await finished.copyPages(source, chunk);
           finishedPages.forEach(page => finished.addPage(page));
