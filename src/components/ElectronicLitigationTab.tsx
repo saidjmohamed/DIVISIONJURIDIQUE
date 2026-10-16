@@ -375,7 +375,7 @@ function PdfCompressTool() {
 
 
 // ===== Local PDF utilities =====
-const PDF_LIMIT_BYTES = 5 * 1024 * 1024;
+const PDF_LIMIT_BYTES = 5_000_000; // Strict decimal 5 MB upload cap
 const PDF_SAFE_TARGET_BYTES = Math.floor(PDF_LIMIT_BYTES * 0.96);
 type PdfToolMode = 'compress' | 'merge' | 'split-pages' | 'split-size' | 'extract' | 'rotate';
 interface PdfOutput { name: string; blob: Blob; size: number; }
@@ -593,7 +593,12 @@ function PdfToolsSuite() {
       </div>
 
       {mode === 'compress' ? (
-        <PdfCompressTool />
+        <div className="space-y-3">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs leading-6 text-blue-900 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-200">
+            الضغط قد يقلّل الحجم لكنه لا يضمن وحده الوصول إلى 5 ميغابايت. لضمان حجم كل ملف ضمن الحد، استخدم «تقسيم إلى 5MB». الضغط الشديد قد يحوّل الصفحات إلى صور ويجعل النص غير قابل للبحث أو النسخ؛ احتفظ بالنسخة الأصلية.
+          </div>
+          <PdfCompressTool />
+        </div>
       ) : (
         <>
           <div className="rounded-2xl border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800 p-4 space-y-3">
