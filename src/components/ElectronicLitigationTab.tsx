@@ -9,7 +9,7 @@ import EstablishmentDeclaration from './EstablishmentDeclaration';
 // Dynamic import for pdfjs-dist — avoids SSR/canvas issues on server
 async function loadPdfjs() {
   const pdfjsLib = await import('pdfjs-dist');
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+  pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url).toString();
   return pdfjsLib;
 }
 
