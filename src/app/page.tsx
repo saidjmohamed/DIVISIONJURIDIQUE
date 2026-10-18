@@ -25,12 +25,9 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'judicial-info' | 'judicial' | 'search' | 'platform-updates' | 'e-litigation' | 'lawyer-tools'>('judicial-info');
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const tabsScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMounted(true); const hasVisited = sessionStorage.getItem('hasVisited'); if (hasVisited) setShowWelcome(false); }, []);
   const handleStart = () => { setShowWelcome(false); sessionStorage.setItem('hasVisited', 'true'); };
-  useEffect(() => { if (mounted && !showWelcome) { const timer = setTimeout(() => window.scrollTo({ top: 0, behavior: 'instant' }), 100); return () => clearTimeout(timer); } }, [activeTab, mounted, showWelcome]);
-  useEffect(() => { if (tabsScrollRef.current) { const activeBtn = tabsScrollRef.current.querySelector('[data-active="true"]') as HTMLElement; if (activeBtn) activeBtn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } }, [activeTab]);
 
   const tabs = useMemo(() => [
     { id: 'judicial-info', label: 'دليل الهيئات والمندوبيات', icon: '📞', description: 'الدليل الرئيسي لأرقام مندوبيات المحامين ومعلومات الهيئات القضائية، بمساهمة الزملاء وتحديثاتهم.' },
