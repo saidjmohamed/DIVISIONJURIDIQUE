@@ -58,12 +58,6 @@ const ModernTabs: React.FC<ModernTabsProps> = ({
           left: activeButton.offsetLeft
         })
 
-        // Auto-scroll active tab into view
-        activeButton.scrollIntoView({
-          behavior: 'smooth',
-          block: 'nearest',
-          inline: 'center'
-        })
       }
     }
 
