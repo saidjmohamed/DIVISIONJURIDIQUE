@@ -205,7 +205,7 @@ function PdfCompressTool() {
     onDragLeave: () => setIsDragging(false),
     onDropRejected: () => setIsDragging(false),
     accept: { 'application/pdf': ['.pdf'] },
-    maxSize: 100 * 1024 * 1024,
+    maxSize: 250 * 1024 * 1024,
     multiple: true,
   });
 
@@ -273,7 +273,7 @@ function PdfCompressTool() {
           <div className={`w-16 h-16 rounded-full flex items-center justify-center text-4xl mb-3 ${isDragging ? 'bg-[#1a3a5c]/10 dark:bg-[#f0c040]/10' : 'bg-gray-100 dark:bg-gray-800'}`}>{isDragging ? '📥' : '📁'}</div>
           <h3 className={`text-base font-bold mb-1 ${isDragging ? 'text-[#1a3a5c] dark:text-[#f0c040]' : 'text-gray-700 dark:text-gray-200'}`}>{isDragging ? 'أفلت الملفات هنا' : 'اسحب ملفات PDF وأفلتها هنا'}</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">أو اضغط لاختيار الملفات — يدعم ملفات متعددة</p>
-          <div className="flex items-center gap-3 text-[10px] text-gray-400"><span>PDF فقط</span><span>•</span><span>الحد الأقصى 100MB</span><span>•</span><span>⚡ معالجة فورية في المتصفح</span></div>
+          <div className="flex items-center gap-3 text-[10px] text-gray-400"><span>PDF فقط</span><span>•</span><span>الحد الأقصى 250MB</span><span>•</span><span>⚡ معالجة فورية في المتصفح</span></div>
         </div>
       </div>
 
@@ -451,7 +451,7 @@ function PdfToolsSuite() {
     setOutputs([]);
     setProgress('');
     if (!files.length) { setError('اختر ملف PDF واحدًا على الأقل.'); return; }
-    if (files.some(file => file.size > 100 * 1024 * 1024)) { setError('يوجد ملف يتجاوز 100 ميغابايت؛ قسّمه أو قلّل حجمه قبل المعالجة.'); return; }
+    if (files.some(file => file.size > 250 * 1024 * 1024)) { setError('يوجد ملف يتجاوز 250 ميغابايت؛ قسّمه أو قلّل حجمه قبل المعالجة.'); return; }
     setBusy(true);
     try {
       const results: PdfOutput[] = [];
