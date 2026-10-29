@@ -36,7 +36,7 @@ function inferCategory(law) {
   return CATEGORY_RULES.find(([, pattern]) => pattern.test(haystack))?.[0] || 'أخرى';
 }
 function safeName(value) {
-  return String(value).replace(/[^\\p{L}\\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 100) || 'law';
+  return String(value).replace(/[^\p{L}\p{N}_-]+/gu, '_').replace(/^_+|_+$/g, '').slice(0, 100) || 'law';
 }
 function normalizeArticles(data) {
   const source = Array.isArray(data) ? data : Array.isArray(data?.articles) ? data.articles : [];
@@ -62,7 +62,7 @@ function toMarkdown(law, articles) {
     if (article.article_title) lines.push(`### ${article.article_title}`, '');
     lines.push(article.article_text, '', '---', '');
   }
-  return lines.join('\\n');
+  return lines.join('\n');
 }
 
 await mkdir(OUTPUT, { recursive: true });
