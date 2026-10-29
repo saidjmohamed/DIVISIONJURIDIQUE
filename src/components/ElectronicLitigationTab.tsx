@@ -605,7 +605,7 @@ function PdfToolsSuite() {
             <label className="block text-sm font-bold text-gray-800 dark:text-gray-100">اختيار ملفات PDF</label>
             <input type="file" accept="application/pdf,.pdf" multiple={mode === 'merge' || mode === 'rotate'} onChange={chooseFiles}
               className="block w-full rounded-xl border border-dashed border-gray-300 p-3 text-sm dark:border-gray-600 dark:text-gray-100" />
-            <p className="text-xs text-gray-500 dark:text-gray-400">الحد الأقصى للملف المدخل 100 ميغابايت. الملفات تبقى على جهازك.</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">الحد الأقصى للملف المدخل 250 ميغابايت. الملفات تبقى على جهازك.</p>
             {files.length > 0 && <div className="space-y-1">{files.map((file, index) => <div key={file.name + '-' + index} className="flex justify-between gap-3 rounded-lg bg-gray-50 dark:bg-gray-900/60 px-3 py-2 text-xs"><span className="truncate">{index + 1}. {file.name}</span><span className="shrink-0">{formatFileSize(file.size)}</span></div>)}</div>}
           </div>
 
