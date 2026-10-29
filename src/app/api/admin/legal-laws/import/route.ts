@@ -7,7 +7,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://kgsmunxqctpptxljizmy.s
 const SUPABASE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || '';
 
 export async function POST(request: Request) {
-  const token = request.headers.get('cookie')?.match(/(?:^|;\\s*)dj_admin=([^;]+)/)?.[1] || '';
+  const token = request.headers.get('cookie')?.match(/(?:^|;\s*)dj_admin=([^;]+)/)?.[1] || '';
   if (!token) return NextResponse.json({ error: 'يلزم تسجيل دخول المدير' }, { status: 401 });
   if (!SUPABASE_KEY) return NextResponse.json({ error: 'إعداد الاتصال بقاعدة البيانات غير مكتمل' }, { status: 503 });
 
