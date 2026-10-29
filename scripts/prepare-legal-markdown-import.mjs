@@ -52,8 +52,8 @@ function normalizeArticles(data) {
     }));
 }
 function toMarkdown(law, articles) {
-  const lines = [`# ${law.name}`, ''];
-  if (law.number) lines.push(`**رقم النص:** ${law.number}`, '');
+  const lines = [`# ${law.title}`, ''];
+  if (law.law_number) lines.push(`**رقم النص:** ${law.law_number}`, '');
   lines.push('---', '');
   for (const article of articles) {
     lines.push(`## المادة ${article.article_number}`, `<!-- article-order: ${article.article_order} -->`, '');
